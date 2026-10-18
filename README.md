@@ -358,6 +358,8 @@ Chardsoft Router OS is **open source** under the [Apache License 2.0](LICENSE): 
 |---|---|
 | Software and documentation (this repository, the Apps Addon) | [Apache License 2.0](LICENSE) |
 | xterm.js (`frontend/static/vendor/xterm`) | MIT, its own license files |
+| IBM Plex fonts (`frontend/static/chardsoft/fonts`) | SIL Open Font License 1.1 |
+| Lucide icons (`frontend/static/chardsoft/icons`) | ISC |
 | Names "Chardsoft", "Chardsoft Router OS", "Chaos Router" and the logos | Not licensed (Apache 2.0, section 6) |
 | Chaos Router hardware (PCB, case) | Not public |
 

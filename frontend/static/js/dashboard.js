@@ -18,11 +18,22 @@ window.Page.dashboard = {
 
     SVG_NS: "http://www.w3.org/2000/svg",
 
-    COLORS: {
-        rx: "#4ea1ff",
-        tx: "#6ee7b7",
-        grid: "rgba(255,255,255,.07)",
-        axis: "#95a3b8"
+    // Chart colors from the design tokens (chardsoft.css), so the graph
+    // follows the light and dark theme: download in the accent color,
+    // upload neutral, grid lines like the hairlines.
+    get COLORS() {
+
+        const css = getComputedStyle(document.documentElement);
+        const token = name => css.getPropertyValue(name).trim();
+
+        return {
+            rx: token("--color-accent"),
+            tx: token("--color-text-muted"),
+            grid: token("--color-border"),
+            axis: token("--color-text-muted"),
+            surface: token("--color-surface")
+        };
+
     },
 
 
@@ -203,14 +214,14 @@ window.Page.dashboard = {
             svg.appendChild(this.el("polygon", {
                 points: `${first},${base} ${coords.join(" ")} ${last},${base}`,
                 fill: this.COLORS[key],
-                "fill-opacity": key === "rx" ? .14 : .10
+                "fill-opacity": key === "rx" ? .12 : .06
             }));
 
             svg.appendChild(this.el("polyline", {
                 points: coords.join(" "),
                 fill: "none",
                 stroke: this.COLORS[key],
-                "stroke-width": 2,
+                "stroke-width": 1.5,
                 "stroke-linejoin": "round",
                 "stroke-linecap": "round"
             }));
@@ -237,14 +248,14 @@ window.Page.dashboard = {
 
         svg.appendChild(this.el("line", {
             x1: x, x2: x, y1: g.m.top, y2: g.m.top + g.plotH,
-            stroke: "rgba(255,255,255,.35)", "stroke-dasharray": "4 4"
+            stroke: this.COLORS.axis, "stroke-dasharray": "3 3"
         }));
 
         for (const key of ["rx", "tx"]) {
 
             svg.appendChild(this.el("circle", {
                 cx: x, cy: g.y(sample[key]), r: 4.5,
-                fill: this.COLORS[key], stroke: "#181c25", "stroke-width": 2
+                fill: this.COLORS[key], stroke: this.COLORS.surface, "stroke-width": 2
             }));
 
         }

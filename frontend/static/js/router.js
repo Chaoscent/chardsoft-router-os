@@ -106,11 +106,11 @@ async function loadPage(route){
 
         document.getElementById("content").innerHTML = html;
 
-        document.querySelectorAll(".sidebar a").forEach(link=>{
-            link.classList.toggle(
-                "active",
-                link.dataset.route===route
-            );
+        document.querySelectorAll(".sidebar a[data-route]").forEach(link=>{
+            const current = link.dataset.route===route;
+            link.classList.toggle("active", current);
+            if(current) link.setAttribute("aria-current", "page");
+            else link.removeAttribute("aria-current");
         });
 
         await loadController(route);

@@ -9,161 +9,139 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
 
+    <link rel="stylesheet" href="{{ asset('chardsoft/chardsoft.css') }}">
     <link rel="stylesheet" href="{{ asset('css/style.css') }}">
 </head>
 <body>
 
 <div class="app">
 
-    <aside id="sidebar" class="sidebar">
+    <!-- Menu bar: product, account -->
+    <header class="menubar">
 
-        <div class="logo">Chardsoft Router OS</div>
+        <!-- Phones and narrow windows: opens the navigation. -->
+        <button id="navToggle" class="menubar-button nav-toggle" type="button"
+                aria-label="Navigation" aria-controls="sidebar" aria-expanded="false">
+            <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/panel-left.svg') }})" aria-hidden="true"></span>
+        </button>
 
-        <nav>
-            <a href="#/dashboard" data-route="dashboard" data-group="overview">Dashboard</a>
+        <span class="menubar-brand">Chardsoft Router OS</span>
 
-            <hr class="sidebar-divider">
+        <span class="menubar-spacer"></span>
 
-            <a href="#/modem" data-route="modem" data-group="network">Modem</a>
-            <a href="#/network" data-route="network" data-group="network">Network</a>
-            <a href="#/wifi" data-route="wifi" data-group="network">WiFi</a>
-            <a href="#/dhcp" data-route="dhcp" data-group="network">DHCP</a>
-            <a href="#/dns" data-route="dns" data-group="network">DNS</a>
-            <a href="#/clients" data-route="clients" data-group="network">Clients</a>
+        <span class="menubar-user" title="Signed in">
+            <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/user.svg') }})" aria-hidden="true"></span><span id="headerUser">admin</span>
+        </span>
 
-            <hr class="sidebar-divider">
+        <button class="menubar-button" type="button" onclick="chaosLogout()">
+            <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/log-out.svg') }})" aria-hidden="true"></span><span>Sign out</span>
+        </button>
 
-            <a href="#/firewall" data-route="firewall" data-group="security">Firewall</a>
-            <a href="#/vpn" data-route="vpn" data-group="security">VPN</a>
+    </header>
 
-            <hr class="sidebar-divider">
+    <div class="app-body">
 
-            <a href="#/logs" data-route="logs" data-group="system">Logs</a>
-            <a href="#/system" data-route="system" data-group="system">System</a>
+        <aside id="sidebar" class="sidebar" aria-label="Navigation">
+
+            <nav>
+            <div class="nav-group">Overview</div>
+            <a href="#/dashboard" data-route="dashboard" data-group="overview"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/layout-grid.svg') }})" aria-hidden="true"></span><span>Dashboard</span></a>
+            <div class="nav-group">Network</div>
+            <a href="#/modem" data-route="modem" data-group="network"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/radio-tower.svg') }})" aria-hidden="true"></span><span>Modem</span></a>
+            <a href="#/network" data-route="network" data-group="network"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/network.svg') }})" aria-hidden="true"></span><span>Network</span></a>
+            <a href="#/wifi" data-route="wifi" data-group="network"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/wifi.svg') }})" aria-hidden="true"></span><span>WiFi</span></a>
+            <a href="#/dhcp" data-route="dhcp" data-group="network"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/route.svg') }})" aria-hidden="true"></span><span>DHCP</span></a>
+            <a href="#/dns" data-route="dns" data-group="network"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/globe.svg') }})" aria-hidden="true"></span><span>DNS</span></a>
+            <a href="#/clients" data-route="clients" data-group="network"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/users.svg') }})" aria-hidden="true"></span><span>Clients</span></a>
+            <div class="nav-group">Security</div>
+            <a href="#/firewall" data-route="firewall" data-group="security"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/shield-check.svg') }})" aria-hidden="true"></span><span>Firewall</span></a>
+            <a href="#/vpn" data-route="vpn" data-group="security"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/lock.svg') }})" aria-hidden="true"></span><span>VPN</span></a>
+            <div class="nav-group">System</div>
+            <a href="#/logs" data-route="logs" data-group="system"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/file-text.svg') }})" aria-hidden="true"></span><span>Logs</span></a>
+            <a href="#/system" data-route="system" data-group="system"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/settings.svg') }})" aria-hidden="true"></span><span>System</span></a>
             <a href="#/shell" data-route="shell" data-group="system" class="nav-desktop-only"
-               data-mobile-title="The shell needs a computer with a keyboard">Shell</a>
+               data-mobile-title="The shell needs a computer with a keyboard"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/terminal.svg') }})" aria-hidden="true"></span><span>Shell</span></a>
+            <div class="nav-group">Add-ons</div>
+            <a href="#/apps" data-route="apps" data-group="apps"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/layers.svg') }})" aria-hidden="true"></span><span>Apps</span></a>
+            </nav>
 
-            <hr class="sidebar-divider">
+            <footer class="sidebar-credits">
+                Made by
+                <a href="https://chardsoft.com" target="_blank" rel="noopener">Chaoscent</a> ·
+                <a href="https://github.com/chaoscent/chardsoft-router-os" target="_blank" rel="noopener">GitHub</a>
+            </footer>
 
-            <a href="#/apps" data-route="apps" data-group="apps">Apps</a>
-        </nav>
+        </aside>
 
-        <footer class="sidebar-credits">
-            Made by
-            <a href="https://chardsoft.com" target="_blank" rel="noopener">Chaoscent</a> -
-            <a href="https://github.com/chaoscent/chardsoft-router-os" target="_blank" rel="noopener">GitHub</a>
-            <span class="sidebar-version">v{{ app_version }}</span>
-        </footer>
+        <!-- Phones: tapping outside the open navigation closes it. -->
+        <div id="navBackdrop" class="nav-backdrop"></div>
 
-    </aside>
+        <main>
 
-    <!-- Phones: tapping outside the open menu closes it. -->
-    <div id="navBackdrop" class="nav-backdrop"></div>
+            <!-- Safe apply: unconfirmed changes (see apply.js) -->
 
-    <main>
+            <div id="applyBanner" class="apply-banner hidden" role="alert">
 
-        <header class="chaos-header">
-
-            <div class="header-row">
-
-                <div class="header-left">
-
-                    <!-- Phones and narrow windows: opens the sidebar. -->
-                    <button id="navToggle" class="nav-toggle" type="button"
-                            aria-label="Menu" aria-controls="sidebar" aria-expanded="false">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                             stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                             aria-hidden="true">
-                            <line x1="4" y1="7" x2="20" y2="7"></line>
-                            <line x1="4" y1="12" x2="20" y2="12"></line>
-                            <line x1="4" y1="17" x2="20" y2="17"></line>
-                        </svg>
-                    </button>
-
-                    <div id="headerStatus" class="status">--</div>
-
-                    <div class="header-item">
-                        <span>Network</span>
-                        <strong id="headerNetwork">--</strong>
-                    </div>
-
-                    <div class="header-item">
-                        <span>WWAN Module</span>
-                        <strong id="headerModule">--</strong>
-                    </div>
-
-                    <div class="header-item">
-                        <span>Carrier</span>
-                        <strong id="headerCarrier">--</strong>
-                    </div>
-
+                <div class="apply-text">
+                    <strong id="applyBannerTitle"></strong>
+                    <span id="applyBannerCountdown"></span>
+                    <span id="applyBannerHint" class="apply-hint hidden"></span>
                 </div>
 
-                <div class="header-right">
-
-                    <div class="header-item">
-                        <span>Ping</span>
-                        <strong id="headerPing">-- ms</strong>
-                    </div>
-
-                    <div class="header-item">
-                        <span>Time</span>
-                        <strong id="headerTime">--:--</strong>
-                    </div>
-
-                    <div class="header-item">
-                        <span>User</span>
-                        <strong id="headerUser">admin</strong>
-                    </div>
-
-                    <button class="logout-btn" onclick="chaosLogout()">
-                        Logout
-                    </button>
-
+                <div class="apply-actions">
+                    <button id="applyRevert" class="secondary-btn">Revert</button>
+                    <button id="applyKeep" class="save-btn">Keep changes</button>
                 </div>
 
             </div>
 
-            <div class="network-pulse">
-
-                <div class="pulse-track">
-                    <div class="pulse-fill" id="pulseFill"></div>
-                </div>
-
-                <div class="pulse-info">
-                    <span id="pulseDown">↓ 0 Mbps</span>
-                    <span id="pulseUp">↑ 0 Mbps</span>
-                </div>
-
+            <div id="applyNotice" class="apply-notice hidden" role="status">
+                <span id="applyNoticeText"></span>
+                <button id="applyNoticeClose" class="icon-btn" aria-label="Dismiss">×</button>
             </div>
 
-        </header>
+            <div id="content"></div>
 
-        <!-- Safe apply: unconfirmed changes (see apply.js) -->
+        </main>
 
-        <div id="applyBanner" class="apply-banner hidden" role="alert">
+    </div>
 
-            <div class="apply-text">
-                <strong id="applyBannerTitle"></strong>
-                <span id="applyBannerCountdown"></span>
-                <span id="applyBannerHint" class="apply-hint hidden"></span>
-            </div>
+    <!-- Status bar: connection, traffic, ping, time, version -->
+    <footer class="statusbar">
 
-            <div class="apply-actions">
-                <button id="applyRevert" class="secondary-btn">Revert</button>
-                <button id="applyKeep" class="save-btn">Keep changes</button>
-            </div>
+        <span class="status-item"><span id="headerStatus" class="status">--</span></span>
 
-        </div>
+        <span class="status-item" title="Network">
+            <span class="status-label">Network</span><strong id="headerNetwork">--</strong>
+        </span>
 
-        <div id="applyNotice" class="apply-notice hidden" role="status">
-            <span id="applyNoticeText"></span>
-            <button id="applyNoticeClose" class="icon-btn" aria-label="Dismiss">×</button>
-        </div>
+        <span class="status-item status-optional" title="WWAN module">
+            <span class="status-label">Module</span><strong id="headerModule">--</strong>
+        </span>
 
-        <div id="content"></div>
+        <span class="status-item status-optional" title="Carrier">
+            <span class="status-label">Carrier</span><strong id="headerCarrier">--</strong>
+        </span>
 
-    </main>
+        <span class="status-item network-pulse" title="Traffic">
+            <span class="pulse-track"><span class="pulse-fill" id="pulseFill"></span></span>
+            <span id="pulseDown" class="num">↓ 0 Mbps</span>
+            <span id="pulseUp" class="num">↑ 0 Mbps</span>
+        </span>
+
+        <span class="status-spacer"></span>
+
+        <span class="status-item status-divider" title="Ping">
+            <span class="status-label">Ping</span><strong id="headerPing" class="num">-- ms</strong>
+        </span>
+
+        <span class="status-item" title="Router time">
+            <strong id="headerTime" class="num">--:--</strong>
+        </span>
+
+        <span class="status-item status-optional sidebar-version num">v{{ app_version }}</span>
+
+    </footer>
 
 </div>
 

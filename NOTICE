@@ -13,3 +13,12 @@ This product includes third-party software:
 
 - xterm.js and its fit addon (frontend/static/vendor/xterm)
   Copyright (c) The xterm.js authors. MIT License, see the LICENSE files there.
+
+- Chardsoft design kit (frontend/static/chardsoft/chardsoft.css)
+  Copyright Chardsoft. Apache License 2.0.
+
+- IBM Plex Sans and IBM Plex Mono fonts (frontend/static/chardsoft/fonts)
+  Copyright IBM Corp. SIL Open Font License 1.1, see OFL.txt there.
+
+- Lucide icons (frontend/static/chardsoft/icons)
+  Copyright Lucide contributors. ISC License, see LICENSE there.

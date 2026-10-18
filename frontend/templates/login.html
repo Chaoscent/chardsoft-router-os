@@ -9,120 +9,34 @@
 <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
 <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
 
+<link rel="stylesheet" href="{{ asset('chardsoft/chardsoft.css') }}">
 <link rel="stylesheet" href="{{ asset('css/style.css') }}">
-
-<style>
-body{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    height:100vh;
-}
-
-.login-card{
-    width:380px;
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:20px;
-    padding:32px;
-}
-
-.login-card h1{
-    /* "Chardsoft / Router OS" rather than a lone "OS". */
-    text-wrap:balance;
-    margin-bottom:8px;
-}
-
-.login-card p{
-    margin-bottom:24px;
-    color:var(--muted);
-}
-
-.login-card input{
-    width:100%;
-    padding:14px;
-    margin-bottom:16px;
-    background:var(--panel2);
-    border:1px solid var(--border);
-    border-radius:12px;
-    color:white;
-}
-
-.login-card button{
-    width:100%;
-    padding:14px;
-    border:1px solid transparent;
-    border-radius:12px;
-    background:var(--accent);
-    color:white;
-    font-weight:600;
-    cursor:pointer;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:10px;
-    transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .12s ease,opacity .18s ease;
-}
-
-.login-card button:hover:not(:disabled){
-    background:#60aaff;
-    border-color:#70b3ff;
-    box-shadow:0 5px 18px rgba(78,161,255,.20);
-}
-
-.login-card button:active:not(:disabled){
-    transform:scale(.98);
-}
-
-.login-card button:focus-visible{
-    outline:2px solid #70b3ff;
-    outline-offset:2px;
-}
-
-.login-card button:disabled{
-    opacity:.7;
-    cursor:wait;
-}
-
-.login-card button.busy::before{
-    content:"";
-    width:16px;
-    height:16px;
-    border:2px solid rgba(255,255,255,.35);
-    border-top-color:white;
-    border-radius:50%;
-    animation:loginSpin .7s linear infinite;
-}
-
-@keyframes loginSpin{
-    to{
-        transform:rotate(360deg);
-    }
-}
-
-#error{
-    margin-top:12px;
-    color:#ff7b7b;
-    display:none;
-}
-</style>
 </head>
 
-<body>
+<body class="login-body">
 
-<div class="login-card">
+<form class="login-card" onsubmit="event.preventDefault(); login();">
 
-<h1>Chardsoft Router OS</h1>
-<p>Sign in to manage your router.</p>
+    <h1>Chardsoft Router OS</h1>
+    <p>Sign in to manage your router.</p>
 
-<input id="username" value="admin" placeholder="Username">
-<input id="password" type="password" placeholder="Password">
+    <div class="setup-field">
+        <label for="username">User name</label>
+        <input id="username" class="setting-input" value="admin" autocomplete="username">
+    </div>
 
-<button id="loginButton" onclick="login()">Sign In</button>
+    <div class="setup-field">
+        <label for="password">Password</label>
+        <input id="password" class="setting-input" type="password" autocomplete="current-password" autofocus>
+    </div>
 
-<div id="error">Invalid username or password.</div>
+    <div id="error" class="setup-error hidden" role="alert">Invalid username or password.</div>
 
-</div>
+    <div class="setup-actions">
+        <button id="loginButton" type="submit" class="save-btn">Sign in</button>
+    </div>
+
+</form>
 
 <script src="{{ asset('js/csrf.js') }}"></script>
 
@@ -133,8 +47,8 @@ async function login(){
 
     loginButton.disabled = true;
     loginButton.classList.add("busy");
-    loginButton.textContent = "Signing in…";
-    error.style.display = "none";
+    loginButton.textContent = "Signing in …";
+    error.classList.add("hidden");
 
     let res = null;
 
@@ -170,16 +84,13 @@ async function login(){
 
     error.textContent = message;
 
-    error.style.display = "block";
+    error.classList.remove("hidden");
 
     loginButton.disabled = false;
     loginButton.classList.remove("busy");
-    loginButton.textContent = "Sign In";
+    loginButton.textContent = "Sign in";
 }
 
-password.addEventListener("keydown",e=>{
-    if(e.key==="Enter") login();
-});
 </script>
 
 </body>
