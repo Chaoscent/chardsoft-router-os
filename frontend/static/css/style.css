@@ -65,6 +65,9 @@ code{
 .app{
     display:grid;
     grid-template-rows:var(--menubar-height) minmax(0,1fr) var(--statusbar-height);
+    /* Nothing (e.g. a long status bar) can widen the window frame. */
+    grid-template-columns:minmax(0,1fr);
+    overflow:hidden;
     height:100vh;
     height:100dvh;
 }
@@ -1620,11 +1623,60 @@ select.setting-input{
     flex:1;
 }
 
-.dashboard-graph{
+/* The graph and the list of interfaces side by side; the graph takes
+   the spare height. */
+.dashboard-traffic{
     flex:1 1 0;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(280px,340px);
+    gap:var(--space-4);
+    min-height:260px;
+}
+
+.dashboard-graph{
     min-height:220px;
     display:flex;
     flex-direction:column;
+}
+
+.graph-select{
+    width:180px;
+    font-weight:var(--weight-regular);
+}
+
+.graph-select .chaos-select-trigger{
+    height:var(--control-height-sm);
+    font-size:var(--text-sm);
+}
+
+.dashboard-interfaces{
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+}
+
+.dashboard-interfaces > .table-scroll{
+    flex:1 1 auto;
+    min-height:0;
+    overflow:auto;
+}
+
+.interface-row{
+    cursor:pointer;
+}
+
+.interface-row[aria-selected="true"]{
+    background:var(--color-accent-subtle);
+}
+
+.interface-name-cell{
+    font-family:var(--font-mono);
+}
+
+.dashboard-interfaces .num{
+    text-align:right;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
 }
 
 .graph-header{
@@ -1655,6 +1707,7 @@ select.setting-input{
 }
 
 .graph-legend{
+    margin-left:auto;
     display:flex;
     gap:var(--space-4);
     font-weight:var(--weight-regular);
@@ -1679,11 +1732,6 @@ select.setting-input{
 
 .legend-swatch.upload{
     background:var(--color-text-muted);
-}
-
-#graphInterface{
-    font-weight:var(--weight-regular);
-    color:var(--color-text-muted);
 }
 
 /* dashboard.js draws the SVG at this area's pixel size. */
@@ -1744,6 +1792,14 @@ select.setting-input{
         grid-template-columns:repeat(3,minmax(0,1fr));
     }
 
+    .dashboard-traffic{
+        grid-template-columns:minmax(0,1fr);
+    }
+
+    .dashboard-graph{
+        min-height:300px;
+    }
+
 }
 
 
@@ -1773,17 +1829,18 @@ select.setting-input{
     letter-spacing:.04em;
 }
 
+/* Two related fields: one per row, with the same label column as every
+   other field, so all labels and fields line up. */
 .system-pair{
     display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:var(--space-2) var(--space-4);
+    grid-template-columns:minmax(0,1fr);
+    gap:var(--space-2);
     margin-top:var(--space-2);
 }
 
 .system-pair .setting-group,
 .system-pair .setting-group + .setting-group{
     margin-top:0;
-    grid-template-columns:110px minmax(0,1fr);
 }
 
 .danger-card{
@@ -2306,8 +2363,7 @@ a.setup-open{
     .setting-group,
     .setup-field,
     .key-row,
-    .modal-field,
-    .system-pair .setting-group{
+    .modal-field{
         grid-template-columns:minmax(0,1fr);
     }
 
@@ -2324,10 +2380,6 @@ a.setup-open{
     .setup-field > label,
     .key-row > label{
         padding-top:0;
-    }
-
-    .system-pair{
-        grid-template-columns:minmax(0,1fr);
     }
 
     .dashboard-system,

@@ -355,7 +355,7 @@ from services.logs import (
 
 from services.config import sync_boot
 
-from services.traffic import get_traffic, get_history
+from services.traffic import get_traffic, get_history, get_interfaces as get_traffic_interfaces
 
 
 
@@ -972,6 +972,27 @@ def fragment(page):
 
 
 
+def interface_kind(name, wan):
+        """
+        What an interface is, for the dashboard's interface list.
+        """
+
+        if wan:
+                return "WAN"
+
+        for prefixes, kind in (
+                (("wwan",), "Mobile"),
+                (("wg", "ovpn", "tun", "tap"), "VPN"),
+                (("wl",), "Wi-Fi"),
+                (("br",), "LAN bridge"),
+                (("eth", "en"), "Ethernet")
+        ):
+                if name.startswith(prefixes):
+                        return kind
+
+        return "Other"
+
+
 @app.route("/api/dashboard")
 
 @login_required
@@ -981,6 +1002,12 @@ def dashboard_api():
 
 
         traffic = get_traffic()
+
+        chosen = request.args.get("interface", "")
+
+        names = {row["interface"] for row in get_traffic_interfaces()}
+
+        graph_interface = chosen if chosen in names else traffic["interface"]
 
 
 
@@ -1012,9 +1039,19 @@ def dashboard_api():
 
                 "upload": traffic["tx"],
 
+                # The WAN, which the rates above and the status bar show.
                 "interface": traffic["interface"],
 
-                "history": get_history()
+                # The graph: the interface chosen on the dashboard, else the WAN.
+                "graph_interface": graph_interface,
+
+                "history": get_history(graph_interface),
+
+                # Every interface with its current rates.
+                "interfaces": [
+                        {**row, "kind": interface_kind(row["interface"], row["wan"])}
+                        for row in get_traffic_interfaces()
+                ]
 
         })
 

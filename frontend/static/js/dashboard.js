@@ -37,9 +37,19 @@ window.Page.dashboard = {
     },
 
 
+    // The interface in the graph ("" = the WAN), kept per browser.
+    GRAPH_KEY: "chaos-dashboard-interface",
+
+    graphInterface: "",
+
+    // Names in the select, to rebuild it only when they change.
+    interfaceNames: "",
+
     async update() {
 
-        const res = await fetch("/api/dashboard");
+        const query = this.graphInterface ? `?interface=${encodeURIComponent(this.graphInterface)}` : "";
+
+        const res = await fetch(`/api/dashboard${query}`);
 
         if (res.status === 401) {
             location.href = "/login";
@@ -60,11 +70,104 @@ window.Page.dashboard = {
         download.textContent = Header.formatRate(data.download);
         upload.textContent = Header.formatRate(data.upload);
 
-        graphInterface.textContent = data.interface ? ` · ${data.interface}` : "";
+        this.wanInterface = data.interface;
+        this.shownInterface = data.graph_interface;
+
+        this.renderInterfaces(data.interfaces || []);
 
         this.history = data.history || [];
 
         this.drawGraph();
+
+    },
+
+
+    /** The interface select and the table of every interface. */
+    renderInterfaces(rows) {
+
+        const names = rows.map(r => r.interface).join(",");
+
+        const rebuilt = names !== this.interfaceNames;
+
+        if (rebuilt) {
+
+            this.interfaceNames = names;
+
+            graphInterfaceSelect.innerHTML = "";
+
+            const wan = document.createElement("option");
+            wan.value = "";
+            wan.textContent = `WAN${this.wanInterface ? ` (${this.wanInterface})` : ""}`;
+            graphInterfaceSelect.appendChild(wan);
+
+            rows.filter(r => !r.wan).forEach(row => {
+                const option = document.createElement("option");
+                option.value = row.interface;
+                option.textContent = `${row.interface} (${row.kind})`;
+                graphInterfaceSelect.appendChild(option);
+            });
+        }
+
+        // A remembered interface that is gone: back to the WAN.
+        if (this.graphInterface && !rows.some(r => r.interface === this.graphInterface)) {
+            this.graphInterface = "";
+        }
+
+        // Only on a change: refreshing would close an open dropdown.
+        if (rebuilt || graphInterfaceSelect.value !== this.graphInterface) {
+            graphInterfaceSelect.value = this.graphInterface;
+            ChaosSelect.refresh(graphInterfaceSelect);
+        }
+
+        interfaceTable.replaceChildren(...rows.map(row => {
+
+            const tr = document.createElement("tr");
+
+            tr.className = "interface-row";
+            tr.title = "Show in the graph";
+            tr.setAttribute("aria-selected", String(row.interface === this.shownInterface));
+
+            const cells = [
+                row.interface,
+                row.kind,
+                Header.formatRate(row.rx),
+                Header.formatRate(row.tx)
+            ];
+
+            cells.forEach((text, i) => {
+                const td = document.createElement("td");
+                td.textContent = text;
+                if (i === 0) td.className = "interface-name-cell";
+                if (i >= 2) td.className = "num";
+                tr.appendChild(td);
+            });
+
+            tr.addEventListener("click", () => this.showInterface(row.wan ? "" : row.interface));
+
+            return tr;
+        }));
+
+        if (!rows.length) {
+            const tr = document.createElement("tr");
+            tr.className = "empty-row";
+            const td = document.createElement("td");
+            td.colSpan = 4;
+            td.textContent = "No interfaces measured yet.";
+            tr.appendChild(td);
+            interfaceTable.replaceChildren(tr);
+        }
+
+    },
+
+
+    showInterface(name) {
+
+        this.graphInterface = name;
+
+        try { localStorage.setItem(this.GRAPH_KEY, name); } catch {}
+
+        this.hoverIndex = null;
+        this.update();
 
     },
 
@@ -328,6 +431,12 @@ window.Page.dashboard = {
 
         this.history = [];
         this.hoverIndex = null;
+        this.interfaceNames = "";
+
+        try { this.graphInterface = localStorage.getItem(this.GRAPH_KEY) || ""; } catch { this.graphInterface = ""; }
+
+        ChaosSelect.enhance(graphInterfaceSelect);
+        graphInterfaceSelect.onchange = () => this.showInterface(graphInterfaceSelect.value);
 
         trafficGraph.addEventListener("pointermove", e => this.onPointerMove(e));
         trafficGraph.addEventListener("pointerleave", () => this.onPointerLeave());

@@ -154,7 +154,16 @@ window.Page.apps = {
             : job.success ? "✓ Done." : "Failed (see above).";
 
         appsJobClose.classList.toggle("hidden", !job.done);
+
+        const appeared = appsJob.classList.contains("hidden");
+
         appsJob.classList.remove("hidden");
+
+        // The log sits below the apps: bring a new job into view once.
+        if (appeared && !job.done && job.id !== this.shownJob) {
+            this.shownJob = job.id;
+            appsJob.scrollIntoView({ block: "nearest" });
+        }
 
     },
 

@@ -29,27 +29,56 @@
 
     </div>
 
-    <div class="card dashboard-graph">
+    <div class="dashboard-traffic">
 
-        <div class="graph-header">
+        <div class="card dashboard-graph">
 
-            <span>Network Traffic (last 60 seconds)<span id="graphInterface"></span></span>
+            <div class="graph-header">
 
-            <div class="graph-legend">
-                <span class="legend-item"><i class="legend-swatch download"></i>Download</span>
-                <span class="legend-item"><i class="legend-swatch upload"></i>Upload</span>
+                <span>Network Traffic (last 60 seconds)</span>
+
+                <div class="graph-select">
+                    <select id="graphInterfaceSelect" class="setting-input" aria-label="Interface in the graph"></select>
+                </div>
+
+                <div class="graph-legend">
+                    <span class="legend-item"><i class="legend-swatch download"></i>Download</span>
+                    <span class="legend-item"><i class="legend-swatch upload"></i>Upload</span>
+                </div>
+
+            </div>
+
+            <!-- dashboard.js draws axes, lines and the hover cursor at the
+                 graph's real pixel size, so text never stretches. -->
+            <div class="graph-area">
+
+                <svg id="trafficGraph" role="img"
+                     aria-label="Download and upload traffic over the last 60 seconds"></svg>
+
+                <div id="graphTooltip" class="graph-tooltip hidden"></div>
+
             </div>
 
         </div>
 
-        <!-- dashboard.js draws axes, lines and the hover cursor at the
-             graph's real pixel size, so text never stretches. -->
-        <div class="graph-area">
+        <!-- Every interface at once; a row shows it in the graph. -->
+        <div class="card dashboard-interfaces">
 
-            <svg id="trafficGraph" role="img"
-                 aria-label="Download and upload traffic over the last 60 seconds"></svg>
+            <span>Interfaces</span>
 
-            <div id="graphTooltip" class="graph-tooltip hidden"></div>
+            <div class="table-scroll">
+                <table class="client-table data-table">
+                    <thead>
+                        <tr>
+                            <th>Interface</th>
+                            <th>Type</th>
+                            <th class="num">Download</th>
+                            <th class="num">Upload</th>
+                        </tr>
+                    </thead>
+                    <tbody id="interfaceTable"></tbody>
+                </table>
+            </div>
 
         </div>
 
