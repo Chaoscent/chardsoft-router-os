@@ -115,7 +115,7 @@ window.Page.firewall = {
         fwEssentialsToggle.checked = data.essentials;
 
         fwToggle.disabled = false;
-        fwToggle.textContent = data.active ? "Disable Firewall" : "Enable Firewall";
+        fwToggle.textContent = data.active ? "Disable firewall" : "Enable firewall";
         fwToggle.classList.toggle("danger-btn", data.active);
 
         if (!fwToggleStatus.dataset.keep) {
@@ -363,7 +363,7 @@ window.Page.firewall = {
 
         const confirmed = await ChaosModal.confirm({
 
-            title: enable ? "Enable Firewall" : "Disable Firewall",
+            title: enable ? "Enable firewall" : "Disable firewall",
 
             subtitle: enable
                 ? "Traffic not allowed by a rule will follow the default policies."
@@ -515,7 +515,7 @@ window.Page.firewall = {
             const ok = await ChaosModal.confirm({
                 title: "Turn off internet sharing?",
                 subtitle: "LAN devices and VPN clients will lose internet access. The dashboard stays reachable.",
-                confirmText: "Turn Off"
+                confirmText: "Turn off"
             });
 
             if (!ok) return;
@@ -586,7 +586,7 @@ window.Page.firewall = {
         body.innerHTML = `<code class="modal-code">ufw ${this.escape(rule.spec)}</code>`;
 
         const confirmed = await ChaosModal.confirm({
-            title: "Delete Rule",
+            title: "Delete rule",
             subtitle: "This rule will be removed immediately.",
             body: body,
             confirmText: "Delete"

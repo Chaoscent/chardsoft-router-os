@@ -496,7 +496,7 @@ window.Page.network = {
         this.pendingRole = null;
         this.pendingLan = null;
 
-        this.$("networkModalTitle").textContent = "Apply Network Changes";
+        this.$("networkModalTitle").textContent = "Apply network changes";
         this.$("networkModalIntro").textContent =
             "You're about to change the selected interface configuration.";
 

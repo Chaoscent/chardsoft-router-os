@@ -136,7 +136,7 @@ window.Page.clients = {
             ? `Edit Reservation (${client.reservation.ip})`
             : "Reserve DHCP IP";
 
-        blockDevice.textContent = client.blocked ? "Unblock Device" : "Block Device";
+        blockDevice.textContent = client.blocked ? "Unblock device" : "Block device";
         blockDevice.classList.toggle("danger", !client.blocked);
 
         // Actions that need the device online with an address.
@@ -315,7 +315,7 @@ window.Page.clients = {
         const client = this.currentClient;
         const reservation = client.reservation;
 
-        reserveTitle.textContent = reservation ? "Edit Reservation" : "Reserve DHCP IP";
+        reserveTitle.textContent = reservation ? "Edit reservation" : "Reserve DHCP IP";
 
         reserveSubtitle.textContent = this.dhcpEnabled
             ? `${client.hostname} always gets this address.`

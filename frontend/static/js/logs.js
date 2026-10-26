@@ -236,7 +236,7 @@ window.Page.logs = {
     async clear() {
 
         const confirmed = await ChaosModal.confirm({
-            title: "Clear Router Events",
+            title: "Clear router events",
             subtitle: "All router events are deleted. System logs are not affected.",
             confirmText: "Clear"
         });

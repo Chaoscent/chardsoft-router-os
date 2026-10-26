@@ -512,7 +512,7 @@ window.Page.vpn = {
     async removePeer(peer) {
 
         const confirmed = await ChaosModal.confirm({
-            title: "Remove Device",
+            title: "Remove device",
             subtitle: `${peer.name} will no longer be able to connect.`,
             confirmText: "Remove"
         });
@@ -574,7 +574,7 @@ window.Page.vpn = {
     async revokeClient(client) {
 
         const confirmed = await ChaosModal.confirm({
-            title: "Revoke Device",
+            title: "Revoke device",
             subtitle: `${client.name}'s certificate will be revoked. ` +
                 "It cannot connect again, even with its saved profile.",
             confirmText: "Revoke"
@@ -734,7 +734,7 @@ window.Page.vpn = {
     async deleteProfile(profile) {
 
         const confirmed = await ChaosModal.confirm({
-            title: "Delete Profile",
+            title: "Delete profile",
             subtitle: `${profile.name} will be disconnected and removed.`,
             confirmText: "Delete"
         });

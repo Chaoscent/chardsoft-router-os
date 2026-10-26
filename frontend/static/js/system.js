@@ -441,7 +441,7 @@ window.Page.system = {
         `;
 
         const confirmed = await ChaosModal.confirm({
-            title: "Download Backup",
+            title: "Download backup",
             subtitle: "Encrypt the backup with a password (at least 8 characters).",
             body,
             confirmText: "Download"
@@ -550,7 +550,7 @@ window.Page.system = {
         `;
 
         const shown = ChaosModal.confirm({
-            title: "Encrypted Backup",
+            title: "Encrypted backup",
             subtitle: retry
                 ? `Wrong password for ${fileName}. Try again.`
                 : `${fileName} is encrypted. Enter the password it was downloaded with.`,
@@ -695,7 +695,7 @@ window.Page.system = {
         `;
 
         const confirmed = await ChaosModal.confirm({
-            title: "Restore Backup",
+            title: "Restore backup",
             subtitle: "These settings are replaced with the ones from the backup:",
             body: body,
             confirmText: "Restore"
@@ -806,7 +806,7 @@ window.Page.system = {
         }
 
         shellToggle.disabled = false;
-        shellToggle.textContent = this.shellEnabled ? "Turn Off" : "Turn On…";
+        shellToggle.textContent = this.shellEnabled ? "Turn off" : "Turn on…";
         shellToggle.classList.toggle("danger-btn", this.shellEnabled);
 
         if (!shellSettingStatus.dataset.keep) {
@@ -836,7 +836,7 @@ window.Page.system = {
                 ? "Anyone who signs in to this dashboard and knows your password can then run any command on the router."
                 : "Open shells keep running until they are closed or time out.",
             body,
-            confirmText: enable ? "Turn On" : "Turn Off"
+            confirmText: enable ? "Turn on" : "Turn off"
         });
 
         if (!confirmed) return;
@@ -898,7 +898,7 @@ window.Page.system = {
             title: "Erase everything?",
             subtitle: "Download a backup first if you may want your settings back.",
             body,
-            confirmText: "Erase and Reboot"
+            confirmText: "Erase and reboot"
         });
 
         if (!confirmed) return;
@@ -1095,7 +1095,7 @@ window.Page.system = {
         `;
 
         const confirmed = await ChaosModal.confirm({
-            title: "Update Now",
+            title: "Update now",
             subtitle: "Install the new version from GitHub?",
             body,
             confirmText: "Update"

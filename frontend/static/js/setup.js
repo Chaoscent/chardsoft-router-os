@@ -53,7 +53,7 @@ const Setup = {
 
         this.$("setupBack").classList.toggle("hidden", step === 1 || done);
         this.$("setupNext").classList.toggle("hidden", done);
-        this.$("setupNext").textContent = step === 3 ? "Finish Setup" : "Next";
+        this.$("setupNext").textContent = step === 3 ? "Finish setup" : "Next";
 
         if (step === 3) this.renderSummary();
 
@@ -220,7 +220,7 @@ const Setup = {
         }
 
         next.disabled = false;
-        next.textContent = "Finish Setup";
+        next.textContent = "Finish setup";
 
         if (res && res.ok && data.success) {
             this.showDone(false, data.warning);
