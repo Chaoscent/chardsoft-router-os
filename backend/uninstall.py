@@ -11,7 +11,7 @@ its own code, but further:
 - Wi-Fi, DHCP, DNS, VPN servers and client profiles off, their units,
   configs, keys and certificates removed.
 - Firewall: every rule Chardsoft Router OS added removed, ufw off.
-- IP forwarding and NAT off; the CHAOS-NAT, CHAOS-SETUP and CHAOS-BLOCK
+- IP forwarding and NAT off; the CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK and CHAOS-KILLSWITCH
   iptables chains removed.
 - LAN bridge removed. The WAN/LAN routing properties Chardsoft Router OS set
   on Ethernet connections (never-default, route-metric) go back to
@@ -178,10 +178,11 @@ def remove_chains():
 
     from shutil import which
 
-    from services import routing, clients, setup_network
+    from services import routing, clients, setup_network, vpn_profiles
 
     for tool in filter(None, (which("iptables"), which("ip6tables"))):
         remove_chain(tool, "filter", clients.CHAIN, ("INPUT", "FORWARD"))
+        remove_chain(tool, "filter", vpn_profiles.KILL_CHAIN, ("FORWARD",))
 
     if which("iptables"):
         remove_chain(which("iptables"), "nat", routing.CHAIN, ("POSTROUTING",))
@@ -323,7 +324,7 @@ def main():
         step(f"{AREAS[name].label} off", area_off, name, data)
 
     step("Firewall rules", remove_ufw_rules)
-    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK)", remove_chains)
+    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH)", remove_chains)
     step("Config files (dnsmasq, hostapd, VPN, Caddy routes)", remove_files)
     step("dnsmasq restarted", restart_dnsmasq)
     step("Routing properties of Ethernet connections", reset_route_properties)

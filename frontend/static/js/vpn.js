@@ -337,10 +337,21 @@ window.Page.vpn = {
                     <strong>${this.escape(profile.name)}</strong><br>
                     <small>${type} · ${this.escape(profile.interface)}</small>
                 </td>
-                <td>${this.badge(profile.connected, profile.connected ? "Connected" : "Disconnected")}</td>
+                <td>
+                    ${this.badge(profile.connected, profile.connected ? "Connected" : "Disconnected")}
+                    ${profile.kill_switch_blocking
+                        ? '<br><small class="kill-switch-note">Kill switch: LAN has no internet until the tunnel is back</small>' : ""}
+                </td>
                 <td>
                     <button class="table-btn" data-action="full-tunnel">
                         ${profile.full_tunnel ? "On" : "Off"}
+                    </button>
+                    <button class="table-btn" data-action="kill-switch"
+                        ${profile.full_tunnel ? "" : "disabled"}
+                        title="${profile.full_tunnel
+                            ? "Stop LAN internet when the tunnel drops, instead of bypassing the VPN"
+                            : "Needs All traffic"}">
+                        Kill switch ${profile.kill_switch ? "on" : "off"}
                     </button>
                     ${!profile.full_tunnel && profile.routes_all_by_profile
                         ? "<br><small>Profile routes all</small>" : ""}
@@ -363,6 +374,9 @@ window.Page.vpn = {
 
             row.querySelector('[data-action="full-tunnel"]').onclick =
                 () => this.toggleFullTunnel(profile);
+
+            row.querySelector('[data-action="kill-switch"]').onclick =
+                () => this.toggleKillSwitch(profile);
 
             row.querySelector('[data-action="toggle"]').onclick =
                 () => this.toggleProfile(profile);
@@ -689,6 +703,17 @@ window.Page.vpn = {
             profile.connected ? "Saving and reconnecting..." : "Saving...",
             () => this.send(`/api/vpn/profiles/${profile.id}/full-tunnel`, {
                 enabled: !profile.full_tunnel
+            })
+        );
+
+    },
+
+
+    async toggleKillSwitch(profile) {
+
+        await this.run(vpnProfileStatus, "Saving...", () =>
+            this.send(`/api/vpn/profiles/${profile.id}/kill-switch`, {
+                enabled: !profile.kill_switch
             })
         );
 

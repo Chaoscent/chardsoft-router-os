@@ -250,7 +250,9 @@ from services.vpn_profiles import (
 
         set_autostart as set_vpn_autostart,
 
-        set_full_tunnel as set_vpn_full_tunnel
+        set_full_tunnel as set_vpn_full_tunnel,
+
+        set_kill_switch as set_vpn_kill_switch
 
 )
 
@@ -2019,6 +2021,21 @@ def vpn_disconnect_profile_api(profile_id):
         log_event("vpn", message, "info" if ok else "error")
 
         return vpn_response(ok, message, status=500)
+
+
+
+
+@app.route("/api/vpn/profiles/<int:profile_id>/kill-switch", methods=["POST"])
+
+@login_required
+
+def vpn_kill_switch_profile_api(profile_id):
+
+        data = request.get_json(silent=True) or {}
+
+        return vpn_response(
+                *set_vpn_kill_switch(profile_id, data.get("enabled") is True)
+        )
 
 
 

@@ -2559,3 +2559,7 @@ a.setup-open{
     }
 
 }
+
+.kill-switch-note{
+    color:var(--color-warning);
+}

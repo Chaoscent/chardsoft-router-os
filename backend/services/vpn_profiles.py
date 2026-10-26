@@ -8,12 +8,19 @@ as root is removed, and NAT is added by our own hooks instead.
 "full_tunnel" routes all internet traffic of the router and its LAN
 through the VPN, whatever the profile itself says. It is applied when
 the files are written; the stored config stays as imported.
+
+"kill_switch" (with full_tunnel): while the profile is meant to be
+connected, nothing is forwarded out of the WAN, so LAN devices lose the
+internet instead of silently leaving the VPN when the tunnel drops.
 """
 
 import re
+import shutil
 import time
 
-from services.config import load_running
+from services.config import load_running, load_system, save_system, get_boot_id
+
+from services.network import get_wan_interface, privileged, run_command
 
 from services import transaction
 
@@ -104,6 +111,13 @@ def save_profiles(profiles):
         {"profiles": profiles},
         confirm=False
     )
+
+
+# The profile the user connected (cleared on disconnect), with the boot
+# it belongs to: after a reboot only the autostart profile counts.
+ENGAGED = "vpn_client_engaged"
+
+KILL_CHAIN = "CHAOS-KILLSWITCH"
 
 
 def find_profile(profiles, profile_id):
@@ -412,6 +426,7 @@ def import_profile(data):
         "type": kind,
         "autostart": False,
         "full_tunnel": data.get("full_tunnel") is True,
+        "kill_switch": False,
         "created": int(time.time()),
         "username": username,
         "password": password
@@ -664,7 +679,115 @@ def apply_profiles():
         if not ok:
             return False, result
 
+    ok, result = apply_kill_switch()
+
+    if not ok:
+        return False, result
+
     return True, warnings[0] if warnings else "VPN profiles applied."
+
+
+# -------------------------------------------------------------------
+# Kill switch
+# -------------------------------------------------------------------
+
+def set_engaged(profile_id):
+
+    save_system(ENGAGED, {"profile": profile_id, "boot_id": get_boot_id()})
+
+
+def engaged_profile(profiles=None):
+    """The profile meant to be connected right now, or None."""
+
+    profiles = load_profiles() if profiles is None else profiles
+    marker = load_system(ENGAGED, {}) or {}
+
+    if marker.get("boot_id") == get_boot_id():
+        return find_profile(profiles, marker.get("profile"))
+
+    # Fresh boot: the autostart profile connects by itself.
+    return next((p for p in profiles if p["autostart"]), None)
+
+
+def kill_switch_profile(profiles=None):
+    """The engaged profile when its kill switch applies, else None."""
+
+    profile = engaged_profile(profiles)
+
+    if profile and profile.get("full_tunnel") and profile.get("kill_switch"):
+        return profile
+
+    return None
+
+
+def apply_kill_switch(profiles=None):
+    """
+    Rebuilds the kill switch chain: forwarded traffic out of the WAN (and
+    any modem) is rejected while it applies. With the tunnel up, LAN
+    traffic leaves through the tunnel and never matches.
+    """
+
+    profile = kill_switch_profile(profiles)
+    tools = [t for t in (shutil.which("iptables"), shutil.which("ip6tables")) if t]
+
+    if not tools:
+        return (False, "iptables is not available.") if profile else (True, "OK")
+
+    outs = sorted({get_wan_interface(), "wwan+"} - {None, ""})
+
+    for tool in tools:
+
+        def ipt(*args):
+            return run_command(privileged([tool, *args]))
+
+        ipt("-N", KILL_CHAIN)
+
+        ok, result = ipt("-F", KILL_CHAIN)
+
+        if not ok:
+            return False, f"Could not reset the kill switch: {result}"
+
+        if profile:
+            for out in outs:
+                ok, result = ipt("-A", KILL_CHAIN, "-o", out, "-j", "REJECT")
+                if not ok:
+                    return False, f"Could not turn on the kill switch: {result}"
+
+        exists, _ = ipt("-C", "FORWARD", "-j", KILL_CHAIN)
+
+        if not exists:
+
+            ok, result = ipt("-I", "FORWARD", "1", "-j", KILL_CHAIN)
+
+            if not ok:
+                return False, f"Could not activate the kill switch: {result}"
+
+    return True, f"Kill switch on for {profile['name']}." if profile else "OK"
+
+
+def set_kill_switch(profile_id, enabled):
+
+    profiles = load_profiles()
+    profile = find_profile(profiles, profile_id)
+
+    if not profile:
+        return False, "Profile not found."
+
+    if enabled and not profile.get("full_tunnel"):
+        return False, "Turn on All traffic first: the kill switch only works with it."
+
+    profile["kill_switch"] = enabled
+
+    outcome = save_profiles(profiles)
+
+    if not outcome["success"]:
+        return False, outcome["message"]
+
+    return True, (
+        f"Kill switch on: while {profile['name']} is connected, the internet "
+        f"stops when the tunnel drops instead of bypassing the VPN."
+        if enabled else "Kill switch off."
+    )
 
 
 # -------------------------------------------------------------------
@@ -711,6 +834,10 @@ def connect_profile(profile_id):
         profile_firewall_rules(profile)
     )
 
+    # Before the tunnel starts: no gap in which traffic takes the WAN.
+    set_engaged(profile_id)
+    apply_kill_switch(profiles)
+
     ok, result = start_unit(unit_name(profile), enable=profile["autostart"])
 
     if not ok:
@@ -731,6 +858,9 @@ def disconnect_profile(profile_id):
     if not ok:
         return False, result
 
+    set_engaged(None)
+    apply_kill_switch()
+
     return True, f"Disconnected from {profile['name']}."
 
 
@@ -747,6 +877,10 @@ def set_full_tunnel(profile_id, enabled):
         return False, "Profile not found."
 
     profile["full_tunnel"] = enabled
+
+    # The kill switch only makes sense with all traffic in the tunnel.
+    if not enabled:
+        profile["kill_switch"] = False
 
     outcome = save_profiles(profiles)
 
@@ -807,6 +941,7 @@ def profile_view(profile):
         "type": profile["type"],
         "autostart": profile["autostart"],
         "full_tunnel": profile.get("full_tunnel") is True,
+        "kill_switch": profile.get("kill_switch") is True,
         "routes_all_by_profile": routes_all_by_profile(profile),
         "created": profile.get("created"),
         "interface": interface_name(profile),
@@ -818,10 +953,18 @@ def get_profiles_status():
 
     views = []
 
-    for profile in load_profiles():
+    profiles = load_profiles()
+    blocking = kill_switch_profile(profiles)
+
+    for profile in profiles:
 
         view = profile_view(profile)
         view["connected"] = unit_active(unit_name(profile))
+
+        # Engaged, but the tunnel is down: LAN devices have no internet.
+        view["kill_switch_blocking"] = bool(
+            blocking and blocking["id"] == profile["id"] and not view["connected"]
+        )
 
         views.append(view)
 
