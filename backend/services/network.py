@@ -101,10 +101,19 @@ def run(cmd):
         return None
 
 
+# Installed root-owned by install.sh: checks every command before it
+# runs as root (deploy/root-helper). Without it (development), plain
+# passwordless sudo.
+ROOT_HELPER = "/usr/local/libexec/chardsoft-router-os/root-helper"
+
+
 def privileged(cmd):
 
     if os.geteuid() == 0:
         return cmd
+
+    if os.path.isfile(ROOT_HELPER):
+        return ["sudo", "-n", ROOT_HELPER, *cmd]
 
     return ["sudo", "-n"] + cmd
 

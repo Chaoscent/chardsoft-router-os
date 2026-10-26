@@ -201,6 +201,9 @@ def snapshot_pki():
         if kind != "f":
             continue
 
+        if not pki_file_allowed(relative):
+            continue
+
         ok, content = read_root_file(f"{PKI_DIR}/{relative}")
 
         # easy-rsa only writes text files; skip anything else.
@@ -219,6 +222,18 @@ def snapshot_pki():
     save_system(PKI_SNAPSHOT, snapshot, secret=True)
 
     return True, "OK"
+
+
+def pki_file_allowed(relative):
+    """
+    easy-rsa's own "vars" and OpenSSL configs are never snapshotted or
+    restored: easy-rsa runs them (the root helper refuses to write them),
+    and init-pki recreates them.
+    """
+
+    name = os.path.basename(relative)
+
+    return not (name.startswith("vars") or name.endswith(".cnf"))
 
 
 def restore_pki():
@@ -242,6 +257,9 @@ def restore_pki():
         ]))
 
     for relative, content in snapshot["files"].items():
+
+        if not pki_file_allowed(relative):
+            continue
 
         ok, _ = write_root_file(f"{PKI_DIR}/{relative}", content)
 

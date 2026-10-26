@@ -21,7 +21,8 @@
 #   4. Caddy: the previous Caddyfile comes back.
 #   5. The packages the installer installed (it records them).
 #   6. Every remaining file: /opt/chaos-router-os, /etc/chaos-router-os,
-#      /var/lib/chaos-router-os, /tmp/chaos-router-os, the sudoers file.
+#      /var/lib/chaos-router-os, /tmp/chaos-router-os, the sudoers file and
+#      the root helper.
 #
 # Stays on purpose: eth0's address settings (so the router stays
 # reachable), the hostname, the Wi-Fi country and the system journal.
@@ -41,6 +42,7 @@ DEFAULTS_DIR=/etc/chaos-router-os
 STATE_DIR=/var/lib/chaos-router-os
 RUNTIME_DIR=/tmp/chaos-router-os
 SUDOERS_FILE=/etc/sudoers.d/chaos-router-os
+HELPER_DIR=/usr/local/libexec/chardsoft-router-os
 PACKAGES_RECORD=$DEFAULTS_DIR/installed-packages
 
 CADDYFILE=/etc/caddy/Caddyfile
@@ -352,6 +354,7 @@ remove_files() {
     [[ -d $STATE_DIR ]] && app_user=$(stat -c %U "$STATE_DIR")
 
     run rm -f "$SUDOERS_FILE"
+    run rm -rf "$HELPER_DIR"
     run rm -rf "$DEFAULTS_DIR" "$STATE_DIR" "$RUNTIME_DIR" /etc/chaos-router
 
     # Settings of very old versions.

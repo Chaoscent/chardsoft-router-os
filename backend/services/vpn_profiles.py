@@ -70,7 +70,8 @@ OPENVPN_BLOCKED = {
     "client-disconnect", "learn-address", "plugin", "script-security",
     "config", "cd", "chroot", "writepid", "log", "log-append", "status",
     "daemon", "tmp-dir", "iproute", "askpass", "dev-node", "syslog",
-    "machine-readable-output"
+    "machine-readable-output", "management", "management-client-user",
+    "management-client-group", "client-crresponse", "tls-export-cert"
 }
 
 # Directives that point at files; only inline blocks are supported.

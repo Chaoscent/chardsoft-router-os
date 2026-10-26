@@ -36,12 +36,7 @@ def set_hostname(hostname):
     # --- Preferred: systemd hostnamectl ---
     try:
 
-        cmd = ["hostnamectl", "set-hostname", hostname]
-
-        if os.geteuid() == 0:
-            subprocess.run(cmd, check=True, capture_output=True)
-        else:
-            subprocess.run(["sudo", "-n"] + cmd, check=True, capture_output=True)
+        subprocess.run(privileged(["hostnamectl", "set-hostname", hostname]), check=True, capture_output=True)
 
         return True, hostname
 
@@ -51,12 +46,7 @@ def set_hostname(hostname):
     # --- Development fallback (WSL/Linux) ---
     try:
 
-        cmd = ["hostname", hostname]
-
-        if os.geteuid() == 0:
-            subprocess.run(cmd, check=True, capture_output=True)
-        else:
-            subprocess.run(["sudo", "-n"] + cmd, check=True, capture_output=True)
+        subprocess.run(privileged(["hostname", hostname]), check=True, capture_output=True)
 
         return True, hostname
 
@@ -168,7 +158,7 @@ def can_reboot():
         return True, "OK"
 
     # Lists the permission without running anything.
-    ok, _ = run_command(["sudo", "-n", "-l", "systemctl", "reboot"])
+    ok, _ = run_command(["sudo", "-n", "-l", *privileged(["systemctl", "reboot"])[2:]])
 
     if not ok:
         return False, "The app is not allowed to reboot (passwordless sudo for systemctl is missing)."

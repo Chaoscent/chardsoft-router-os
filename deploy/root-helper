@@ -1,0 +1,961 @@
+#!/usr/bin/python3 -I
+"""
+Chardsoft Router OS: the only program the app may run as root.
+
+The app calls `sudo -n root-helper <command> <args...>` (see
+backend/services/network.py: privileged). This script checks the command
+and its arguments against the rules below and only then runs the real
+program (always from the system's own directories, never a path the app
+names). Everything else is refused.
+
+Why: passwordless sudo for cp, rm, install, systemctl, iptables, ... is
+as good as full root for anyone who takes over the web app. Here:
+
+- files can only be written, read or removed in the router's own places
+  (/etc/hostapd/chaos-*, /etc/dnsmasq.d/chaos-router-*, the VPN folders,
+  /etc/caddy/chaos-apps, ...);
+- config files are checked before they are written: no option that runs
+  a program or reads or writes other files (dnsmasq dhcp-script,
+  OpenVPN up/plugin, WireGuard PostUp other than our NAT rule, ...);
+- the files to install must belong to the user that called sudo, so the
+  helper never copies a file the app could not read itself;
+- programs only get the subcommands the app uses (no `ip netns exec`,
+  `iptables --modprobe`, `sysctl -p`, `easyrsa --vars`, ...).
+
+Installed root-owned by install.sh to /usr/local/libexec/chardsoft-router-os/
+together with the scripts it may run (install-apps.sh, modem-usb-mode.sh):
+the app's own folder is writable by the app, so nothing there runs as root.
+
+Standalone on purpose: it imports nothing from the app.
+"""
+
+import fnmatch
+import os
+import re
+import stat
+import sys
+import tempfile
+
+
+HELPER_DIR = os.path.dirname(os.path.realpath(__file__))
+
+# Programs only ever come from here.
+TOOL_DIRS = ("/usr/sbin", "/usr/bin", "/sbin", "/bin")
+
+# The Apps Addon's CLI (root-owned, see the addon's install.sh).
+APPS_CLI = "/usr/local/bin/chaos-apps"
+APPS_DIR = "/opt/chaos-router-apps"
+
+EASYRSA = "/usr/share/easy-rsa/easyrsa"
+
+MAX_FILE = 1024 * 1024
+
+NAME = r"[A-Za-z0-9_.-]{1,32}"
+IFACE = r"[A-Za-z0-9_.@-]{1,15}"
+
+
+# -------------------------------------------------------------------
+# Paths
+# -------------------------------------------------------------------
+
+OPENVPN_SERVER = "/etc/openvpn/server"
+PKI_DIR = f"{OPENVPN_SERVER}/chaos-pki"
+NAT_SCRIPT = "/etc/openvpn/chaos-nat.sh"
+
+CADDY_CA = "/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt"
+
+# Files the app writes: pattern -> kind (how the content is checked).
+WRITABLE = (
+    ("/etc/hostapd/chaos-*.conf", "hostapd"),
+    ("/etc/dnsmasq.d/chaos-router-*.conf", "dnsmasq"),
+    ("/etc/wireguard/wg0.conf", "wireguard"),
+    ("/etc/wireguard/wgc*.conf", "wireguard"),
+    (f"{OPENVPN_SERVER}/chaos.conf", "openvpn"),
+    ("/etc/openvpn/client/ovpnc*.conf", "openvpn"),
+    ("/etc/openvpn/client/ovpnc*.auth", "data"),
+    (f"{OPENVPN_SERVER}/chaos-tls-crypt.key", "data"),
+    (f"{OPENVPN_SERVER}/chaos-crl.pem", "data"),
+    (f"{PKI_DIR}/**", "pki"),
+    (NAT_SCRIPT, "nat-script"),
+    ("/etc/caddy/chaos-apps/*.caddy", "caddy"),
+)
+
+# Folders the app may create.
+DIRECTORIES = (
+    "/etc/hostapd",
+    "/etc/caddy/chaos-apps",
+    PKI_DIR,
+    f"{PKI_DIR}/**",
+)
+
+# Removable besides the files above (factory reset, legacy hostapd).
+REMOVABLE = (
+    PKI_DIR,
+    "/etc/hostapd/hostapd.conf",
+    "/var/lib/chaos-router-os",
+    "/var/lib/chaos-router-os/**",
+    "/tmp/chaos-router-os",
+    "/tmp/chaos-router-os/**",
+)
+
+# Readable besides the files above.
+READABLE = (
+    CADDY_CA,
+)
+
+FILE_MODES = {"600", "640", "644", "0600", "0640", "0644"}
+
+
+class Refused(Exception):
+    pass
+
+
+def refuse(message):
+    raise Refused(message)
+
+
+def matches(path, patterns):
+    """fnmatch, where "**" also spans folders and "*" does not."""
+
+    for pattern in patterns:
+
+        if pattern.endswith("/**"):
+            if path.startswith(pattern[:-2]) and len(path) > len(pattern) - 2:
+                return True
+            continue
+
+        if fnmatch.fnmatchcase(path, pattern) and "/" not in path[len(pattern.split("*")[0]):]:
+            return True
+
+    return False
+
+
+def clean_path(path):
+    """
+    An absolute, normalized path whose existing parent folders are real
+    folders (no symlinks anywhere on the way: a link would point the
+    write somewhere else).
+    """
+
+    if not isinstance(path, str) or not path.startswith("/") or "\0" in path:
+        refuse(f"Not an absolute path: {path!r}")
+
+    parts = path.split("/")
+
+    if ".." in parts or "." in parts:
+        refuse(f"Relative parts in path: {path}")
+
+    path = os.path.normpath(path)
+
+    current = "/"
+
+    for part in path.strip("/").split("/")[:-1]:
+
+        current = os.path.join(current, part)
+
+        if os.path.islink(current):
+            refuse(f"Symlink in path: {current}")
+
+    return path
+
+
+def writable_kind(path):
+
+    for pattern, kind in WRITABLE:
+        if matches(path, (pattern,)):
+            return kind
+
+    return None
+
+
+def check_readable(path):
+
+    path = clean_path(path)
+
+    if writable_kind(path) or matches(path, READABLE) or matches(path, DIRECTORIES):
+        if os.path.islink(path):
+            refuse(f"Symlink: {path}")
+        return path
+
+    refuse(f"Not readable through the helper: {path}")
+
+
+def find_tool(name):
+
+    for folder in TOOL_DIRS:
+
+        path = os.path.join(folder, name)
+
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+
+    refuse(f"{name} is not installed.")
+
+
+# -------------------------------------------------------------------
+# Config file content
+# -------------------------------------------------------------------
+
+def check_hostapd(text):
+
+    for line in text.splitlines():
+
+        line = line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        key, _, value = line.partition("=")
+
+        # Anything naming a file (PSK lists, certificates, MAC lists,
+        # dump files) could read or write files as root.
+        if re.search(r"(_file|_path|_cert|_key|_script)$", key) or key in ("dump_file", "ca_cert", "dh_file"):
+            refuse(f"hostapd option not allowed: {key}")
+
+        if key == "ctrl_interface" and value not in ("/run/hostapd", "/var/run/hostapd"):
+            refuse("hostapd ctrl_interface must be /run/hostapd.")
+
+
+DNSMASQ_TRUST_ANCHORS = (
+    "/usr/share/dnsmasq-base/trust-anchors.conf",
+    "/usr/share/dnsmasq/trust-anchors.conf",
+)
+
+
+def check_dnsmasq(text):
+
+    for line in text.splitlines():
+
+        line = line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        key, _, value = line.partition("=")
+        key = key.strip()
+
+        if key == "conf-file" and value.strip() in DNSMASQ_TRUST_ANCHORS:
+            continue
+
+        # Scripts, other config files, lease/host/option files, TFTP
+        # (serves files), the user it runs as, log files.
+        if re.search(r"script|file|dir|tftp|user|group|dump|lease|log-facility", key):
+            refuse(f"dnsmasq option not allowed: {key}")
+
+
+WIREGUARD_NAT = re.compile(
+    r"iptables -t nat -[AD] POSTROUTING( -s [0-9a-fA-F:./]+)? -o [A-Za-z0-9_.@%-]+ -j MASQUERADE"
+)
+
+
+def check_wireguard(text):
+
+    for line in text.splitlines():
+
+        line = line.strip()
+
+        if not line or line.startswith(("#", "[")):
+            continue
+
+        key, _, value = line.partition("=")
+        key = key.strip().lower()
+        value = value.strip()
+
+        if key in ("preup", "predown"):
+            refuse(f"WireGuard option not allowed: {key}")
+
+        # wg-quick runs these as root: only our NAT rule.
+        if key in ("postup", "postdown") and not WIREGUARD_NAT.fullmatch(value):
+            refuse("WireGuard PostUp/PostDown may only set up NAT.")
+
+
+# Options that run programs, load code or write files as root.
+OPENVPN_FORBIDDEN = {
+    "ipchange", "route-up", "route-pre-down", "client-connect",
+    "client-disconnect", "learn-address", "auth-user-pass-verify",
+    "tls-verify", "plugin", "config", "cd", "chroot", "writepid",
+    "log", "log-append", "iproute", "tmp-dir", "management",
+    "management-client-user", "management-client-group", "askpass",
+    "client-crresponse", "tls-export-cert", "daemon", "syslog",
+}
+
+
+def check_openvpn(text):
+
+    inline = None
+
+    for line in text.splitlines():
+
+        line = line.strip()
+
+        # Inline blocks (<ca>...</ca>) hold certificates, not options.
+        if inline:
+            if line == f"</{inline}>":
+                inline = None
+            continue
+
+        match = re.fullmatch(r"<([a-z-]+)>", line)
+
+        if match:
+            inline = match.group(1)
+            continue
+
+        if not line or line.startswith(("#", ";")):
+            continue
+
+        words = line.split()
+        key = words[0].lstrip("-").lower()
+        args = words[1:]
+
+        if key in OPENVPN_FORBIDDEN:
+            refuse(f"OpenVPN option not allowed: {key}")
+
+        if key in ("up", "down"):
+            if args != [NAT_SCRIPT]:
+                refuse("OpenVPN up/down may only run the router's NAT script.")
+            continue
+
+        if key == "script-security" and args not in (["1"], ["2"]):
+            refuse("OpenVPN script-security must be 1 or 2.")
+
+        if key == "status" and args and not args[0].startswith("/run/openvpn"):
+            refuse("OpenVPN status file must be under /run.")
+
+        # Files it reads (keys, certificates, auth) stay in OpenVPN's folder.
+        for arg in args:
+            if arg.startswith("/") and not arg.startswith(("/etc/openvpn/", "/run/openvpn")):
+                refuse(f"OpenVPN path outside /etc/openvpn: {arg}")
+
+    if inline:
+        refuse(f"OpenVPN block <{inline}> is not closed.")
+
+
+CADDY_LINE = re.compile(
+    r"#.*"
+    r"|@app-[a-z0-9-]+ host [A-Za-z0-9.-]+"
+    r"|handle @app-[a-z0-9-]+ \{"
+    r"|@app-[a-z0-9-]+-plain protocol http"
+    r"|redir @app-[a-z0-9-]+-plain https://\{host\}\{uri\} 308"
+    r"|reverse_proxy 127\.0\.0\.1:[0-9]{1,5}"
+    r"|\}"
+)
+
+
+def check_caddy(text):
+
+    for line in text.splitlines():
+
+        line = line.strip()
+
+        if line and not CADDY_LINE.fullmatch(line):
+            refuse(f"Caddy line not allowed: {line[:80]}")
+
+
+NAT_SCRIPT_CONTENT = """#!/bin/sh
+# Generated by Chardsoft Router OS. Do not edit by hand.
+# OpenVPN up/down hook: NAT for VPN traffic.
+#   Server: CHAOS_NAT_SOURCE / CHAOS_WAN set via setenv.
+#   Client: masquerade LAN traffic leaving through the tunnel ($dev).
+
+if [ -n "$CHAOS_NAT_SOURCE" ]; then
+    RULE="-s $CHAOS_NAT_SOURCE -o $CHAOS_WAN -j MASQUERADE"
+else
+    RULE="-o $dev -j MASQUERADE"
+fi
+
+case "$script_type" in
+    up)
+        iptables -t nat -C POSTROUTING $RULE 2>/dev/null ||
+            iptables -t nat -A POSTROUTING $RULE
+        ;;
+    down)
+        iptables -t nat -D POSTROUTING $RULE 2>/dev/null
+        ;;
+esac
+
+exit 0
+"""
+
+
+def check_nat_script(text):
+
+    # Runs as root on every VPN start: only this exact script.
+    if text != NAT_SCRIPT_CONTENT:
+        refuse("The NAT script may only have its built-in content.")
+
+
+def check_pki(text, path):
+
+    name = os.path.basename(path)
+
+    # easy-rsa sources "vars" and reads OpenSSL configs (which can load
+    # engines): those it writes itself.
+    if name.startswith("vars") or name.endswith(".cnf"):
+        refuse(f"PKI file not allowed: {name}")
+
+
+def check_content(kind, text, path):
+
+    if kind == "hostapd":
+        check_hostapd(text)
+    elif kind == "dnsmasq":
+        check_dnsmasq(text)
+    elif kind == "wireguard":
+        check_wireguard(text)
+    elif kind == "openvpn":
+        check_openvpn(text)
+    elif kind == "caddy":
+        check_caddy(text)
+    elif kind == "nat-script":
+        check_nat_script(text)
+    elif kind == "pki":
+        check_pki(text, path)
+
+
+# -------------------------------------------------------------------
+# File operations (done here, not by cp/install)
+# -------------------------------------------------------------------
+
+def caller_uid():
+
+    try:
+        return int(os.environ["SUDO_UID"])
+    except (KeyError, ValueError):
+        return os.getuid()
+
+
+def read_source(path):
+    """
+    The file to install: a regular file owned by the caller, opened
+    without following symlinks.
+    """
+
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as error:
+        refuse(f"Cannot open {path}: {error.strerror}")
+
+    with os.fdopen(fd, "rb") as f:
+
+        info = os.fstat(f.fileno())
+
+        if not stat.S_ISREG(info.st_mode):
+            refuse(f"Not a regular file: {path}")
+
+        if info.st_uid != caller_uid():
+            refuse(f"{path} does not belong to the caller.")
+
+        if info.st_size > MAX_FILE:
+            refuse(f"{path} is too large.")
+
+        data = f.read(MAX_FILE + 1)
+
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        refuse(f"{path} is not text.")
+
+
+def make_dirs(path, mode=0o755):
+
+    path = clean_path(path)
+
+    if os.path.isdir(path):
+        return
+
+    if not matches(path, DIRECTORIES) and not writable_kind(path + "/x"):
+        refuse(f"Not allowed to create {path}")
+
+    parent = os.path.dirname(path)
+
+    if not os.path.isdir(parent):
+        make_dirs(parent, mode)
+
+    os.mkdir(path, mode)
+
+
+def install_file(source, target, mode, parents):
+
+    target = clean_path(target)
+    kind = writable_kind(target)
+
+    if not kind:
+        refuse(f"Not allowed to write {target}")
+
+    if kind == "nat-script":
+        if mode not in ("755", "0755"):
+            refuse("The NAT script must be mode 755.")
+    elif mode not in FILE_MODES:
+        refuse(f"Mode not allowed: {mode}")
+
+    text = read_source(source)
+
+    check_content(kind, text, target)
+
+    folder = os.path.dirname(target)
+
+    if parents:
+        make_dirs(folder, 0o700 if kind == "pki" else 0o755)
+
+    if os.path.islink(target):
+        os.unlink(target)
+
+    fd, tmp = tempfile.mkstemp(dir=folder, prefix=".chaos-")
+
+    try:
+
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+
+        os.chmod(tmp, int(mode, 8))
+        os.replace(tmp, target)
+
+    except BaseException:
+
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+        raise
+
+
+def remove_path(path, recursive):
+
+    path = clean_path(path)
+
+    if path in ("/var/lib/chaos-router-os", "/tmp/chaos-router-os") and not recursive:
+        refuse("Folder: use -r.")
+
+    if not (writable_kind(path) or matches(path, REMOVABLE)):
+        refuse(f"Not allowed to remove {path}")
+
+    if os.path.islink(path) or os.path.isfile(path):
+        os.unlink(path)
+        return
+
+    if os.path.isdir(path):
+
+        if not recursive:
+            refuse(f"{path} is a folder.")
+
+        import shutil
+        shutil.rmtree(path)
+
+
+# -------------------------------------------------------------------
+# Commands
+# -------------------------------------------------------------------
+
+def cmd_install(args):
+
+    mode, parents, folder, paths = "644", False, False, []
+
+    i = 0
+
+    while i < len(args):
+
+        arg = args[i]
+
+        if arg == "-m":
+            mode = args[i + 1] if i + 1 < len(args) else refuse("-m needs a mode.")
+            i += 2
+            continue
+
+        if arg == "-D":
+            parents = True
+        elif arg == "-d":
+            folder = True
+        elif arg.startswith("-"):
+            refuse(f"install option not allowed: {arg}")
+        else:
+            paths.append(arg)
+
+        i += 1
+
+    if folder:
+
+        if len(paths) != 1 or mode not in ("700", "755", "0700", "0755"):
+            refuse("install -d takes one folder and mode 700 or 755.")
+
+        make_dirs(paths[0], int(mode, 8))
+        os.chmod(clean_path(paths[0]), int(mode, 8))
+        return
+
+    if len(paths) != 2:
+        refuse("install takes a source and a target.")
+
+    install_file(paths[0], paths[1], mode, parents)
+
+
+def cmd_mkdir(args):
+
+    if args[:1] != ["-p"] or len(args) != 2:
+        refuse("mkdir: only mkdir -p <folder>.")
+
+    make_dirs(args[1])
+
+
+def cmd_rm(args):
+
+    if len(args) != 2 or args[0] not in ("-f", "-rf", "-fr", "-r"):
+        refuse("rm: only rm -f <file> or rm -rf <path>.")
+
+    path = clean_path(args[1])
+
+    if not os.path.lexists(path):
+        return
+
+    remove_path(path, "r" in args[0])
+
+
+def cmd_cat(args):
+
+    if len(args) != 1:
+        refuse("cat takes one file.")
+
+    path = check_readable(args[0])
+
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as error:
+        print(f"cat: {path}: {error.strerror}", file=sys.stderr)
+        sys.exit(1)
+
+    with os.fdopen(fd, "rb") as f:
+        sys.stdout.buffer.write(f.read())
+
+
+def cmd_test(args):
+
+    if len(args) != 2 or args[0] not in ("-f", "-d", "-e"):
+        refuse("test: only -f, -d or -e with one path.")
+
+    path = check_readable(args[1])
+    check = {"-f": os.path.isfile, "-d": os.path.isdir, "-e": os.path.exists}[args[0]]
+
+    sys.exit(0 if check(path) else 1)
+
+
+def cmd_find(args):
+
+    # Only the PKI snapshot listing.
+    if args[:1] != [PKI_DIR] or args[1:] != ["-mindepth", "1", "-printf", "%y %P\\n"]:
+        refuse("find: only the PKI listing.")
+
+    return [find_tool("find"), *args]
+
+
+SYSTEMCTL_VERBS = {
+    "start", "stop", "restart", "reload", "try-restart", "enable",
+    "disable", "is-active", "is-enabled", "is-failed", "status", "show",
+    "reset-failed", "daemon-reload", "reboot", "list-units",
+}
+
+SYSTEMCTL_OPTIONS = {"--now", "--quiet", "-q", "--no-block", "--no-pager", "--all", "--plain", "--no-legend"}
+
+UNITS = re.compile(
+    r"(dnsmasq|hostapd|caddy|chaos-router-mdns|chaos-router-os|NetworkManager|ModemManager|avahi-daemon|ufw"
+    rf"|chaos-hostapd@{IFACE}|wg-quick@{IFACE}|openvpn-server@{NAME}|openvpn-client@{NAME}"
+    r")(\.service)?"
+)
+
+
+def cmd_systemctl(args):
+
+    words = [a for a in args if not a.startswith("-")]
+    options = [a for a in args if a.startswith("-")]
+
+    for option in options:
+        if option not in SYSTEMCTL_OPTIONS and not option.startswith(("--type=", "--state=")):
+            refuse(f"systemctl option not allowed: {option}")
+
+    if not words or words[0] not in SYSTEMCTL_VERBS:
+        refuse(f"systemctl command not allowed: {words[:1]}")
+
+    verb, units = words[0], words[1:]
+
+    if verb in ("daemon-reload", "reboot") and units:
+        refuse(f"systemctl {verb} takes no unit.")
+
+    for unit in units:
+
+        # list-units filters by pattern, e.g. chaos-hostapd@*.
+        if verb == "list-units" and re.fullmatch(r"[A-Za-z0-9_.@*-]+", unit):
+            continue
+
+        if not UNITS.fullmatch(unit):
+            refuse(f"Unit not allowed: {unit}")
+
+    return [find_tool("systemctl"), *args]
+
+
+JOURNAL_WITH_VALUE = {"-o", "--output", "-n", "--lines", "-u", "--unit", "-p", "--priority", "-t", "--identifier", "-S", "--since", "-U", "--until", "-g", "--grep", "-b", "--boot"}
+JOURNAL_FLAGS = {"--no-pager", "-k", "--dmesg", "-r", "--reverse", "-q", "--quiet", "-a", "--all", "--utc", "-x"}
+
+
+def cmd_journalctl(args):
+
+    i = 0
+
+    while i < len(args):
+
+        arg = args[i]
+        name = arg.split("=", 1)[0]
+
+        if arg in JOURNAL_FLAGS:
+            i += 1
+        elif name in JOURNAL_WITH_VALUE and "=" in arg:
+            i += 1
+        elif arg in JOURNAL_WITH_VALUE:
+            i += 2
+        else:
+            refuse(f"journalctl option not allowed: {arg}")
+
+    return [find_tool("journalctl"), "--no-pager", *[a for a in args if a != "--no-pager"]]
+
+
+def cmd_nmcli(args):
+
+    lowered = [a.lower() for a in args]
+
+    # Reading connection files from paths, interactive editing.
+    for word in ("import", "load", "edit", "agent", "--ask", "-a"):
+        if word in lowered:
+            refuse(f"nmcli {word} is not allowed.")
+
+    return [find_tool("nmcli"), *args]
+
+
+def cmd_mmcli(args):
+
+    return [find_tool("mmcli"), *args]
+
+
+HOSTNAME = re.compile(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+
+
+def cmd_hostnamectl(args):
+
+    if len(args) != 2 or args[0] != "set-hostname" or not HOSTNAME.fullmatch(args[1]):
+        refuse("hostnamectl: only set-hostname <name>.")
+
+    return [find_tool("hostnamectl"), *args]
+
+
+def cmd_hostname(args):
+
+    if len(args) != 1 or not HOSTNAME.fullmatch(args[0]):
+        refuse("hostname: only a valid name.")
+
+    return [find_tool("hostname"), *args]
+
+
+SYSCTL_KEY = re.compile(r"net\.[A-Za-z0-9_./-]+")
+
+
+def cmd_sysctl(args):
+
+    if len(args) == 2 and args[0] == "-w":
+        key, _, value = args[1].partition("=")
+        if SYSCTL_KEY.fullmatch(key) and re.fullmatch(r"[0-9]{1,6}", value):
+            return [find_tool("sysctl"), *args]
+
+    if len(args) == 2 and args[0] == "-n" and SYSCTL_KEY.fullmatch(args[1]):
+        return [find_tool("sysctl"), *args]
+
+    refuse("sysctl: only -w net.<key>=<number> or -n net.<key>.")
+
+
+IP_OBJECTS = {"addr", "address", "a", "link", "l", "route", "r", "ro", "rule", "ru", "neigh", "neighbour", "n"}
+
+
+def cmd_ip(args):
+
+    i = 0
+
+    # Leading options: -4, -6, -j, -br, -o, ... but never a batch file
+    # or another network namespace.
+    while i < len(args) and args[i].startswith("-"):
+
+        if args[i].lstrip("-") in ("n", "netns", "b", "batch", "force", "N"):
+            refuse(f"ip option not allowed: {args[i]}")
+
+        i += 1
+
+    if i >= len(args) or args[i] not in IP_OBJECTS:
+        refuse(f"ip object not allowed: {args[i:i + 1]}")
+
+    if "netns" in args[i:] or "exec" in args[i:]:
+        refuse("ip netns is not allowed.")
+
+    return [find_tool("ip"), *args]
+
+
+def cmd_iptables(tool, args):
+
+    for arg in args:
+        if arg == "-M" or arg.startswith("--modprobe"):
+            refuse("iptables --modprobe is not allowed.")
+
+    return [find_tool(tool), *args]
+
+
+def cmd_simple(tool, args):
+
+    return [find_tool(tool), *args]
+
+
+def cmd_wg(args):
+
+    if not args or args[0] not in ("show", "showconf"):
+        refuse("wg: only show and showconf.")
+
+    return [find_tool("wg"), *args]
+
+
+def cmd_openvpn(args):
+
+    if args != ["--genkey", "secret", f"{OPENVPN_SERVER}/chaos-tls-crypt.key"]:
+        refuse("openvpn: only the tls-crypt key.")
+
+    return [find_tool("openvpn"), *args]
+
+
+EASYRSA_COMMANDS = {"init-pki", "build-ca", "build-server-full", "build-client-full", "gen-crl", "revoke"}
+
+
+def cmd_easyrsa(args):
+
+    if f"--pki-dir={PKI_DIR}" not in args or "--batch" not in args:
+        refuse("easyrsa: needs --batch and the router's PKI folder.")
+
+    command = None
+
+    for arg in args:
+
+        if arg in ("--batch", f"--pki-dir={PKI_DIR}", "nopass"):
+            continue
+
+        if re.fullmatch(r"--use-algo=(ec|rsa)|--curve=[a-z0-9]+|--days=[0-9]{1,5}|--req-cn=[A-Za-z0-9 ._-]{1,64}", arg):
+            continue
+
+        if arg.startswith("-"):
+            refuse(f"easyrsa option not allowed: {arg}")
+
+        if command is None:
+            if arg not in EASYRSA_COMMANDS:
+                refuse(f"easyrsa command not allowed: {arg}")
+            command = arg
+            continue
+
+        # The certificate's name.
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", arg):
+            refuse(f"easyrsa name not allowed: {arg}")
+
+    tool = EASYRSA if os.path.isfile(EASYRSA) else find_tool("easyrsa")
+
+    return [tool, *args]
+
+
+def cmd_apps(args):
+
+    real = os.path.realpath(APPS_CLI)
+
+    if not real.startswith(APPS_DIR + "/") or os.stat(real).st_uid != 0:
+        refuse("The Apps Addon CLI is not installed root-owned.")
+
+    return [APPS_CLI, *args]
+
+
+SCRIPTS = {
+    "install-apps.sh": [[""], []],
+    "modem-usb-mode.sh": [["status"], ["qmi"], ["mbim"], ["auto"]],
+}
+
+
+def cmd_script(name, args):
+
+    if args not in SCRIPTS[name]:
+        refuse(f"{name}: arguments not allowed.")
+
+    path = os.path.join(HELPER_DIR, name)
+
+    info = os.stat(path)
+
+    if info.st_uid != 0 or info.st_mode & 0o022:
+        refuse(f"{path} must be root-owned and not writable by others.")
+
+    return [path, *args]
+
+
+def plan(argv):
+    """
+    What to do for a command line: a list (the program to run) or None
+    (done here). Raises Refused.
+    """
+
+    if not argv:
+        refuse("No command.")
+
+    # The app may name programs by full path (shutil.which): only the
+    # name counts, the program comes from TOOL_DIRS.
+    name, args = os.path.basename(argv[0]), argv[1:]
+
+    if name in SCRIPTS:
+        return cmd_script(name, args)
+
+    if argv[0] == APPS_CLI or name == "chaos-apps":
+        return cmd_apps(args)
+
+    handlers = {
+        "install": lambda: cmd_install(args),
+        "mkdir": lambda: cmd_mkdir(args),
+        "rm": lambda: cmd_rm(args),
+        "cat": lambda: cmd_cat(args),
+        "test": lambda: cmd_test(args),
+        "find": lambda: cmd_find(args),
+        "systemctl": lambda: cmd_systemctl(args),
+        "journalctl": lambda: cmd_journalctl(args),
+        "nmcli": lambda: cmd_nmcli(args),
+        "mmcli": lambda: cmd_mmcli(args),
+        "hostnamectl": lambda: cmd_hostnamectl(args),
+        "hostname": lambda: cmd_hostname(args),
+        "sysctl": lambda: cmd_sysctl(args),
+        "ip": lambda: cmd_ip(args),
+        "iptables": lambda: cmd_iptables("iptables", args),
+        "ip6tables": lambda: cmd_iptables("ip6tables", args),
+        "ufw": lambda: cmd_simple("ufw", args),
+        "iw": lambda: cmd_simple("iw", args),
+        "rfkill": lambda: cmd_simple("rfkill", args),
+        "wg": lambda: cmd_wg(args),
+        "openvpn": lambda: cmd_openvpn(args),
+        "easyrsa": lambda: cmd_easyrsa(args),
+    }
+
+    if name not in handlers:
+        refuse(f"Command not allowed: {name}")
+
+    return handlers[name]()
+
+
+def main():
+
+    try:
+        command = plan(sys.argv[1:])
+    except Refused as error:
+        print(f"root-helper: {error}", file=sys.stderr)
+        sys.exit(126)
+    except OSError as error:
+        print(f"root-helper: {error}", file=sys.stderr)
+        sys.exit(1)
+
+    if command is None:
+        sys.exit(0)
+
+    # A minimal, fixed environment for the program.
+    env = {"PATH": ":".join(TOOL_DIRS), "LANG": "C.UTF-8"}
+
+    os.execve(command[0], command, env)
+
+
+if __name__ == "__main__":
+    main()

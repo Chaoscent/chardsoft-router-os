@@ -55,11 +55,8 @@ PACKAGES=(
 )
 
 # Commands the app runs with `sudo -n` (see README, System Requirements).
-SUDO_COMMANDS=(
-    systemctl journalctl nmcli mmcli hostnamectl sysctl ip
-    ufw iptables ip6tables iw rfkill wg openvpn easyrsa
-    install mkdir cp rm cat test find
-)
+# Root-owned home of the root helper (see setup_sudo).
+HELPER_DIR=/usr/local/libexec/chardsoft-router-os
 
 
 # -------------------------------------------------------------------
@@ -465,51 +462,40 @@ setup_sudo() {
 
     step "Checking permissions"
 
-    if sudo -u "$APP_USER" sudo -n true 2>/dev/null; then
-        info "$APP_USER has passwordless sudo."
-        return
-    fi
+    # The root helper and the scripts it may run, root-owned outside the
+    # app's folder (which the app can write): the app gets root only
+    # through checked commands (deploy/root-helper).
+    install -d -o root -g root -m 755 "$HELPER_DIR"
 
-    # Only the commands the app needs.
-    local paths=() cmd path
-
-    for cmd in "${SUDO_COMMANDS[@]}"; do
-
-        # type -P: the program's full path, never a shell built-in
-        # (`command -v test` says "test", which sudoers rejects).
-        path=$(PATH=$PATH:/usr/sbin:/sbin type -P "$cmd" || true)
-
-        if [[ -n $path ]]; then
-            paths+=("$path")
-        fi
-
+    local file
+    for file in root-helper install-apps.sh modem-usb-mode.sh; do
+        install -o root -g root -m 755 "$INSTALL_DIR/deploy/$file" "$HELPER_DIR/$file"
     done
 
-    # The Apps page's one-click Apps Addon install, without arguments.
-    paths+=("$INSTALL_DIR/deploy/install-apps.sh \"\"")
-
-    # The Modem page: the modem's USB data mode (Quectel).
-    paths+=("$INSTALL_DIR/deploy/modem-usb-mode.sh status" "$INSTALL_DIR/deploy/modem-usb-mode.sh qmi" "$INSTALL_DIR/deploy/modem-usb-mode.sh mbim")
-
-    local tmp joined
+    local tmp
     tmp=$(mktemp)
 
-    joined=$(printf '%s, ' "${paths[@]}")
-    joined=${joined%, }
-
     {
-        echo "# Chardsoft Router OS: system commands the app runs (sudo -n)."
-        echo "$APP_USER ALL=(root) NOPASSWD: $joined"
+        echo "# Chardsoft Router OS: the app runs system commands only through"
+        echo "# the root helper, which checks each one (sudo -n)."
+        echo "$APP_USER ALL=(root) NOPASSWD: $HELPER_DIR/root-helper"
     } > "$tmp"
 
     if visudo -cf "$tmp" >/dev/null; then
         install -m 440 "$tmp" "$SUDOERS_FILE"
-        info "Added $SUDOERS_FILE for $APP_USER."
+        info "Added $SUDOERS_FILE for $APP_USER (root helper only)."
     else
         warn "Could not create a valid sudoers file; the app cannot change system settings."
     fi
 
     rm -f "$tmp"
+
+    # Raspberry Pi OS gives its first user sudo for everything without a
+    # password; the app then runs with that too.
+    if sudo -u "$APP_USER" sudo -n -l 2>/dev/null | grep -q "NOPASSWD: ALL"; then
+        warn "$APP_USER also has passwordless sudo for everything (Raspberry Pi OS default)."
+        warn "The app would then not be limited to the root helper."
+    fi
 }
 
 
