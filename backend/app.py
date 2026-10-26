@@ -337,6 +337,8 @@ from setup import (
 from security import (
         load_secret_key,
         SessionInterface,
+
+        is_https,
         LOCALHOST,
         csrf_token,
         check_csrf,
@@ -3124,13 +3126,36 @@ def check_password_again(password):
 
 
 
+def shell_allowed(address):
+        """
+        (True, "") or (False, why): never from the WAN side, and behind
+        Caddy only over HTTPS (keystrokes include passwords). Without
+        Caddy there is no HTTPS at all; the page warns instead.
+        """
+
+        if BEHIND_CADDY and not is_https():
+                return False, "The shell only works over HTTPS. Open the dashboard with https:// and try again."
+
+        return web_shell.is_allowed_address(address)
+
+
+
 @app.route("/api/shell/status")
 
 @login_required
 
 def shell_status_api():
 
-        return jsonify(web_shell.get_shell_status(get_viewer_ip()))
+        address = get_viewer_ip()
+
+        status = web_shell.get_shell_status(address)
+
+        status["allowed"], status["reason"] = shell_allowed(address)
+
+        # Plain HTTP without Caddy: typed text crosses the network unencrypted.
+        status["unencrypted"] = not is_https()
+
+        return jsonify(status)
 
 
 
@@ -3166,7 +3191,7 @@ def shell_unlock_api():
         if not web_shell.get_shell_settings()["enabled"]:
                 return jsonify({"success": False, "message": "The web shell is turned off (System page)."}), 403
 
-        allowed, reason = web_shell.is_allowed_address(address)
+        allowed, reason = shell_allowed(address)
 
         if not allowed:
                 return jsonify({"success": False, "message": reason}), 403
@@ -3210,7 +3235,7 @@ def shell_ws(ws):
         if not web_shell.get_shell_settings()["enabled"]:
                 return refuse("The web shell is turned off.")
 
-        allowed, reason = web_shell.is_allowed_address(address)
+        allowed, reason = shell_allowed(address)
 
         if not allowed:
                 return refuse(reason)

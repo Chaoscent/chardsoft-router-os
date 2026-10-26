@@ -99,6 +99,7 @@ window.Page.shell = {
         }
 
         shellNotice.classList.add("hidden");
+        shellUnencrypted.classList.toggle("hidden", !status.unencrypted);
         shellUnlock.classList.remove("hidden");
         shellPasswordInput.focus();
 
