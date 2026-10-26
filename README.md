@@ -290,6 +290,7 @@ A ready-made sudoers file will ship with the installer.
 |---|---|
 | ✅ | Flask foundation |
 | ✅ | Dashboard UI |
+| 🧪 | Dashboard widgets (traffic graphs per interface, editor for order, width and visibility) |
 | ✅ | Live System API |
 | ✅ | SPA routing (`#/dashboard`) |
 | ✅ | Network page |
@@ -298,21 +299,24 @@ A ready-made sudoers file will ship with the installer.
 | ✅ | System |
 | 🧪 | Safe Apply (verify, confirm or auto-revert, recover at boot) |
 | 🧪 | Config layout (`/etc` defaults, `/var/lib` persistent, `/tmp` running) |
-| 🧪 | WiFi page (hostapd, WPA2/WPA3, 2.4/5/6 GHz, one network per radio, connected clients) |
+| 🧪 | WiFi page (hostapd, WPA2/WPA3, 2.4/5/6 GHz, channel width up to 160 MHz, connected clients) |
 | 🧪 | DHCP page (dnsmasq, one range per interface, follows the Wi-Fi, static leases, active leases) |
 | 🧪 | DNS page (dnsmasq, upstream providers, local records, blocklist, lookup) |
 | 🧪 | Clients page (reserve DHCP IP, block device, ping, Wake-on-LAN) |
 | 🧪 | Firewall page (ufw, default policies, rules) |
-| 🧪 | Routing & NAT (IP forwarding, masquerading to the WAN) |
+| 🧪 | Routing & NAT (IP forwarding, masquerading to the WAN, MSS clamping) |
 | 🧪 | eth0 LAN/WAN switch (Ethernet uplink instead of the modem) |
 | 🧪 | LAN bridge (br0: chosen Ethernet and Wi-Fi ports in one network) |
 | 🧪 | VPN page: WireGuard server |
 | 🧪 | VPN page: OpenVPN server with its own certificate authority |
-| 🧪 | VPN page: WireGuard and OpenVPN client profiles |
+| 🧪 | VPN page: WireGuard and OpenVPN client profiles (all traffic, kill switch) |
 | 🧪 | Logs (router events and service logs) |
 | 🧪 | Web shell (xterm.js; off by default, password per session, LAN only) |
-| ⬜ | Start the app at boot (systemd service) |
-| ⬜ | Installer with sudoers file |
+| 🧪 | Start the app at boot (systemd service) |
+| 🧪 | Installer (root-owned code, one sudo rule for the root helper) |
+| 🧪 | Root helper (every system command checked before it runs as root) |
+| 🧪 | Encrypted backups (optional password, AES-256-GCM) |
+| 🧪 | Updates from the System page (backup first, automatic rollback) |
 | 🧪 | Setup Wizard (`/setup`: admin account, Wi-Fi; only until an account exists) |
 | 🧪 | Caddy (ports 80 and 443, HTTPS from a local certificate authority) |
 | 🧪 | Apps page: one-click Apps Addon install, app catalog (install, open, start/stop, update, logs, remove) |

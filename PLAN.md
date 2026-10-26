@@ -1,231 +1,148 @@
 # Chardsoft Router OS: Plan to v1
 
-What is still missing before Core v1, and how the remaining pieces should work.
-The README covers what exists; this file covers what's next.
+What is still missing before Core v1. The README covers what exists; this
+file covers what's next.
 
 Target platform: **Raspberry Pi OS Lite (64-bit)** on a Raspberry Pi 5.
 
 ---
 
-## Order of work
+## Where it stands
 
-1. ~~LAN NAT and IP forwarding~~ (done, needs hardware test)
-2. systemd service and production server
-3. Installer (with the root helper and sudoers file)
-4. Testing on the Pi 5 (everything marked 🧪 in the README)
-5. Setup Wizard with captive portal
-6. Updater
-7. Uninstaller
-8. Caddy and HTTPS
-
-The installer comes early because it makes hardware testing realistic.
-The config schema version (see Updater) should be added right away, before any real installs exist.
+Core is feature-complete for v1. Almost everything has only been tested in
+WSL with fake hardware (🧪 in the README), so the main work left is testing
+on the Pi 5 and fixing what that finds. The installer, setup Wi-Fi, captive
+portal and setup wizard have been tried on the Pi.
 
 ---
 
-## 1. Blockers
+## 1. Hardware testing (Pi 5)
 
-Without these it isn't a router yet.
+Most likely to need fixes: Wi-Fi, 6 GHz, the modem, the OpenVPN PKI, the
+firewall, and the root helper's rules (a command the helper refuses shows
+its reason, starting with `root-helper:`, in the page's message and the log).
 
-- [x] **LAN NAT and IP forwarding.** Done: `services/routing.py`, the "Routing & NAT" card on the Firewall page. Applied at boot from the installed defaults (on by default), even before the first change. Still to do:
-  - [ ] Test on the Pi 5: LAN devices get internet through the modem.
-  - [x] The WAN is no longer guessed from the default route: it is eth0 when eth0 is switched to WAN mode on the Network page, otherwise `wwan0`.
-  - [x] The firewall's essential rules follow the WAN (eth0 in WAN mode).
-  - [ ] Test the eth0 LAN/WAN switch on the Pi 5: default route on eth0, NAT on eth0, DHCP paused on eth0.
-  - [x] Essential firewall rules are a setting, rebuilt on every apply (and on every eth0 mode switch), not one-off copies.
-  - [x] **Security:** SSH and the dashboard are only allowed on LAN interfaces, never on the WAN.
-- [x] **Firewall on by default.** The installer ships `/etc/chaos-router-os/firewall.json`: on, incoming and routed denied, outgoing allowed, essential rules on. Applied at boot before the first change.
-  - [ ] Test on the Pi 5 that a fresh install keeps SSH and the dashboard reachable from eth0 and Wi-Fi.
-  - [x] With Caddy in front, the essential rules only open 80 and 443 (port 5000 only without Caddy, `CHAOS_BIND`).
-  - [ ] Dev setups that enabled the firewall before this change still have the old "allow from any" essential copies as user rules; delete them on the Firewall page.
-  - [ ] Consider TCP MSS clamping for the modem link (mobile networks often have a smaller MTU).
-- [x] **Start at boot.** `deploy/chaos-router-os.service`, installed with `sudo deploy/install-service.sh` (`--remove` to uninstall): starts after NetworkManager, runs as the user who called sudo, restarts on failure, logs to the journal. Boot recovery (`sync_boot` + `apply_all`) and the setup Wi-Fi now run at every boot.
-  - [ ] Test on the Pi 5: boot, factory reset reboot into the setup Wi-Fi, app crash restart.
-  - [ ] The installer runs `install-service.sh` (or the same steps).
-- [x] **Production server.** The service runs gunicorn (1 worker, 8 threads: Safe Apply's timer and the traffic sampler must stay in one process), no debug mode.
-  - [x] Binds to `127.0.0.1:5000` when Caddy is in front (`CHAOS_BIND`, set by `install-service.sh`), `0.0.0.0:5000` without it.
-- [ ] **Hardware testing.** Everything marked 🧪 has only been tested with fakes in WSL. Most likely to need fixes: Wi-Fi, 6 GHz, the OpenVPN PKI, the firewall.
-- [x] **Mock modem data removed.** `get_modem_data()` reports `state`: `ready`, `not_ready` (modem found, no answer yet) or `absent`. Unknown values are `null` and shown as "--"; the header and Modem page say "No modem" / "Not ready". The header's Online/Offline pill follows the default route instead of always saying "Online".
-  - [ ] Check the `mmcli` parsing against the real RM520N-GL on the Pi 5: signal values per section (`rsrp`, `rsrq`, `s/n`, 5G preferred over LTE), access tech ("lte, 5gnr" → "5G NSA"), SIM state. The parsing was written from documented output, not tested on the modem.
-  - [ ] Show the active band. ModemManager does not report it; it needs AT commands (`AT+QENG="servingcell"` on Quectel) through `mmcli --command`.
-
----
-
-## 1b. Website before v1
-
-- [x] **Mobile layout.** Below 900 px the sidebar is a slide-in menu (☰ button in the header; closes on a page pick, a tap outside or Escape). 16 px side gutter on phones; tables scroll inside their card; dashboard numbers two per row. All pages fit a 390 px wide phone without sideways scrolling.
-- [x] **Reboot** on the System page: confirmation (warns about unconfirmed changes, which a reboot reverts), `systemctl reboot` via sudo two seconds after answering, then the page waits for the router to go down and come back and reloads. Refused with a clear message when sudo does not allow it. Logged in the event log.
-  - [ ] Test on the Pi 5.
-- [x] **Factory reset** (`backend/factory_reset.py`, System page, asks for the password): every area is applied with its defaults (Wi-Fi, DHCP, DNS, VPNs off, own firewall rules removed, LAN bridge removed; eth0's connection is kept so the router stays reachable), OpenVPN PKI / WireGuard / hostapd configs and VPN client profiles are deleted, `/var/lib/chaos-router-os` and `/tmp/chaos-router-os` are emptied, then it reboots. At boot the `/etc` defaults (firewall, NAT) apply and the setup Wi-Fi with captive portal starts.
-  - [x] Tested on the Pi 5: works.
-  - [ ] Until the systemd service exists, the app has to be started by hand after the reset's reboot, otherwise no setup Wi-Fi appears.
-  - [ ] eth0 keeps settings made in WAN mode (DHCP client, route metric 50) after a reset.
-- [ ] **Version and updates** on the System page: show the installed version, check for a newer release, and start the updater (see Updater). Needs a version source (e.g. a `VERSION` file written by the installer).
-
----
-
-## 2. Security before v1
-
-- [x] **CSRF protection and login rate limiting** (`backend/security.py`, `frontend/static/js/csrf.js`).
-  - The session key is random per router (`/var/lib/chaos-router-os/system/secret_key.json`, mode 600, not in backups). Before, it defaulted to the public string `chaos-router-dev`, so anyone could forge a session cookie.
-  - Every POST/PUT/PATCH/DELETE needs the session's CSRF token (`X-CSRF-Token`, added by `csrf.js`) and must not come from another site (`Origin`). Also covers the login form. Session cookie: `HttpOnly`, `SameSite=Lax`.
-  - Logout is a POST with the token.
-  - Login: 5 failures within 15 minutes lock the client address out for 60 s, doubling up to 15 minutes; forgiven after 15 quiet minutes. Kept in memory (a restart clears it).
-  - `X-Forwarded-For` is only trusted from localhost (Caddy), and its last entry is used (earlier ones can be faked by the client).
-  - [x] The session cookie is Secure for browsers on HTTPS (per request: plain HTTP stays usable for the captive portal).
-- [x] **No default credentials.** `backend/data/users.json` is gone, and `/etc` no longer ships a login. Without an admin account in `/var/lib`, the router is in setup mode.
-  - [ ] On routers that ran an older `install_defaults.py`, delete the stale `/etc/chaos-router-os/users.json` (no longer read).
-- [ ] **Root helper instead of a broad sudoers list.** Passwordless `cp`, `rm`, `cat`, `install` and `find` together equal full root. Replace them with one small root helper script that only accepts specific operations; sudoers allows only that script (plus the service commands that are needed).
-- [ ] **Backup encryption.** Backups contain passwords and VPN keys in plain text. Add optional password encryption.
+- [ ] **Fresh install** on a fresh Raspberry Pi OS Lite (64-bit), over
+  Ethernet and over Wi-Fi SSH: SSH and the dashboard stay reachable from eth0
+  and Wi-Fi; the service starts at boot; `/opt/chaos-router-os` belongs to
+  root; `/etc/sudoers.d/chaos-router-os` only allows the root helper.
+- [ ] **Update an existing install** by running the installer again: an
+  app-user-owned `/opt/chaos-router-os` is moved aside
+  (`.user-owned-<date>`) and cloned fresh.
+- [ ] **Updates from the System page:** check, update, and a forced failure
+  (rollback to the previous commit). Settings backups land in
+  `/var/backups/chardsoft-router-os`.
+- [ ] **Setup Wi-Fi** with real phones (iOS, Android, Windows), including the
+  old open bug: the wizard's Wi-Fi gave phones no address (check the Logs
+  entry "DHCP for the new Wi-Fi failed").
+- [ ] **Modem:** LAN devices get internet through the modem; `mmcli` parsing
+  (signal per section, "lte, 5gnr" → "5G NSA", SIM state); the active band
+  (`sudo qmicli -p -d /dev/cdc-wdm0 --nas-get-rf-band-info`, the Modem page
+  shows e.g. "B3 + n78").
+- [ ] **eth0 LAN/WAN switch:** default route, NAT and DHCP pause on eth0.
+- [ ] **Wi-Fi:** several radios at once, 6 GHz on wlan1, channel widths
+  (40/80/160 MHz; a radio that can't do one fails to start and is rolled
+  back), 10.42.0.1/24 on wlan1 with DHCP and NAT.
+- [ ] **LAN bridge** with eth0 + wlan1, DHCP on br0, revert and reboot. A port
+  with a DHCP address from another router is now refused before applying.
+- [ ] **VPN client** with a real provider: the LAN's public IP is the VPN's;
+  kill switch (stop the tunnel: LAN devices lose the internet, the VPN page
+  says so; disconnect: internet back).
+- [ ] **Reboot and factory reset:** boot, factory reset into the setup Wi-Fi,
+  app crash restart.
+- [ ] **Web shell** under the service (gunicorn threads + WebSocket, `wss://`).
+- [ ] **Caddy:** certificates by IP and by name, the captive portal on the
+  setup Wi-Fi, `--remove` restoring the old Caddyfile.
+- [ ] **Apps Addon** with real Docker: each catalog app, update, remove, a
+  router rename, Vaultwarden over HTTPS.
+- [ ] **mDNS names** per client (Windows, macOS/iOS, Android, Linux with
+  nss-mdns); multi-label names (`app.chaos-router.local`) are the open question.
+- [ ] **Uninstall** in a VM (snapshot before), then `dpkg -l`, `/etc`,
+  `iptables-save`, `nmcli connection`, `ufw status`; then a fresh install.
+- [ ] **RAM** on a 1 GB board: `free -h`, `ps -eo rss,comm --sort=-rss | head`.
 
 ---
 
-## 3. Smaller gaps
+## 2. Decisions
 
-- [ ] **Wi-Fi country.** Pi OS keeps Wi-Fi rfkill-blocked until a country is set. The installer sets a first value; the Setup Wizard and WiFi page set the real one.
-- [ ] **IPv6.** Nothing handles it yet (router advertisements, DHCPv6, forwarding). IPv6 forwarding is deliberately left off: turning it on makes the kernel ignore router advertisements, which can cut off the modem's IPv6.
-- [ ] **DNS local domain.** Changing the local domain only takes effect after the DNS settings are saved again.
-- [x] **LAN bridge (`br0`)** for one LAN across Ethernet and Wi-Fi: "LAN" card on the Network page (off by default, Safe Apply with confirmation). NetworkManager runs `br0` (connection `chaos-lan`) with the router's LAN address; eth0 in LAN mode is a port (`chaos-lan-eth0`) and leaves it in WAN mode; the access point joins via hostapd `bridge=br0`. DHCP/DNS settings that name a port are served on `br0`; bridge ports drop out of the LAN interface list.
-  - [ ] Test on the Pi 5: bridge with eth0 + wlan1 (6 GHz), DHCP on br0, Wi-Fi clients get addresses, revert and reboot.
-  - [x] Without the bridge, the access point gets its own address, set on the WiFi page (default 10.42.0.1/24 on the AP interface, e.g. wlan1). Applied with hostapd, verified, removed when the AP turns off or moves; subnets that overlap another interface are refused.
-  - [ ] Test on the Pi 5: 10.42.0.1/24 on wlan1, DHCP on wlan1 (10.42.0.x range), Wi-Fi clients get internet through NAT.
-  - [ ] The bridge pulls eth0 in while eth0 is in LAN mode, which cuts off access when eth0 is plugged into another router (seen on the test Pi; Safe Apply reverted it). Consider a bridge of Wi-Fi only, or refuse while eth0 has a DHCP-client address.
-  - [ ] Only one access point at a time (one hostapd config). Running wlan0 (2.4/5 GHz) and wlan1 (6 GHz) together needs one hostapd instance per radio.
-- [x] LAN interfaces are detected instead of a fixed list (eth0, wlan0, br0): every Ethernet (`eth*`, `en*`), Wi-Fi (`wlan*`, `wl*`) and bridge (`br*`) interface except the WAN. DHCP, DNS and the firewall's essential rules now include extra adapters like wlan1.
-- [x] **VPN client: all traffic through the VPN** ("All traffic" per profile, checkbox on import): WireGuard AllowedIPs become 0.0.0.0/0 (+ ::/0 with an IPv6 tunnel address), OpenVPN gets `redirect-gateway def1`. Applied to the written files only; off = the profile's own routing.
-  - [ ] Test on the Pi 5 with a real provider: LAN devices' public IP is the VPN's.
-  - [ ] While a full tunnel is up, answers to connections from the internet side (WireGuard/OpenVPN servers on the router, remote dashboard access over the modem) also go into the tunnel and break. Needs policy routing for traffic that came in on the WAN.
-  - [ ] Kill switch: block LAN internet access while the full-tunnel VPN is down, so nothing leaks over the WAN.
-- [x] **Web shell** (Shell page; `backend/services/shell.py`, xterm.js 6 + fit add-on vendored in `frontend/static/vendor/xterm`, MIT): off by default (System > Web Shell, password to switch), password + 60 s one-time key per session (counts toward the login lockout), WebSocket origin check, never from the WAN interface or the modem, max 2 sessions, 15 min idle and session-lifetime limits, every session logged. Greyed out on phone-sized screens (up to 900 px; not by input device, which touch laptops and remote desktops report wrongly).
-  - [ ] Test on the Pi 5 under the systemd service (gunicorn threads + WebSocket).
-  - [ ] Over plain HTTP, keystrokes still travel unencrypted. Consider allowing the shell only over HTTPS.
-- [x] **Apps page.** Works with the Apps Addon (`~/projects/apps`, branches `dev/apps` / `release/apps` of this repository): one-click addon install (`deploy/install-apps.sh`, allowed in sudoers without arguments), catalog with install/open/start/stop/update/logs/remove as background jobs with live output. Installed apps get `<app>.chaos-router.local` (the router: `chaos-router.local`): own dnsmasq drop-in (`interface-name` + `localise-queries`), a Caddy file per app (`/etc/caddy/chaos-apps/`, Caddy restarted), HTTPS allowed for the name.  Tested in WSL with the real App Manager, real Compose validation, real Caddy 2.6.2 and dnsmasq 2.92; Docker itself faked.
-  - [ ] Push `~/projects/apps` to the `dev/apps` branch (the one-click install clones it from there; it still holds a copy of Core).
-  - [ ] Test on the Pi 5 with real Docker: each catalog app, update, remove, a router rename, Vaultwarden over HTTPS.
-  - [ ] Media and files for apps (Jellyfin's media folder is root-only in `/var/lib/chaos-router-apps`): a shared folder the user can fill (Samba/SFTP), or a USB drive.
-  - [ ] Warn about RAM-heavy apps on 1 GB boards (see Hardware notes).
-  - [x] mDNS for the `.local` names: `chaos-router-mdns.service` keeps an `avahi-publish -a -R` per name running (`deploy/mdns-publish.sh`, names file written by the app, restarted on change). One address for all names (Avahi can't vary it per interface): a LAN address on an interface that is up, br0 first. ufw's default before.rules already let mDNS (224.0.0.251:5353) in.
-  - [ ] Test per client in the VM: Windows, macOS/iOS, Android, Linux with nss-mdns. Multi-label names (`app.chaos-router.local`) are the open question for nss-mdns and Windows' mDNS.
-  - [ ] Keep Avahi off the WAN side (`deny-interfaces=wwan0` in avahi-daemon.conf, or allow-interfaces with the LAN ones).
-  - [ ] Interfaces added later (e.g. a USB Wi-Fi) only get app names after the next sync (startup, rename).
-- [ ] **Active Clients is not a real count.** The dashboard shows 1 whenever there is any traffic. Count clients that sent traffic recently instead (per-client counters, e.g. from the neighbour table plus iptables accounting or conntrack).
-- [ ] **OpenVPN on slower CPUs.** Consider putting `CHACHA20-POLY1305` first in `CIPHERS`; it's faster than AES on a Pi 4, which lacks AES instructions.
+- [ ] **Dedicated service user.** The app runs as the user who installed it.
+  On Raspberry Pi OS that user has passwordless sudo for everything, so the
+  root helper only limits the app on systems without that (the installer
+  warns). A system user of its own would make the helper count everywhere,
+  but changes the web shell: it would no longer be the admin's own shell.
+- [ ] **Names on the router.** The default Wi-Fi name "Chaos Router", the
+  setup Wi-Fi "ChaosRouter-Setup-XXXX" and `chaos-router.local` (and
+  `<app>.chaos-router.local`) carry the hardware's name. Keep them, or use
+  Chardsoft names for installs on any Pi? Changing the `.local` name changes
+  every app address and certificate on routers in use.
 
 ---
 
-## 4. Installer
+## 3. Still to build
 
-`install.sh` in the repo root: `curl -fsSL https://raw.githubusercontent.com/chaoscent/chardsoft-router-os/dev/core/install.sh | sudo bash` (later also `chardsoft.com/router-os/core`), or `sudo ./install.sh` from a clone. **Idempotent**: running it again updates, settings stay. Options `--country`, `--dir`, `--yes`.
-
-- [ ] **At the v1 release:** set `VERSION` to `1.0.0`, fill `release/core` (empty until then) from `dev/core`, and switch `BRANCH` in `install.sh`, the install URL in README and PLAN, the VPS redirect (`/router-os/core`) and GitHub's default branch from `dev/core` to `release/core`. Same for `release/hardware-edition` and `release/apps` (`BRANCH` in `deploy/install-apps.sh`).
-- [x] Check for Raspberry Pi OS (64-bit, Raspberry Pi board); warn on anything else.
-- [x] Install the apt packages (incl. git, python3-venv, NetworkManager, qrencode).
-- [x] Get the code: the clone it runs from, else clone/update `/opt/chaos-router-os` (owned by the app user).
-- [x] Python venv and dependencies.
-- [x] `backend/install_defaults.py` writes `/etc/chaos-router-os`; stale `users.json` default login removed.
-- [x] Wi-Fi country: asked (default: raspi-config's current value or DE), set via `raspi-config` (regulatory domain + rfkill unblock) and as the Wi-Fi default.
-- [x] Passwordless sudo: kept if present, otherwise `/etc/sudoers.d/chaos-router-os` for exactly the app's commands (validated with visudo).
-- [x] Warn when something other than dnsmasq holds port 53 or 67.
-- [x] Install and start the systemd service (`deploy/install-service.sh`).
-- [x] **Installed over the Pi's Wi-Fi** (detected from the open SSH connections): the setup Wi-Fi's name, password and QR code are shown *before* the service starts, then 15 s to scan.
-- [x] Finish: setup Wi-Fi name, 12-character password and QR code (`backend/setup_wifi.py`), or the dashboard address when the router is already set up.
-- [ ] Test on a fresh Raspberry Pi OS Lite (64-bit) on the Pi 5, both over Ethernet and over Wi-Fi SSH.
-- [ ] Check the Python package pins against the OS Python (3.11 on Bookworm, 3.13 on Trixie).
-- [ ] Dedicated service user + root helper (instead of running as the installing user with sudo).
+- [ ] **IPv6** (router advertisements, DHCPv6, forwarding; CLAT/464XLAT for
+  IPv6-only mobile networks). IPv6 forwarding is deliberately left off:
+  turning it on makes the kernel ignore router advertisements, which can cut
+  off the modem's IPv6. Needs the modem on the Pi to test.
+- [ ] **Full-tunnel VPN and the WAN side:** answers to connections from the
+  internet side (WireGuard/OpenVPN servers on the router, remote access over
+  the modem) also go into the tunnel and break. Needs policy routing for
+  traffic that came in on the WAN.
+- [ ] **Media and files for apps** (Jellyfin's media folder is root-only in
+  `/var/lib/chaos-router-apps`): a shared folder (Samba/SFTP) or a USB drive.
+- [ ] **RAM-heavy apps on 1 GB boards:** warn or hide them in the catalog.
+- [ ] **Schema version** in the JSON config files, with migrations between
+  versions (the updater runs the installer, which keeps existing settings).
+- [ ] **Optional setup step:** check the WAN or modem.
+- [ ] **Hardware Edition** (OLED, buttons, RGB, GPS) and the Apps Addon (v2).
 
 ---
 
-## 5. Setup Wizard (captive portal)
+## 4. At the v1 release
 
-### Setup network
-
-After the installer finishes, the Pi's built-in Wi-Fi starts a **WPA2 network with a random password**. The installer prints the network name, the password and a **QR code** in the terminal (`qrencode -t ansiutf8 'WIFI:S:<ssid>;T:WPA;P:<password>;;'`). Scanning it joins the phone in one step.
-
-Not an open network, because:
-- anyone nearby could connect first and claim the admin account;
-- the admin password would travel unencrypted over the air.
-
-Enhanced Open (OWE) would fix the second point, but the Pi's built-in Wi-Fi probably can't do it in AP mode.
-
-If the Pi is connected by Ethernet, the portal must work there too.
-
-Hardware Edition: show the same QR code on the OLED.
-
-- [x] **Setup Wi-Fi** (`backend/services/setup_network.py`), started by the app whenever it is not set up: `ChaosRouter-Setup-XXXX`, random 12-character password (stored in `system/setup_wifi.json`, mode 600, kept across reboots during setup), WPA2 on 2.4 GHz on the built-in radio, router at **10.42.0.1/24**, DHCP 10.42.0.100-200.
-- [x] `python backend/setup_wifi.py` prints name, password and QR code (`qrencode`). The app's log only says how to show them, so the password does not end up in the journal.
-- [ ] Test on the Pi 5 with real phones (iOS, Android, Windows).
-
-### Captive portal
-
-- [x] dnsmasq answers every DNS name with 10.42.0.1 on the setup Wi-Fi (separate drop-in, removed after setup) and announces the portal URL (DHCP option 114).
-- [x] Port 80 on the setup Wi-Fi is redirected to the app's port (iptables `CHAOS-SETUP`, removed after setup).
-- [x] OS check URLs (`/hotspot-detect.html`, `/generate_204`, `/connecttest.txt`, ...) and every other address on the setup Wi-Fi redirect to `http://10.42.0.1/setup`.
-- [x] HTTPS can't be intercepted, which is fine: the OS checks use HTTP.
-- [ ] Apple's portal window and cookies: the setup page needs the session cookie for its CSRF token within one visit; check on an iPhone.
-
-### Steps
-
-- [x] **The `/setup` page** (`backend/setup.py`, `frontend/templates/setup.html`, `frontend/static/js/setup.js`): three steps, built for phones.
-  1. Admin username and password (stored as a hash; 8+ characters, obvious ones refused).
-  2. Wi-Fi: country, network name, password (WPA2, 2.4 GHz). Optional; skipped automatically without a Wi-Fi radio.
-  3. Review, finish, signed in, on to the dashboard.
-- [ ] Optional: WAN or modem check step.
-
-### Finishing
-
-- [x] Wi-Fi is applied first through Safe Apply without confirmation (the browser may lose the connection). If it fails to start, it is rolled back, the setup Wi-Fi comes back, no account is created and the user can try again.
-- [x] A Wi-Fi set up in the wizard keeps the setup subnet: 10.42.0.1/24 on the radio and DHCP 10.42.0.100-200 there. Without Wi-Fi, the setup Wi-Fi turns off a few seconds after the answer (the page warns when this device is on it).
-- [x] Caddy serves port 80, so the portal and the dashboard after setup are on `http://10.42.0.1/` (the iptables port-80 redirect is only used without Caddy).
-- [x] The page tells the user to join the new Wi-Fi and gives the dashboard address.
-- [x] `/setup` and `/api/setup/*` return 404 once an admin account exists; a factory reset (empty `/var/lib`) brings setup back.
-- [ ] Test on the Pi 5 together with the installer's setup network.
-
-### Fit with the existing code
-
-- **Setup mode = no admin account in `/var/lib`.** Not a separate flag file. A reboot mid-setup simply starts setup again, the same recovery idea as Safe Apply.
-- **API locked during setup.** Every route except `/setup`, `/api/setup/*` and static files refuses requests (409) or redirects to `/setup` until setup is complete. Captive portal checks (`/generate_204`, `/hotspot-detect.html`, ...) redirect to `/setup` too; DNS still has to point them at the router (installer).
+- [ ] Set `VERSION` to `1.0.0`, fill `release/core` from `dev/core`, and
+  switch `BRANCH` in `install.sh`, the install URL in README and PLAN, the
+  VPS redirect (`/router-os/core`) and GitHub's default branch from `dev/core`
+  to `release/core`. Same for `release/hardware-edition` and `release/apps`
+  (`BRANCH` in `deploy/install-apps.sh`). Installed routers follow the branch
+  in `/etc/chaos-router-os/install.json`; switch it there (or reinstall) to
+  move them to `release/core`.
+- [ ] Push `~/projects/apps` to the `dev/apps` branch (the one-click install
+  clones it from there).
 
 ---
 
-## 6. Updater
+## Done since the last plan
 
-- [ ] **Versioned releases** (git tags or tarballs), not `git pull`.
-- [ ] **Schema version in the JSON config files** plus migrations between versions. Add the version field now.
-- [ ] **Backup first:** take an automatic config backup with `create_backup()` before updating.
-- [ ] **Update like Safe Apply:** keep the previous release, restart, run a health check, roll back automatically if the app doesn't come up.
-
----
-
-## 7. Uninstaller
-
-- [x] `uninstall.sh` (repo root; `--yes`, `--dry-run`, `--keep-packages`, `--all-packages`): asks once, then runs detached (`setsid`, log in `/tmp`) so a dropped SSH connection doesn't stop it halfway.
-  - Apps Addon: `install.sh --remove --purge` (apps, data, App Manager; Docker only if the addon installed it, marker `docker-installed`).
-  - Services `chaos-router-os` and `chaos-router-mdns` stopped and removed.
-  - `backend/uninstall.py`: every area off through its own code (VPN profiles, OpenVPN, WireGuard, Wi-Fi, DNS, DHCP, blocked devices, routing off, firewall off with all ledger rules removed, LAN bridge gone), the `CHAOS-NAT`, `CHAOS-SETUP` and `CHAOS-BLOCK` chains removed, our dnsmasq drop-ins, hostapd, VPN and Caddy files removed, never-default/route-metric back to NetworkManager defaults (`device reapply`, no disconnect).
-  - Caddyfile restored (or Caddy stopped), packages the installer installed purged (`/etc/chaos-router-os/installed-packages`; network-manager last), all files deleted (`/opt/chaos-router-os` only if it is the installer's copy).
-  - Kept on purpose: eth0's address settings (the original ones are not recorded after the first change), hostname, Wi-Fi country, journal.
-- [ ] Test in the VM (snapshot before): uninstall, then check `dpkg -l`, `/etc`, `iptables-save`, `nmcli connection`, `ufw status`; then a fresh install on the same VM.
-- [ ] Offer a backup download before deleting `/var/lib/chaos-router-os` (today: download one on the System page first).
-
----
-
-## 8. Caddy and HTTPS
-
-- [x] Caddy in front of the app on ports 80 and 443 (`deploy/Caddyfile`, installed by `install-service.sh`; the installer adds the `caddy` package). Caddy itself does not redirect port 80; the app does once set up (the captive portal needs plain HTTP before).
-- [x] Local CA certificate: Caddy's `tls internal` with on-demand certificates for the address or name in the browser, allowed only for the router's LAN addresses and names (`/caddy/tls-allowed`, `services/caddy.py`). Admin API off.
-- [x] `get_viewer_ip()` only trusts `X-Forwarded-For` from localhost (Caddy); the setup gate uses it too, so the captive portal works behind Caddy.
-- [ ] Test on the Pi 5 with Debian's Caddy package: certificates by IP and by hostname, the captive portal on the setup Wi-Fi, the web shell over `wss://`, `--remove` restoring the old Caddyfile. (Tested in WSL with Caddy 2.6.2: HTTP, HTTPS by IP and localhost, foreign names refused, Secure cookie, client address in the logs, WebSocket.)
-- [x] The local CA's root certificate for download (System page, `/router-ca.crt`, public and over HTTP), read from Caddy's data folder with sudo. Installed on a device, the dashboard and all apps are trusted.
-- [x] HTTPS only once set up: the app redirects plain HTTP (308) after setup; apps always (in their Caddy file). Plain HTTP stays during setup for the captive portal.
+- Root helper (`deploy/root-helper`): the only program the app may run as
+  root; checks commands, paths and config contents. Root-owned code and
+  Python environment; scripts that run as root live root-owned in
+  `/usr/local/libexec/chardsoft-router-os`.
+- Encrypted backups (optional password, AES-256-GCM, scrypt).
+- Updates from the System page (`deploy/update.sh`): settings backup, new
+  installer, health check, automatic rollback.
+- Web shell only over HTTPS behind Caddy (a warning without Caddy).
+- VPN kill switch for full-tunnel profiles.
+- MSS clamping; Avahi off the modem; DNS follows a new local domain at once;
+  OpenVPN prefers ChaCha20 on CPUs without AES; app names for interfaces
+  added later; real active client count; LAN bridge refuses ports with a
+  DHCP address from another router.
+- Dashboard widgets (several traffic graphs, editor); Wi-Fi channel width;
+  active modem band over QMI; sentence case per the design kit.
 
 ---
 
 ## Hardware notes
 
-**Pi 5 with 1 GB RAM:** fine for Core. Estimated use with everything enabled is about 300–400 MB (OS ~100–150 MB, NetworkManager + ModemManager ~20–30 MB, app ~40–80 MB, OpenVPN ~10 MB per instance, Caddy ~20–40 MB). Verify on the Pi with `free -h` and `ps -eo rss,comm --sort=-rss | head`.
+**Pi 5 with 1 GB RAM:** fine for Core. Estimated use with everything enabled
+is about 300–400 MB (OS ~100–150 MB, NetworkManager + ModemManager ~20–30 MB,
+app ~40–80 MB, OpenVPN ~10 MB per instance, Caddy ~20–40 MB).
 
 - `/tmp` may be RAM-backed: never write anything large there.
 - The journal may be volatile: logs are lost on reboot.
-- Apps Addon on 1 GB: Docker alone needs ~100 MB. Pi-hole, AdGuard and Uptime Kuma fit; Nextcloud, Jellyfin and Immich don't. The App Store should warn about or hide RAM-heavy apps on small boards.
+- Apps Addon on 1 GB: Docker alone needs ~100 MB. Pi-hole, AdGuard and Uptime
+  Kuma fit; Nextcloud, Jellyfin and Immich don't.
 
-**Pi 4:** should work, with caveats: the modem runs over USB, OpenVPN with AES is slower (prefer ChaCha20), and NetworkManager (Bookworm or newer) is required.
+**Pi 4:** should work, with caveats: the modem runs over USB, OpenVPN uses
+ChaCha20 (no AES instructions), and NetworkManager (Bookworm or newer) is
+required.
