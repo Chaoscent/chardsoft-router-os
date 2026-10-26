@@ -108,12 +108,15 @@ AREAS = {area.name: area for area in (
         confirm=True
     ),
 
+    # The DNS config answers the local domain set here, so DNS is
+    # written again when DHCP changes.
     Area(
         "dhcp", "DHCP",
         apply=dhcp.apply_dhcp_settings,
         verify=dhcp.verify_dhcp_settings,
         baseline=dhcp.get_dhcp_settings,
-        confirm=True
+        confirm=True,
+        dependents=("dns",)
     ),
 
     # Applied after DHCP: both restart the same dnsmasq.
