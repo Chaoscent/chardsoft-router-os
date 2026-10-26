@@ -16,6 +16,7 @@ window.Page.wifi = {
         "wifiSecurityInput",
         "wifiBandInput",
         "wifiChannelInput",
+        "wifiWidthInput",
         "wifiIsolateInput"
     ],
 
@@ -124,7 +125,8 @@ window.Page.wifi = {
             running ? "Running" : "Stopped";
 
         wifiChannelState.textContent =
-            `${network.band} GHz / ${network.channel}`;
+            `${network.band} GHz / ${network.channel}` +
+            (network.width > 20 ? ` / ${network.width} MHz` : "");
 
     },
 
@@ -173,6 +175,7 @@ window.Page.wifi = {
 
         this.renderBands();
         this.renderChannels(settings.channel);
+        this.renderWidths(settings.width);
         this.updateSecurityState();
         this.updatePasswordState();
 
@@ -250,6 +253,27 @@ window.Page.wifi = {
             : String(fallback);
 
         ChaosSelect.refresh(wifiChannelInput);
+
+    },
+
+
+    // Widths the band allows; keeps the choice when the band has it.
+    renderWidths(selected) {
+
+        const widths = this.data.options.bands[wifiBandInput.value].widths || [20];
+
+        wifiWidthInput.innerHTML = "";
+
+        widths.forEach(width => {
+            const option = document.createElement("option");
+            option.value = String(width);
+            option.textContent = `${width} MHz`;
+            wifiWidthInput.appendChild(option);
+        });
+
+        wifiWidthInput.value = widths.includes(Number(selected)) ? String(selected) : "20";
+
+        ChaosSelect.refresh(wifiWidthInput);
 
     },
 
@@ -455,6 +479,8 @@ window.Page.wifi = {
 
             channel: Number(wifiChannelInput.value),
 
+            width: Number(wifiWidthInput.value),
+
             country: wifiCountryInput.value.trim().toUpperCase(),
 
             isolate_clients: wifiIsolateInput.value === "true",
@@ -545,6 +571,7 @@ window.Page.wifi = {
 
         wifiBandInput.onchange = () => {
             this.renderChannels(wifiChannelInput.value);
+            this.renderWidths(wifiWidthInput.value);
             this.updateSecurityState();
         };
 

@@ -50,21 +50,28 @@ BANDS = {
     "2.4": {
         "hw_mode": "g",
         "channels": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
-        "default": 6
+        "default": 6,
+        # MHz. 40 on 2.4 GHz overlaps most neighbours: off by default.
+        "widths": [20, 40]
     },
     # Non-DFS channels only; the Pi cannot do radar detection as an AP.
     "5": {
         "hw_mode": "a",
         "channels": [36, 40, 44, 48, 149, 153, 157, 161],
-        "default": 36
+        "default": 36,
+        "widths": [20, 40, 80]
     },
     # Wi-Fi 6E: 20 MHz channels 1-233. No DFS on 6 GHz.
     "6": {
         "hw_mode": "a",
         "channels": list(range(1, 234, 4)),
-        "default": 37
+        "default": 37,
+        "widths": [20, 40, 80, 160]
     }
 }
+
+# 6 GHz operating classes per channel width.
+OP_CLASS_6GHZ = {20: 131, 40: 132, 80: 133, 160: 134}
 
 # Preferred Scanning Channels: 6 GHz clients find these fastest.
 PSC_CHANNELS = list(range(5, 234, 16))
@@ -103,6 +110,8 @@ DEFAULT_NETWORK = {
     "security": "wpa2",
     "band": "2.4",
     "channel": 6,
+    # MHz; 20 works with every radio and client.
+    "width": 20,
     "hidden": False,
     "isolate_clients": False,
     # The router's address on this radio, so its Wi-Fi clients get
@@ -423,6 +432,17 @@ def validate_network(data, settings=None):
     if band == "6" and security != "wpa3":
         return False, "6 GHz requires WPA3 Personal."
 
+    try:
+        width = int(net.get("width") or 20)
+    except (TypeError, ValueError):
+        return False, "Invalid channel width."
+
+    if width not in BANDS[band]["widths"]:
+        return False, f"{width} MHz is not available on {band} GHz."
+
+    if wide_channel(band, channel, width) is None:
+        return False, f"Channel {channel} has no room for {width} MHz; choose another channel or a smaller width."
+
     if enabled:
 
         support = get_band_support(interface)
@@ -468,6 +488,7 @@ def validate_network(data, settings=None):
         "security": security,
         "band": band,
         "channel": channel,
+        "width": width,
         "hidden": net.get("hidden") is True,
         "isolate_clients": net.get("isolate_clients") is True,
         "address": address,
@@ -639,6 +660,43 @@ def config_files():
     return files
 
 
+def wide_channel(band, channel, width):
+    """
+    How a channel spans a width: {"ht40": "+"/"-", "center": n} (center
+    channel index for VHT/HE), {} for 20 MHz, or None when the channel
+    can't (the wider block would leave the band).
+    """
+
+    if width == 20:
+        return {}
+
+    if band == "2.4":
+        # HT40+ needs channel + 4, HT40- channel - 4 (1..13).
+        return {"ht40": "+" if channel <= 7 else "-"}
+
+    if band == "5":
+        # Blocks 36-48 and 149-161: pairs (36,40), (44,48), ...
+        first = 36 if channel <= 48 else 149
+        pair_low = (channel - first) % 8 == 0
+        info = {"ht40": "+" if pair_low else "-"}
+        if width == 80:
+            info["center"] = first + 6
+        else:
+            info["center"] = channel + 2 if pair_low else channel - 2
+        return info
+
+    # 6 GHz: 20 MHz channels 1, 5, 9, ...; a width covers width/20 of them.
+    span = width // 20
+    block = (channel - 1) // (4 * span)
+    first = block * 4 * span + 1
+    last = first + 4 * (span - 1)
+
+    if last > 233:
+        return None
+
+    return {"center": (first + last) // 2}
+
+
 def render_hostapd_config(settings):
 
     band = BANDS[settings["band"]]
@@ -667,21 +725,41 @@ def render_hostapd_config(settings):
         "wmm_enabled=1"
     ]
 
+    width = settings.get("width") or 20
+    wide = wide_channel(settings["band"], settings["channel"], width) or {}
+
     if settings["band"] == "6":
 
-        # 6 GHz is HE (802.11ax) only; HT/VHT are not used there.
-        # Operating class 131 is 20 MHz.
+        # 6 GHz is HE (802.11ax) only; HT/VHT are not used there. The
+        # operating class sets the width, the center channel its place.
         lines += [
-            "op_class=131",
+            f"op_class={OP_CLASS_6GHZ[width]}",
             "ieee80211ax=1"
         ]
+
+        if width > 20:
+            lines += [
+                f"he_oper_chwidth={ {40: 0, 80: 1, 160: 2}[width] }",
+                f"he_oper_centr_freq_seg0_idx={wide['center']}"
+            ]
 
     else:
 
         lines.append("ieee80211n=1")
 
+        if width >= 40:
+            lines.append(f"ht_capab=[HT40{wide['ht40']}]")
+
         if settings["band"] == "5":
+
             lines.append("ieee80211ac=1")
+
+            if width >= 40:
+                lines += [
+                    # 0: 20/40 MHz, 1: 80 MHz.
+                    f"vht_oper_chwidth={1 if width == 80 else 0}",
+                    f"vht_oper_centr_freq_seg0_idx={wide['center']}"
+                ]
 
     lines.append(f"ap_isolate={1 if settings['isolate_clients'] else 0}")
 
@@ -1247,7 +1325,8 @@ def get_wifi_options():
         "bands": {
             band: {
                 "channels": info["channels"],
-                "default": info["default"]
+                "default": info["default"],
+                "widths": info["widths"]
             }
             for band, info in BANDS.items()
         },
