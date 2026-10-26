@@ -75,6 +75,30 @@ EASYRSA_PATHS = (
 
 CIPHERS = "AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305"
 
+# Without AES instructions (Pi 4), ChaCha20 is much faster than AES.
+# The server takes the first one in its own list that the client has.
+CIPHERS_NO_AES = "CHACHA20-POLY1305:AES-256-GCM:AES-128-GCM"
+
+
+def cpu_has_aes():
+    """AES in hardware: "aes" in the CPU's features (ARM) or flags (x86)."""
+
+    try:
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                key, _, value = line.partition(":")
+                if key.strip().lower() in ("features", "flags"):
+                    return "aes" in value.split()
+    except OSError:
+        pass
+
+    return True
+
+
+def server_ciphers():
+
+    return CIPHERS if cpu_has_aes() else CIPHERS_NO_AES
+
 DEFAULT_SERVER = {
     "enabled": False,
     "port": 1194,
@@ -467,7 +491,7 @@ def render_server_config(server):
         "dh none",
         f"tls-crypt {TLS_CRYPT_KEY}",
         f"crl-verify {PUBLIC_CRL}",
-        f"data-ciphers {CIPHERS}",
+        f"data-ciphers {server_ciphers()}",
         "",
         "keepalive 10 120",
         "persist-key",
