@@ -997,6 +997,185 @@ window.Page.system = {
     },
 
 
+    // ------------------------------------------------------------
+    // Updates
+    // ------------------------------------------------------------
+
+    updateTimer: null,
+    updateInfo: null,
+
+
+    async loadUpdate() {
+
+        const res = await fetch("/api/system/update");
+
+        if (!res.ok) return;
+
+        const info = await res.json();
+
+        this.updateInfo = info;
+
+        updateVersion.textContent = info.commit
+            ? `${info.version} (${info.commit.slice(0, 7)})`
+            : info.version;
+
+        updateBranch.textContent = info.branch ? `· branch ${info.branch}` : "";
+
+        updateCheck.disabled = !info.managed;
+
+        if (!info.managed) {
+            updateStatus.textContent = info.reason || "";
+        }
+
+        if (info.status?.state === "running") {
+            this.followUpdate();
+        } else if (info.status && info.status.state !== "running") {
+            this.showUpdateStatus(info.status);
+        }
+
+    },
+
+
+    async checkUpdate() {
+
+        updateCheck.disabled = true;
+        updateStart.classList.add("hidden");
+        updateLatest.classList.add("hidden");
+        updateStatus.textContent = "Asking GitHub...";
+
+        let data;
+
+        try {
+            const res = await fetch("/api/system/update/check", { method: "POST" });
+            data = await res.json();
+        } catch {
+            data = { success: false, message: "The router did not answer." };
+        }
+
+        updateCheck.disabled = false;
+
+        if (!data.success) {
+            updateStatus.textContent = data.message;
+            return;
+        }
+
+        if (!data.update_available) {
+            updateStatus.textContent = "✓ Up to date.";
+            return;
+        }
+
+        const date = data.latest_date ? new Date(data.latest_date).toLocaleDateString() : "";
+
+        updateLatest.textContent =
+            `New: ${data.latest.slice(0, 7)}${date ? ` from ${date}` : ""}` +
+            (data.latest_message ? `: ${data.latest_message}` : "");
+
+        updateLatest.classList.remove("hidden");
+        updateStatus.textContent = "";
+
+        updateStart.classList.toggle("hidden", !data.can_update);
+
+    },
+
+
+    async startUpdate() {
+
+        const body = document.createElement("div");
+
+        body.innerHTML = `
+            <label class="modal-field">
+                <span>Your password</span>
+                <input id="updatePasswordInput" class="setting-input" type="password" autocomplete="current-password">
+            </label>
+            <p class="modal-note">
+                The settings are backed up first. The dashboard restarts and
+                is away for a few minutes. If the new version does not start,
+                the current one comes back by itself.
+            </p>
+        `;
+
+        const confirmed = await ChaosModal.confirm({
+            title: "Update Now",
+            subtitle: "Install the new version from GitHub?",
+            body,
+            confirmText: "Update"
+        });
+
+        if (!confirmed) return;
+
+        updateStart.disabled = true;
+        updateStatus.textContent = "Starting the update...";
+
+        let data;
+
+        try {
+            const res = await fetch("/api/system/update/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: body.querySelector("input").value })
+            });
+            data = await res.json();
+        } catch {
+            data = { success: false, message: "The router did not answer." };
+        }
+
+        updateStart.disabled = false;
+
+        if (!data.success) {
+            updateStatus.textContent = data.message;
+            return;
+        }
+
+        updateStart.classList.add("hidden");
+        this.followUpdate();
+
+    },
+
+
+    /** Polls the update's progress; the app restarts in the middle. */
+    followUpdate() {
+
+        clearInterval(this.updateTimer);
+
+        updateCheck.disabled = true;
+
+        this.updateTimer = setInterval(async () => {
+
+            let status = null;
+
+            try {
+                const res = await fetch("/api/system/update/status");
+                if (res.ok) status = (await res.json()).status;
+            } catch {
+                updateStatus.textContent = "Restarting... the dashboard is back in a moment.";
+                return;
+            }
+
+            if (!status) return;
+
+            this.showUpdateStatus(status);
+
+            if (status.state !== "running") {
+                clearInterval(this.updateTimer);
+                updateCheck.disabled = false;
+                // The version shown is the one now running.
+                if (status.state === "done") setTimeout(() => location.reload(), 1500);
+            }
+
+        }, 3000);
+
+    },
+
+
+    showUpdateStatus(status) {
+
+        const prefix = { done: "✓ ", failed: "✕ ", "rolled-back": "✕ " }[status.state] || "";
+
+        updateStatus.textContent = prefix + (status.message || "");
+
+    },
+
+
     init() {
 
         // Same dropdown look as every other page.
@@ -1004,6 +1183,10 @@ window.Page.system = {
         ChaosSelect.enhance(pingIntervalInput);
 
         this.load();
+
+        updateCheck.onclick = () => this.checkUpdate();
+        updateStart.onclick = () => this.startUpdate();
+        this.loadUpdate();
 
         backupDownload.onclick = () => this.downloadBackup();
         backupChoose.onclick = () => backupFileInput.click();
@@ -1062,6 +1245,10 @@ window.Page.system = {
     },
 
 
-    destroy() {}
+    destroy() {
+
+        clearInterval(this.updateTimer);
+
+    }
 
 };

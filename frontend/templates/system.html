@@ -351,6 +351,29 @@
             <h2 class="system-column-title">Maintenance</h2>
 
 
+            <!-- Version and updates (system.js; deploy/update.sh) -->
+
+            <div class="card">
+
+                <span>Updates</span>
+
+                <p class="setting-hint">
+                    Installed: <strong id="updateVersion">--</strong>
+                    <span id="updateBranch"></span>
+                </p>
+
+                <p id="updateLatest" class="setting-hint hidden"></p>
+
+                <div class="setting-row">
+                    <button id="updateCheck" class="secondary-btn">Check for Updates</button>
+                    <button id="updateStart" class="save-btn hidden">Update Now</button>
+                </div>
+
+                <div id="updateStatus" class="setting-status"></div>
+
+            </div>
+
+
             <!-- Backup & Restore -->
 
             <div class="card">

@@ -330,6 +330,22 @@ from services.caddy import tls_allowed, root_certificate, BEHIND_CADDY
 
 from services import apps as router_apps
 
+from services.update import (
+
+        read_version,
+
+        read_commit,
+
+        get_update_info,
+
+        check_for_update,
+
+        start_update,
+
+        get_update_status
+
+)
+
 from factory_reset import factory_reset
 
 from setup import (
@@ -446,25 +462,13 @@ app.jinja_env.globals["page_scripts_version"] = page_scripts_version
 
 def read_app_version():
         """
-        The version from VERSION in the repository root, plus the git
-        commit when running from a clone, e.g. "0.1.0-alpha (c827d5b)".
-        Read once at startup.
+        The version from VERSION, plus the commit when running from a
+        clone, e.g. "0.1.0-alpha (c827d5b)". Read once at startup.
         """
 
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        commit = read_commit()
 
-        try:
-                with open(os.path.join(root, "VERSION")) as f:
-                        version = f.read().strip() or "unknown"
-        except OSError:
-                version = "unknown"
-
-        from services.network import run
-
-        # None without git or outside a clone: then just the version.
-        commit = run(["git", "-C", root, "rev-parse", "--short", "HEAD"])
-
-        return f"{version} ({commit})" if commit else version
+        return f"{read_version()} ({commit[:7]})" if commit else read_version()
 
 
 APP_VERSION = read_app_version()
@@ -3058,6 +3062,63 @@ def update_security():
         })
 
 
+
+
+
+@app.route("/api/system/update")
+
+@login_required
+
+def update_info_api():
+
+        return jsonify(get_update_info())
+
+
+
+@app.route("/api/system/update/check", methods=["POST"])
+
+@login_required
+
+def update_check_api():
+
+        ok, result = check_for_update()
+
+        if not ok:
+                return jsonify({"success": False, "message": result}), 502
+
+        return jsonify({"success": True, **result})
+
+
+
+@app.route("/api/system/update/start", methods=["POST"])
+
+@login_required
+
+def update_start_api():
+
+        data = request.get_json(silent=True) or {}
+
+        denied = check_password_again(data.get("password"))
+
+        if denied:
+                return denied
+
+        ok, message = start_update()
+
+        if ok:
+                log_event("system", "Update started from the dashboard.")
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 409
+
+
+
+@app.route("/api/system/update/status")
+
+@login_required
+
+def update_status_api():
+
+        return jsonify({"status": get_update_status()})
 
 
 

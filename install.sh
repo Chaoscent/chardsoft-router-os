@@ -17,6 +17,8 @@
 #   --country XX   Wi-Fi country code, e.g. US      (CHAOS_COUNTRY;
 #                  asked when not given, no default)
 #   --dir PATH     where to clone the app            (CHAOS_DIR, default /opt/chaos-router-os)
+#   --user NAME    the account the app runs as (default: the one that
+#                  called sudo; the updater passes it)
 #   --yes          no questions, use the defaults (needs --country
 #                  unless the system already has one)
 
@@ -27,6 +29,14 @@ BRANCH=${CHAOS_BRANCH:-dev/core}
 INSTALL_DIR=${CHAOS_DIR:-/opt/chaos-router-os}
 COUNTRY=${CHAOS_COUNTRY:-}
 ASSUME_YES=0
+APP_USER_ARG=""
+
+# 1: the code in INSTALL_DIR is ours, root-owned (the default /opt
+# clone). 0: started from someone's own clone, which stays theirs.
+MANAGED=1
+
+# What and where was installed, for the updater (deploy/update.sh).
+INSTALL_RECORD=/etc/chaos-router-os/install.json
 
 STATE_DIR=/var/lib/chaos-router-os
 SUDOERS_FILE=/etc/sudoers.d/chaos-router-os
@@ -94,6 +104,7 @@ parse_args() {
         case $1 in
             --country) COUNTRY=${2:-}; shift 2 ;;
             --dir)     INSTALL_DIR=${2:-}; shift 2 ;;
+            --user)    APP_USER_ARG=${2:-}; shift 2 ;;
             --yes|-y)  ASSUME_YES=1; shift ;;
             *)         die "Unknown option: $1" ;;
         esac
@@ -107,9 +118,10 @@ check_system() {
 
     [[ $EUID -eq 0 ]] || die "Run with sudo."
 
-    APP_USER=${SUDO_USER:-}
+    # --user: the updater, which runs as root without sudo.
+    APP_USER=${APP_USER_ARG:-${SUDO_USER:-}}
 
-    if [[ -z $APP_USER || $APP_USER == "root" ]]; then
+    if [[ -z $APP_USER || $APP_USER == "root" ]] || ! id "$APP_USER" >/dev/null 2>&1; then
         die "Run with sudo from the user account the router should run as (not as root)."
     fi
 
@@ -267,6 +279,13 @@ keep_name_resolution() {
 }
 
 
+# git as root in our own root-owned clone: no hooks, and no complaint
+# about the folder's owner.
+git_root() {
+    git -c safe.directory="$INSTALL_DIR" -c core.hooksPath=/dev/null "$@"
+}
+
+
 get_code() {
 
     step "Getting Chardsoft Router OS"
@@ -278,31 +297,38 @@ get_code() {
         here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
     fi
 
-    if [[ -n $here && -f $here/backend/app.py ]]; then
+    if [[ -n $here && -f $here/backend/app.py && $here != "$INSTALL_DIR" ]]; then
         INSTALL_DIR=$here
+        MANAGED=0
         info "Using this copy: $INSTALL_DIR"
+        warn "Its code stays writable by its owner, and the System page cannot update it."
+        warn "For a router in use, install with the curl command instead (root-owned copy in /opt)."
         return
     fi
 
+    # The code must belong to root: the installer and updater run parts of
+    # it as root, and the app (which runs as $APP_USER) must not be able to
+    # change them. A copy the app user owns (older installers) is not
+    # trusted, not even for git: it is moved aside and cloned fresh.
+    if [[ -d $INSTALL_DIR/.git ]] && [[ -n $(find "$INSTALL_DIR" ! -user root -print -quit) ]]; then
+        local old
+        old="$INSTALL_DIR.user-owned-$(date +%Y%m%d-%H%M%S)"
+        warn "$INSTALL_DIR belongs to $APP_USER; moving it to $old and getting a fresh copy."
+        mv "$INSTALL_DIR" "$old"
+    fi
+
     if [[ -d $INSTALL_DIR/.git ]]; then
-        info "Updating $INSTALL_DIR"
-
-        # Clones of the repository under its old name (chaos-router-os):
-        # GitHub redirects them, but the new address is the real one.
-        if [[ $(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null) == */chaoscent/chaos-router-os* ]]; then
-            sudo -H -u "$APP_USER" git -C "$INSTALL_DIR" remote set-url origin "$REPO"
-        fi
-
-        sudo -H -u "$APP_USER" git -C "$INSTALL_DIR" pull --ff-only
+        info "Updating $INSTALL_DIR ($BRANCH)"
+        git_root -C "$INSTALL_DIR" remote set-url origin "$REPO"
+        git_root -C "$INSTALL_DIR" fetch --quiet origin "$BRANCH"
+        git_root -C "$INSTALL_DIR" reset --quiet --hard FETCH_HEAD
         return
     fi
 
     [[ -e $INSTALL_DIR ]] && die "$INSTALL_DIR exists but is not a Chardsoft Router OS clone."
 
-    mkdir -p "$INSTALL_DIR"
-    chown "$APP_USER:$APP_GROUP" "$INSTALL_DIR"
-
-    sudo -H -u "$APP_USER" git clone --branch "$BRANCH" "$REPO" "$INSTALL_DIR"
+    git_root clone --quiet --branch "$BRANCH" "$REPO" "$INSTALL_DIR"
+    chmod -R go-w "$INSTALL_DIR"
 }
 
 
@@ -312,12 +338,16 @@ setup_python() {
 
     info "Python $(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
 
+    # Root-owned like the code (see get_code); an own clone keeps its owner.
+    local as=(env)
+    (( MANAGED )) || as=(sudo -H -u "$APP_USER")
+
     if [[ ! -x $INSTALL_DIR/.venv/bin/python ]]; then
-        sudo -H -u "$APP_USER" python3 -m venv "$INSTALL_DIR/.venv"
+        "${as[@]}" python3 -m venv "$INSTALL_DIR/.venv"
     fi
 
-    sudo -H -u "$APP_USER" "$INSTALL_DIR/.venv/bin/pip" install -q --upgrade pip
-    sudo -H -u "$APP_USER" "$INSTALL_DIR/.venv/bin/pip" install -q -r "$INSTALL_DIR/requirements.txt"
+    "${as[@]}" "$INSTALL_DIR/.venv/bin/pip" install -q --root-user-action=ignore --upgrade pip
+    "${as[@]}" "$INSTALL_DIR/.venv/bin/pip" install -q --root-user-action=ignore -r "$INSTALL_DIR/requirements.txt"
 }
 
 
@@ -330,6 +360,15 @@ setup_defaults() {
 
     # Existing defaults are kept (local edits survive updates).
     "$INSTALL_DIR/.venv/bin/python" "$INSTALL_DIR/backend/install_defaults.py"
+
+    # Read by the updater and the System page.
+    "$INSTALL_DIR/.venv/bin/python" - "$INSTALL_RECORD" "$REPO" "$BRANCH" "$INSTALL_DIR" "$MANAGED" "$APP_USER" <<'PY'
+import json, sys
+path, repo, branch, folder, managed, user = sys.argv[1:]
+with open(path, "w") as f:
+    json.dump({"repo": repo, "branch": branch, "dir": folder, "managed": managed == "1", "user": user}, f, indent=2)
+PY
+    chmod 644 "$INSTALL_RECORD"
 
     # Everything below belongs to the app user. Repairs installs where an
     # older installer left root-owned files there (e.g. system/).
@@ -468,7 +507,7 @@ setup_sudo() {
     install -d -o root -g root -m 755 "$HELPER_DIR"
 
     local file
-    for file in root-helper install-apps.sh modem-usb-mode.sh; do
+    for file in root-helper update.sh install-apps.sh modem-usb-mode.sh; do
         install -o root -g root -m 755 "$INSTALL_DIR/deploy/$file" "$HELPER_DIR/$file"
     done
 

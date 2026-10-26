@@ -23,7 +23,8 @@ as good as full root for anyone who takes over the web app. Here:
   `iptables --modprobe`, `sysctl -p`, `easyrsa --vars`, ...).
 
 Installed root-owned by install.sh to /usr/local/libexec/chardsoft-router-os/
-together with the scripts it may run (install-apps.sh, modem-usb-mode.sh):
+together with the scripts it may run (update.sh, install-apps.sh,
+modem-usb-mode.sh):
 the app's own folder is writable by the app, so nothing there runs as root.
 
 Standalone on purpose: it imports nothing from the app.
@@ -867,6 +868,7 @@ def cmd_apps(args):
 
 
 SCRIPTS = {
+    "update.sh": [["start"]],
     "install-apps.sh": [[""], []],
     "modem-usb-mode.sh": [["status"], ["qmi"], ["mbim"], ["auto"]],
 }

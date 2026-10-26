@@ -377,6 +377,14 @@ remove_files() {
 
     # The installer's own copy. A copy installed from elsewhere (your
     # own git clone) is left alone: it may hold your work.
+    # The updater's settings backups (passwords, keys) and copies an older
+    # installer left owned by the app user (see install.sh: get_code).
+    run rm -rf /var/backups/chardsoft-router-os /run/chardsoft-update
+    local aside
+    for aside in "$INSTALL_DIR_DEFAULT".user-owned-*; do
+        [[ -d $aside ]] && run rm -rf "$aside"
+    done
+
     if [[ $APP_DIR == "$INSTALL_DIR_DEFAULT" ]]; then
         run rm -rf "$APP_DIR"
     else
