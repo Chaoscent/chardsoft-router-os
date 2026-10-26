@@ -2,120 +2,214 @@
 
     <div class="page-header">
         <h1>Dashboard</h1>
+
+        <div class="page-header-actions">
+            <button id="editDashboardBtn" class="secondary-btn" type="button">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/pencil.svg') }})" aria-hidden="true"></span>
+                Edit dashboard
+            </button>
+        </div>
     </div>
 
+    <!-- dashboard.js fills this from the saved layout (/api/dashboard/layout)
+         with the widgets below, on a 12 column grid. -->
+    <div id="dashboardGrid" class="dashboard-grid"></div>
+
+</section>
+
+
+<template id="widgetSummary">
     <div class="card-grid dashboard-metrics">
         <a href="#/clients" class="card-link">
             <div class="card">
                 <span>Connected Clients</span>
-                <div class="card-metric" id="clients">--</div>
+                <div class="card-metric" data-field="clients">--</div>
             </div>
         </a>
 
         <div class="card">
             <span>Active Clients</span>
-            <div class="card-metric" id="active">--</div>
+            <div class="card-metric" data-field="active">--</div>
         </div>
 
         <div class="card">
             <span>Download</span>
-            <div class="card-metric" id="download">-- Mbps</div>
+            <div class="card-metric" data-field="download">--</div>
         </div>
 
         <div class="card">
             <span>Upload</span>
-            <div class="card-metric" id="upload">-- Mbps</div>
+            <div class="card-metric" data-field="upload">--</div>
+        </div>
+    </div>
+</template>
+
+
+<template id="widgetTraffic">
+    <div class="card dashboard-graph">
+
+        <div class="graph-header">
+
+            <span>Traffic (last 60 seconds)</span>
+
+            <div class="graph-select">
+                <select class="setting-input" aria-label="Interface in this graph"></select>
+            </div>
+
+            <div class="graph-legend">
+                <span class="legend-item"><i class="legend-swatch download"></i>Download</span>
+                <span class="legend-item"><i class="legend-swatch upload"></i>Upload</span>
+            </div>
+
+            <button class="icon-btn widget-remove" type="button" title="Remove this graph" aria-label="Remove this graph">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/x.svg') }})" aria-hidden="true"></span>
+            </button>
+
+        </div>
+
+        <!-- dashboard.js draws axes, lines and the hover cursor at the
+             graph's real pixel size, so text never stretches. -->
+        <div class="graph-area">
+            <svg role="img"></svg>
+            <div class="graph-tooltip hidden"></div>
         </div>
 
     </div>
+</template>
 
-    <div class="dashboard-traffic">
 
-        <div class="card dashboard-graph">
+<!-- Every interface at once; a row opens its graph. -->
+<template id="widgetInterfaces">
+    <div class="card dashboard-interfaces">
 
-            <div class="graph-header">
+        <span>Interfaces</span>
 
-                <span>Network Traffic (last 60 seconds)</span>
-
-                <div class="graph-select">
-                    <select id="graphInterfaceSelect" class="setting-input" aria-label="Interface in the graph"></select>
-                </div>
-
-                <div class="graph-legend">
-                    <span class="legend-item"><i class="legend-swatch download"></i>Download</span>
-                    <span class="legend-item"><i class="legend-swatch upload"></i>Upload</span>
-                </div>
-
-            </div>
-
-            <!-- dashboard.js draws axes, lines and the hover cursor at the
-                 graph's real pixel size, so text never stretches. -->
-            <div class="graph-area">
-
-                <svg id="trafficGraph" role="img"
-                     aria-label="Download and upload traffic over the last 60 seconds"></svg>
-
-                <div id="graphTooltip" class="graph-tooltip hidden"></div>
-
-            </div>
-
-        </div>
-
-        <!-- Every interface at once; a row shows it in the graph. -->
-        <div class="card dashboard-interfaces">
-
-            <span>Interfaces</span>
-
-            <div class="table-scroll">
-                <table class="client-table data-table">
-                    <thead>
-                        <tr>
-                            <th>Interface</th>
-                            <th>Type</th>
-                            <th class="num">Download</th>
-                            <th class="num">Upload</th>
-                        </tr>
-                    </thead>
-                    <tbody id="interfaceTable"></tbody>
-                </table>
-            </div>
-
+        <div class="table-scroll">
+            <table class="client-table data-table">
+                <thead>
+                    <tr>
+                        <th>Interface</th>
+                        <th>Type</th>
+                        <th class="num">Download</th>
+                        <th class="num">Upload</th>
+                    </tr>
+                </thead>
+                <tbody data-field="interfaces"></tbody>
+            </table>
         </div>
 
     </div>
+</template>
 
+
+<template id="widgetSystem">
     <div class="card-grid dashboard-system">
-
         <div class="card">
             <span>Hostname</span>
-            <div class="card-value" id="hostname">--</div>
+            <div class="card-value" data-field="hostname">--</div>
         </div>
 
         <div class="card">
             <span>CPU Temp</span>
-            <div class="card-value" id="cpu">--</div>
+            <div class="card-value" data-field="cpu_temp">--</div>
         </div>
 
         <div class="card">
             <span>CPU Load</span>
-            <div class="card-value" id="cpuLoad">--</div>
+            <div class="card-value" data-field="cpu_load">--</div>
         </div>
 
         <div class="card">
             <span>RAM Usage</span>
-            <div class="card-value" id="ram">--</div>
+            <div class="card-value" data-field="ram">--</div>
         </div>
 
         <div class="card">
             <span>Uptime</span>
-            <div class="card-value" id="uptime">--</div>
+            <div class="card-value" data-field="uptime">--</div>
         </div>
 
         <div class="card">
             <span>System Time</span>
-            <div class="card-value" id="time">--</div>
+            <div class="card-value" data-field="time">--</div>
+        </div>
+    </div>
+</template>
+
+
+<!-- One row per widget in the editor. -->
+<template id="layoutRowTemplate">
+    <li class="layout-row">
+
+        <label class="check-item layout-show">
+            <input type="checkbox">
+            <span class="layout-name"></span>
+        </label>
+
+        <div class="layout-controls">
+
+            <div class="layout-interface">
+                <select class="setting-input" aria-label="Interface"></select>
+            </div>
+
+            <div class="layout-width">
+                <select class="setting-input" aria-label="Width"></select>
+            </div>
+
+            <button class="icon-btn layout-up" type="button" title="Move up" aria-label="Move up">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/chevron-up.svg') }})" aria-hidden="true"></span>
+            </button>
+
+            <button class="icon-btn layout-down" type="button" title="Move down" aria-label="Move down">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/chevron-down.svg') }})" aria-hidden="true"></span>
+            </button>
+
+            <button class="icon-btn layout-remove" type="button" title="Remove" aria-label="Remove">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/trash-2.svg') }})" aria-hidden="true"></span>
+            </button>
+
+        </div>
+
+    </li>
+</template>
+
+
+<div id="layoutModal" class="modal-overlay hidden">
+
+    <div class="modal layout-modal" role="dialog" aria-modal="true" aria-labelledby="layoutModalTitle">
+
+        <div class="modal-header">
+            <h2 id="layoutModalTitle">Edit dashboard</h2>
+            <button id="closeLayoutModal" class="icon-btn" type="button" aria-label="Close">×</button>
+        </div>
+
+        <p class="modal-subtitle">
+            Choose which widgets show, their order and width. The layout is
+            saved on the router, so every browser shows the same dashboard.
+            Small screens stack the widgets.
+        </p>
+
+        <div class="modal-body">
+
+            <ol id="layoutList" class="layout-list"></ol>
+
+            <div>
+                <button id="addGraphBtn" class="secondary-btn" type="button">
+                    <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/plus.svg') }})" aria-hidden="true"></span>
+                    Add traffic graph
+                </button>
+            </div>
+
+            <p id="layoutError" class="modal-warning hidden"></p>
+
+        </div>
+
+        <div class="modal-actions">
+            <button id="resetLayoutBtn" class="secondary-btn layout-reset" type="button">Reset to default</button>
+            <button id="cancelLayoutBtn" class="secondary-btn" type="button">Cancel</button>
+            <button id="saveLayoutBtn" class="save-btn" type="button">Save</button>
         </div>
 
     </div>
 
-</section>
+</div>

@@ -357,6 +357,8 @@ from services.config import sync_boot
 
 from services.traffic import get_traffic, get_history, get_interfaces as get_traffic_interfaces
 
+from services.dashboard_layout import MAX_WIDGETS, get_layout, validate_layout, default_layout
+
 
 
 from services.config import (
@@ -1003,13 +1005,18 @@ def dashboard_api():
 
         traffic = get_traffic()
 
-        chosen = request.args.get("interface", "")
+        interfaces = get_traffic_interfaces()
 
-        names = {row["interface"] for row in get_traffic_interfaces()}
+        names = {row["interface"] for row in interfaces}
 
-        graph_interface = chosen if chosen in names else traffic["interface"]
+        # One history per traffic graph: "" is the WAN, unknown names
+        # (an interface that is gone) get an empty graph.
+        graphs = request.args.get("graphs", "").split(",")[:MAX_WIDGETS]
 
-
+        histories = {
+                name: get_history(name or traffic["interface"]) if not name or name in names else []
+                for name in graphs
+        }
 
         return jsonify({
 
@@ -1042,15 +1049,12 @@ def dashboard_api():
                 # The WAN, which the rates above and the status bar show.
                 "interface": traffic["interface"],
 
-                # The graph: the interface chosen on the dashboard, else the WAN.
-                "graph_interface": graph_interface,
-
-                "history": get_history(graph_interface),
+                "histories": histories,
 
                 # Every interface with its current rates.
                 "interfaces": [
                         {**row, "kind": interface_kind(row["interface"], row["wan"])}
-                        for row in get_traffic_interfaces()
+                        for row in interfaces
                 ]
 
         })
@@ -1059,11 +1063,49 @@ def dashboard_api():
 
 
 
+@app.route("/api/dashboard/layout")
+
+@login_required
+
+def dashboard_layout():
+
+        return jsonify({"layout": get_layout(load_dashboard_config()), "default": default_layout()})
+
+
+
+@app.route("/api/dashboard/layout", methods=["POST"])
+
+@login_required
+
+def update_dashboard_layout():
+
+        data = request.get_json(silent=True) or {}
+
+        try:
+                layout = validate_layout(data.get("layout"))
+        except ValueError as error:
+                return jsonify({"success": False, "message": str(error)}), 400
+
+        config = load_dashboard_config()
+
+        config["layout"] = layout
+
+        if not save_dashboard_config(config):
+                return jsonify({"success": False, "message": "The dashboard layout could not be saved."}), 500
+
+        return jsonify({"success": True, "layout": layout})
+
+
+
 # ------------------------------------------------------------
 
 # Network
 
 # ------------------------------------------------------------
+
+
+
+
 
 
 

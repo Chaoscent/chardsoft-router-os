@@ -1351,6 +1351,7 @@ select.setting-input{
     inset:0;
     z-index:1000;
     display:grid;
+    grid-template-columns:minmax(0,1fr);
     place-items:center;
     padding:var(--space-5);
     background:rgb(0 0 0 / 25%);
@@ -1619,22 +1620,49 @@ select.setting-input{
 /* Dashboard                                                 */
 /* ========================================================= */
 
-.dashboard{
-    flex:1;
+.page-header-actions{
+    display:flex;
+    gap:var(--space-2);
+    margin-left:auto;
 }
 
-/* The graph and the list of interfaces side by side; the graph takes
-   the spare height. */
-.dashboard-traffic{
-    flex:1 1 0;
+/* Widgets from the saved layout on 12 columns (data-width); narrow
+   screens stack them. Graphs share one height that follows the window. */
+.dashboard-grid{
+    --graph-height:clamp(260px, calc(100vh - 400px), 460px);
     display:grid;
-    grid-template-columns:minmax(0,1fr) minmax(280px,340px);
+    grid-template-columns:repeat(12,minmax(0,1fr));
+    align-items:start;
     gap:var(--space-4);
-    min-height:260px;
+}
+
+.dashboard-grid > .widget{
+    grid-column:span 12;
+}
+
+.dashboard-grid > .widget[data-width="3"]{ grid-column:span 3; }
+.dashboard-grid > .widget[data-width="4"]{ grid-column:span 4; }
+.dashboard-grid > .widget[data-width="6"]{ grid-column:span 6; }
+.dashboard-grid > .widget[data-width="8"]{ grid-column:span 8; }
+.dashboard-grid > .widget[data-width="9"]{ grid-column:span 9; }
+
+/* A graph's neighbour in the row gets its height and scrolls. */
+.dashboard-grid > .dashboard-graph,
+.dashboard-grid > .dashboard-interfaces{
+    align-self:stretch;
+}
+
+.widget-flash{
+    animation:widget-flash 1.2s ease-out;
+}
+
+@keyframes widget-flash{
+    from{ box-shadow:0 0 0 2px var(--color-accent); }
+    to{ box-shadow:0 0 0 2px transparent; }
 }
 
 .dashboard-graph{
-    min-height:220px;
+    height:var(--graph-height);
     display:flex;
     flex-direction:column;
 }
@@ -1653,6 +1681,7 @@ select.setting-input{
     display:flex;
     flex-direction:column;
     min-height:0;
+    max-height:var(--graph-height);
 }
 
 .dashboard-interfaces > .table-scroll{
@@ -1708,6 +1737,7 @@ select.setting-input{
 
 .graph-legend{
     margin-left:auto;
+    flex-wrap:wrap;
     display:flex;
     gap:var(--space-4);
     font-weight:var(--weight-regular);
@@ -1782,28 +1812,126 @@ select.setting-input{
     color:var(--color-text-muted);
 }
 
+.widget-remove{
+    width:var(--control-height-sm);
+    height:var(--control-height-sm);
+    margin-right:calc(-1 * var(--space-2));
+}
+
+/* Tiles wrap inside narrower widgets. */
+.dashboard-metrics,
 .dashboard-system{
-    grid-template-columns:repeat(6,minmax(0,1fr));
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
 }
 
 @media (max-width:1100px){
 
-    .dashboard-system{
-        grid-template-columns:repeat(3,minmax(0,1fr));
+    .dashboard-grid > .widget[data-width]{
+        grid-column:span 12;
     }
 
-    .dashboard-traffic{
-        grid-template-columns:minmax(0,1fr);
+    .dashboard-grid > .widget[data-width="3"],
+    .dashboard-grid > .widget[data-width="4"],
+    .dashboard-grid > .widget[data-width="6"]{
+        grid-column:span 6;
     }
 
-    .dashboard-graph{
-        min-height:300px;
+}
+
+@media (max-width:700px){
+
+    .dashboard-grid{
+        --graph-height:300px;
+    }
+
+    .dashboard-grid > .widget[data-width]{
+        grid-column:span 12;
     }
 
 }
 
 
-/* ========================================================= */
+/* The dashboard editor: one row per widget. */
+.layout-modal{
+    width:640px;
+}
+
+.layout-list{
+    display:flex;
+    flex-direction:column;
+    margin:0;
+    padding:0;
+    list-style:none;
+    border:var(--hairline) solid var(--color-border);
+}
+
+.layout-row{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:var(--space-2) var(--space-3);
+    min-height:var(--row-height);
+    padding:var(--space-1) var(--space-2);
+    background:var(--color-surface);
+}
+
+.layout-row + .layout-row{
+    border-top:var(--hairline) solid var(--color-border);
+}
+
+.layout-row.is-hidden .layout-name{
+    color:var(--color-text-muted);
+}
+
+.layout-show{
+    flex:1 1 200px;
+    min-width:0;
+}
+
+.layout-controls{
+    display:flex;
+    align-items:center;
+    gap:var(--space-1);
+    margin-left:auto;
+}
+
+.layout-interface{
+    width:150px;
+}
+
+.layout-width{
+    width:130px;
+}
+
+.layout-controls .icon-btn:disabled{
+    opacity:.35;
+}
+
+/* Keeps the columns aligned in rows without that control. */
+.layout-placeholder{
+    visibility:hidden;
+}
+
+@media (max-width:700px){
+
+    .layout-controls{
+        flex:1 1 100%;
+    }
+
+    .layout-interface,
+    .layout-width{
+        flex:1 1 0;
+        min-width:0;
+        width:auto;
+    }
+
+}
+
+.layout-reset{
+    margin-right:auto;
+}
+
+
 /* System page                                               */
 /* ========================================================= */
 

@@ -3,129 +3,337 @@ window.Page = window.Page || {};
 window.Page.dashboard = {
 
     timer: null,
-    resizeObserver: null,
 
-    // Samples from /api/dashboard: [{ t, rx, tx }] with rates in Mbps.
-    history: [],
+    // The saved widgets ([{ id, type, width, hidden, interface? }]) and
+    // the built-in default (from /api/dashboard/layout).
+    layout: [],
+    defaultLayout: [],
 
-    // Index of the sample under the mouse, or null.
-    hoverIndex: null,
+    // What is on the page: [{ widget, element, graph? }].
+    shown: [],
 
-    WINDOW_SECONDS: 60,
+    // From the last /api/dashboard answer.
+    interfaces: [],
+    wanInterface: null,
 
-    // Plot margins inside the SVG, in pixels (room for axis labels).
-    MARGIN: { top: 10, right: 12, bottom: 26, left: 84 },
+    // The editor's working copy, saved only with "Save".
+    draft: null,
 
-    SVG_NS: "http://www.w3.org/2000/svg",
+    NAMES: {
+        summary: "Overview (clients, download, upload)",
+        traffic: "Traffic graph",
+        interfaces: "Interfaces",
+        system: "System (CPU, RAM, uptime)"
+    },
 
-    // Chart colors from the design tokens (chardsoft.css), so the graph
-    // follows the light and dark theme: download in the accent color,
-    // upload neutral, grid lines like the hairlines.
-    get COLORS() {
+    TEMPLATES: {
+        summary: "widgetSummary",
+        traffic: "widgetTraffic",
+        interfaces: "widgetInterfaces",
+        system: "widgetSystem"
+    },
 
-        const css = getComputedStyle(document.documentElement);
-        const token = name => css.getPropertyValue(name).trim();
+    // Columns out of 12 that make sense per widget.
+    WIDTHS: {
+        summary: [6, 8, 12],
+        traffic: [4, 6, 8, 9, 12],
+        interfaces: [3, 4, 6, 8, 12],
+        system: [6, 8, 12]
+    },
 
-        return {
-            rx: token("--color-accent"),
-            tx: token("--color-text-muted"),
-            grid: token("--color-border"),
-            axis: token("--color-text-muted"),
-            surface: token("--color-surface")
+    WIDTH_LABELS: {
+        3: "Quarter",
+        4: "Third",
+        6: "Half",
+        8: "Two thirds",
+        9: "Three quarters",
+        12: "Full width"
+    },
+
+
+    // ------------------------------------------------------------
+    // Layout
+    // ------------------------------------------------------------
+
+    async loadLayout() {
+
+        try {
+
+            const res = await fetch("/api/dashboard/layout");
+
+            if (res.status === 401) {
+                location.href = "/login";
+                return;
+            }
+
+            const data = await res.json();
+
+            this.layout = data.layout;
+            this.defaultLayout = data.default;
+
+        } catch {
+
+            this.layout = [];
+
+        }
+
+    },
+
+
+    /** Saves a layout; true when the router accepted it. */
+    async saveLayout(layout) {
+
+        try {
+
+            const res = await fetch("/api/dashboard/layout", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ layout })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                return data.message || "The dashboard layout could not be saved.";
+            }
+
+            this.layout = data.layout;
+
+            return true;
+
+        } catch {
+
+            return "The router did not answer. Try again.";
+
+        }
+
+    },
+
+
+    /** Saves a change made on the dashboard itself (not the editor). */
+    async changeLayout(layout) {
+
+        const result = await this.saveLayout(layout);
+
+        if (result !== true) {
+            ChaosModal.notice({ title: "Dashboard not saved", subtitle: result });
+            return false;
+        }
+
+        this.render();
+        this.update();
+
+        return true;
+
+    },
+
+
+    newId() {
+
+        return `traffic-${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+
+    },
+
+
+    // ------------------------------------------------------------
+    // Widgets on the page
+    // ------------------------------------------------------------
+
+    render() {
+
+        this.shown.forEach(item => item.graph?.destroy());
+        this.shown = [];
+
+        dashboardGrid.replaceChildren();
+
+        for (const widget of this.layout) {
+
+            if (widget.hidden) continue;
+
+            const template = document.getElementById(this.TEMPLATES[widget.type]);
+
+            if (!template) continue;
+
+            const element = template.content.firstElementChild.cloneNode(true);
+
+            element.classList.add("widget");
+            element.dataset.width = widget.width;
+            element.dataset.widget = widget.id;
+
+            dashboardGrid.appendChild(element);
+
+            const item = { widget, element };
+
+            if (widget.type === "traffic") this.setUpGraph(item);
+
+            this.shown.push(item);
+
+        }
+
+        // Empty until the first answer, filled every second.
+        this.interfaceKey = null;
+
+    },
+
+
+    setUpGraph(item) {
+
+        const { widget, element } = item;
+
+        item.select = element.querySelector(".graph-select select");
+
+        item.graph = new this.Graph(
+            element.querySelector(".graph-area svg"),
+            element.querySelector(".graph-tooltip")
+        );
+
+        item.graph.svg.setAttribute("aria-label",
+            `Download and upload on ${widget.interface || "the WAN"} over the last 60 seconds`);
+
+        ChaosSelect.enhance(item.select);
+
+        item.select.onchange = () => {
+
+            const layout = this.layout.map(w =>
+                w.id === widget.id ? { ...w, interface: item.select.value } : w);
+
+            this.changeLayout(layout);
+
+        };
+
+        element.querySelector(".widget-remove").onclick = () => {
+
+            this.changeLayout(this.layout.filter(w => w.id !== widget.id));
+
         };
 
     },
 
 
-    // The interface in the graph ("" = the WAN), kept per browser.
-    GRAPH_KEY: "chaos-dashboard-interface",
+    /** Interface choices for a graph: the WAN first, then the rest. */
+    interfaceOptions(current = "") {
 
-    graphInterface: "",
+        const options = [{
+            value: "",
+            label: `WAN${this.wanInterface ? ` (${this.wanInterface})` : ""}`
+        }];
 
-    // Names in the select, to rebuild it only when they change.
-    interfaceNames: "",
+        this.interfaces
+            .filter(row => !row.wan)
+            .forEach(row => options.push({ value: row.interface, label: `${row.interface} (${row.kind})` }));
 
-    async update() {
-
-        const query = this.graphInterface ? `?interface=${encodeURIComponent(this.graphInterface)}` : "";
-
-        const res = await fetch(`/api/dashboard${query}`);
-
-        if (res.status === 401) {
-            location.href = "/login";
-            return;
+        // A saved interface that is gone (unplugged, VPN down) stays
+        // selectable, so the graph keeps its place.
+        if (current && !options.some(o => o.value === current)) {
+            options.push({ value: current, label: `${current} (not present)` });
         }
 
-        const data = await res.json();
-
-        hostname.textContent = data.hostname;
-        cpuLoad.textContent = data.cpu_load;
-        cpu.textContent = data.cpu_temp;
-        ram.textContent = data.ram;
-        uptime.textContent = data.uptime;
-        time.textContent = data.time;
-
-        clients.textContent = data.clients;
-        active.textContent = data.active;
-        download.textContent = Header.formatRate(data.download);
-        upload.textContent = Header.formatRate(data.upload);
-
-        this.wanInterface = data.interface;
-        this.shownInterface = data.graph_interface;
-
-        this.renderInterfaces(data.interfaces || []);
-
-        this.history = data.history || [];
-
-        this.drawGraph();
+        return options;
 
     },
 
 
-    /** The interface select and the table of every interface. */
-    renderInterfaces(rows) {
+    fillSelect(select, options, value) {
 
-        const names = rows.map(r => r.interface).join(",");
+        select.replaceChildren(...options.map(o => {
+            const option = document.createElement("option");
+            option.value = o.value;
+            option.textContent = o.label;
+            return option;
+        }));
 
-        const rebuilt = names !== this.interfaceNames;
+        select.value = value;
 
-        if (rebuilt) {
+        ChaosSelect.refresh(select);
 
-            this.interfaceNames = names;
+    },
 
-            graphInterfaceSelect.innerHTML = "";
 
-            const wan = document.createElement("option");
-            wan.value = "";
-            wan.textContent = `WAN${this.wanInterface ? ` (${this.wanInterface})` : ""}`;
-            graphInterfaceSelect.appendChild(wan);
+    async update() {
 
-            rows.filter(r => !r.wan).forEach(row => {
-                const option = document.createElement("option");
-                option.value = row.interface;
-                option.textContent = `${row.interface} (${row.kind})`;
-                graphInterfaceSelect.appendChild(option);
-            });
+        const graphs = [...new Set(
+            this.shown.filter(item => item.graph).map(item => item.widget.interface)
+        )];
+
+        const query = graphs.map(encodeURIComponent).join(",");
+
+        let data;
+
+        try {
+
+            const res = await fetch(`/api/dashboard?graphs=${query}`);
+
+            if (res.status === 401) {
+                location.href = "/login";
+                return;
+            }
+
+            data = await res.json();
+
+        } catch {
+
+            return;
+
         }
 
-        // A remembered interface that is gone: back to the WAN.
-        if (this.graphInterface && !rows.some(r => r.interface === this.graphInterface)) {
-            this.graphInterface = "";
-        }
+        const values = {
+            ...data,
+            download: Header.formatRate(data.download),
+            upload: Header.formatRate(data.upload)
+        };
 
-        // Only on a change: refreshing would close an open dropdown.
-        if (rebuilt || graphInterfaceSelect.value !== this.graphInterface) {
-            graphInterfaceSelect.value = this.graphInterface;
-            ChaosSelect.refresh(graphInterfaceSelect);
-        }
+        dashboardGrid.querySelectorAll("[data-field]").forEach(field => {
+            if (field.dataset.field in values && field.dataset.field !== "interfaces") {
+                field.textContent = values[field.dataset.field];
+            }
+        });
 
-        interfaceTable.replaceChildren(...rows.map(row => {
+        this.wanInterface = data.interface;
+        this.interfaces = data.interfaces || [];
+
+        // Rebuild the graph selects only when the interfaces change:
+        // refreshing would close a dropdown that is open.
+        const key = `${data.interface}|${this.interfaces.map(r => `${r.interface}:${r.kind}`).join(",")}`;
+        const changed = key !== this.interfaceKey;
+
+        this.interfaceKey = key;
+
+        this.shown.forEach(item => {
+
+            if (!item.graph) return;
+
+            if (changed) {
+                this.fillSelect(item.select, this.interfaceOptions(item.widget.interface), item.widget.interface);
+            }
+
+            item.graph.history = data.histories?.[item.widget.interface] || [];
+            item.graph.draw();
+
+        });
+
+        this.renderInterfaces();
+
+    },
+
+
+    /** The table of every interface; a row opens its graph. */
+    renderInterfaces() {
+
+        const body = dashboardGrid.querySelector('[data-field="interfaces"]');
+
+        if (!body) return;
+
+        const graphed = new Set(
+            this.shown.filter(item => item.graph).map(item => item.widget.interface || this.wanInterface)
+        );
+
+        const rows = this.interfaces.map(row => {
 
             const tr = document.createElement("tr");
 
             tr.className = "interface-row";
-            tr.title = "Show in the graph";
-            tr.setAttribute("aria-selected", String(row.interface === this.shownInterface));
+            tr.title = graphed.has(row.interface) ? "Go to its graph" : "Add a graph for it";
+            tr.setAttribute("aria-selected", String(graphed.has(row.interface)));
 
             const cells = [
                 row.interface,
@@ -142,10 +350,10 @@ window.Page.dashboard = {
                 tr.appendChild(td);
             });
 
-            tr.addEventListener("click", () => this.showInterface(row.wan ? "" : row.interface));
+            tr.addEventListener("click", () => this.openGraph(row));
 
             return tr;
-        }));
+        });
 
         if (!rows.length) {
             const tr = document.createElement("tr");
@@ -154,271 +362,212 @@ window.Page.dashboard = {
             td.colSpan = 4;
             td.textContent = "No interfaces measured yet.";
             tr.appendChild(td);
-            interfaceTable.replaceChildren(tr);
+            rows.push(tr);
+        }
+
+        body.replaceChildren(...rows);
+
+    },
+
+
+    /** Scrolls to an interface's graph, or adds one after the others. */
+    async openGraph(row) {
+
+        const value = row.wan ? "" : row.interface;
+
+        const existing = this.shown.find(item =>
+            item.graph && (item.widget.interface || this.wanInterface) === row.interface);
+
+        if (existing) {
+            this.highlight(existing.element);
+            return;
+        }
+
+        const widget = { id: this.newId(), type: "traffic", width: 6, hidden: false, interface: value };
+
+        const lastGraph = this.layout.map(w => w.type).lastIndexOf("traffic");
+        const layout = [...this.layout];
+
+        layout.splice(lastGraph + 1, 0, widget);
+
+        if (await this.changeLayout(layout)) {
+            const added = this.shown.find(item => item.widget.id === widget.id);
+            if (added) this.highlight(added.element);
         }
 
     },
 
 
-    showInterface(name) {
+    highlight(element) {
 
-        this.graphInterface = name;
+        element.scrollIntoView({ block: "nearest", behavior: "smooth" });
 
-        try { localStorage.setItem(this.GRAPH_KEY, name); } catch {}
-
-        this.hoverIndex = null;
-        this.update();
+        element.classList.remove("widget-flash");
+        void element.offsetWidth;
+        element.classList.add("widget-flash");
 
     },
 
 
     // ------------------------------------------------------------
-    // Graph
+    // Editor
     // ------------------------------------------------------------
 
-    /** A round axis maximum (1, 2, 2.5 or 5 x 10^n) above the data. */
-    niceMax(value) {
+    openEditor() {
 
-        const target = Math.max(value * 1.15, 0.01);
-        const power = 10 ** Math.floor(Math.log10(target));
+        this.draft = this.layout.map(w => ({ ...w }));
 
-        for (const step of [1, 2, 2.5, 5, 10]) {
-            if (step * power >= target) return step * power;
+        // Every single widget is listed, so a hidden one can come back.
+        for (const type of ["summary", "interfaces", "system"]) {
+            if (!this.draft.some(w => w.type === type)) {
+                const builtin = this.defaultLayout.find(w => w.type === type);
+                this.draft.push({ ...(builtin || { id: type, type, width: 12 }), hidden: true });
+            }
         }
 
-        return 10 * power;
+        layoutError.classList.add("hidden");
+
+        this.renderEditor();
+
+        layoutModal.classList.remove("hidden");
+
+        saveLayoutBtn.focus();
 
     },
 
 
-    /** Axis labels: round values without trailing zeros, e.g. "25 Mbps". */
-    formatAxis(mbps) {
+    closeEditor() {
 
-        const trim = n => String(Number(n.toFixed(2)));
+        layoutModal.classList.add("hidden");
 
-        if (mbps === 0) return "0";
-        if (mbps >= 1000) return `${trim(mbps / 1000)} Gbps`;
-        if (mbps >= 1) return `${trim(mbps)} Mbps`;
-
-        return `${trim(mbps * 1000)} kbps`;
+        this.draft = null;
 
     },
 
 
-    el(name, attrs = {}, text = null) {
+    renderEditor() {
 
-        const node = document.createElementNS(this.SVG_NS, name);
+        const template = document.getElementById("layoutRowTemplate");
 
-        for (const [key, value] of Object.entries(attrs)) {
-            node.setAttribute(key, value);
-        }
+        layoutList.replaceChildren(...this.draft.map((widget, index) => {
 
-        if (text !== null) node.textContent = text;
+            const row = template.content.firstElementChild.cloneNode(true);
 
-        return node;
+            const show = row.querySelector(".layout-show input");
 
-    },
+            show.checked = !widget.hidden;
+            show.onchange = () => { widget.hidden = !show.checked; this.renderEditor(); };
 
+            row.classList.toggle("is-hidden", widget.hidden);
 
-    /** Pixel geometry shared by drawing and hovering. */
-    layout() {
+            row.querySelector(".layout-name").textContent = this.NAMES[widget.type];
 
-        const svg = trafficGraph;
-        const width = svg.clientWidth;
-        const height = svg.clientHeight;
-        const m = this.MARGIN;
+            const interfaceBox = row.querySelector(".layout-interface");
 
-        const points = this.history;
-        const end = points.length ? points[points.length - 1].t : Date.now() / 1000;
-        const start = end - this.WINDOW_SECONDS;
+            if (widget.type === "traffic") {
 
-        const peak = Math.max(0, ...points.flatMap(p => [p.rx, p.tx]));
-        const max = this.niceMax(peak);
+                const select = interfaceBox.querySelector("select");
 
-        const plotW = Math.max(1, width - m.left - m.right);
-        const plotH = Math.max(1, height - m.top - m.bottom);
+                ChaosSelect.enhance(select);
+                this.fillSelect(select, this.interfaceOptions(widget.interface), widget.interface);
 
-        return {
-            width, height, m, plotW, plotH, start, end, max, points,
-            x: t => m.left + ((t - start) / this.WINDOW_SECONDS) * plotW,
-            y: v => m.top + plotH - (v / max) * plotH
-        };
+                select.onchange = () => { widget.interface = select.value; };
 
-    },
+            } else {
 
+                interfaceBox.remove();
 
-    drawGraph() {
+            }
 
-        const svg = trafficGraph;
-        const g = this.layout();
+            const width = row.querySelector(".layout-width select");
+            const widths = this.WIDTHS[widget.type].includes(widget.width)
+                ? this.WIDTHS[widget.type]
+                : [...this.WIDTHS[widget.type], widget.width].sort((a, b) => a - b);
 
-        if (g.width < 50 || g.height < 50) return;
+            ChaosSelect.enhance(width);
+            this.fillSelect(width, widths.map(w => ({ value: String(w), label: this.WIDTH_LABELS[w] })), String(widget.width));
 
-        svg.setAttribute("viewBox", `0 0 ${g.width} ${g.height}`);
-        svg.innerHTML = "";
+            width.onchange = () => { widget.width = Number(width.value); };
 
-        // Horizontal grid lines with rate labels.
-        const ticks = 4;
+            const move = step => {
+                const [moved] = this.draft.splice(index, 1);
+                this.draft.splice(index + step, 0, moved);
+                this.renderEditor();
+                layoutList.children[index + step]
+                    ?.querySelector(step < 0 ? ".layout-up" : ".layout-down")
+                    ?.focus();
+            };
 
-        for (let i = 0; i <= ticks; i++) {
+            const up = row.querySelector(".layout-up");
+            const down = row.querySelector(".layout-down");
 
-            const value = (g.max / ticks) * i;
-            const y = g.y(value);
+            up.disabled = index === 0;
+            down.disabled = index === this.draft.length - 1;
 
-            svg.appendChild(this.el("line", {
-                x1: g.m.left, x2: g.width - g.m.right, y1: y, y2: y,
-                stroke: this.COLORS.grid
-            }));
+            up.onclick = () => move(-1);
+            down.onclick = () => move(1);
 
-            svg.appendChild(this.el("text", {
-                x: g.m.left - 10, y: y + 4,
-                "text-anchor": "end", class: "graph-label"
-            }, this.formatAxis(value)));
+            const remove = row.querySelector(".layout-remove");
 
-        }
+            if (widget.type === "traffic") {
+                remove.onclick = () => { this.draft.splice(index, 1); this.renderEditor(); };
+            } else {
+                // Built-in widgets are hidden, not removed.
+                remove.classList.add("layout-placeholder");
+                remove.disabled = true;
+            }
 
-        // Time labels: seconds before the latest sample.
-        for (const ago of [60, 45, 30, 15, 0]) {
+            return row;
 
-            const x = g.x(g.end - ago);
-
-            svg.appendChild(this.el("line", {
-                x1: x, x2: x, y1: g.m.top, y2: g.m.top + g.plotH,
-                stroke: this.COLORS.grid
-            }));
-
-            svg.appendChild(this.el("text", {
-                x: x, y: g.height - 6,
-                "text-anchor": ago === 60 ? "start" : ago === 0 ? "end" : "middle",
-                class: "graph-label"
-            }, ago === 0 ? "now" : `-${ago}s`));
-
-        }
-
-        if (!g.points.length) {
-
-            svg.appendChild(this.el("text", {
-                x: g.m.left + g.plotW / 2, y: g.m.top + g.plotH / 2,
-                "text-anchor": "middle", class: "graph-label"
-            }, "Collecting data…"));
-
-            return;
-        }
-
-        // Area + line per direction.
-        const base = g.y(0);
-
-        for (const key of ["rx", "tx"]) {
-
-            const coords = g.points.map(p => `${g.x(p.t).toFixed(1)},${g.y(p[key]).toFixed(1)}`);
-            const first = g.x(g.points[0].t).toFixed(1);
-            const last = g.x(g.points[g.points.length - 1].t).toFixed(1);
-
-            svg.appendChild(this.el("polygon", {
-                points: `${first},${base} ${coords.join(" ")} ${last},${base}`,
-                fill: this.COLORS[key],
-                "fill-opacity": key === "rx" ? .12 : .06
-            }));
-
-            svg.appendChild(this.el("polyline", {
-                points: coords.join(" "),
-                fill: "none",
-                stroke: this.COLORS[key],
-                "stroke-width": 1.5,
-                "stroke-linejoin": "round",
-                "stroke-linecap": "round"
-            }));
-
-        }
-
-        this.drawHover(g);
-
-    },
-
-
-    drawHover(g) {
-
-        const index = this.hoverIndex;
-        const sample = index !== null ? g.points[index] : null;
-
-        if (!sample) {
-            graphTooltip.classList.add("hidden");
-            return;
-        }
-
-        const svg = trafficGraph;
-        const x = g.x(sample.t);
-
-        svg.appendChild(this.el("line", {
-            x1: x, x2: x, y1: g.m.top, y2: g.m.top + g.plotH,
-            stroke: this.COLORS.axis, "stroke-dasharray": "3 3"
         }));
 
-        for (const key of ["rx", "tx"]) {
+    },
 
-            svg.appendChild(this.el("circle", {
-                cx: x, cy: g.y(sample[key]), r: 4.5,
-                fill: this.COLORS[key], stroke: this.COLORS.surface, "stroke-width": 2
-            }));
 
-        }
+    addDraftGraph() {
 
-        const ago = Math.round(g.end - sample.t);
-        const clock = new Date(sample.t * 1000).toLocaleTimeString();
+        const graphed = new Set(this.draft.filter(w => w.type === "traffic").map(w => w.interface));
 
-        graphTooltip.innerHTML = `
-            <div class="graph-tooltip-time">${clock} · ${ago === 0 ? "now" : `${ago}s ago`}</div>
-            <div><i class="legend-swatch download"></i>Download <strong>${Header.formatRate(sample.rx)}</strong></div>
-            <div><i class="legend-swatch upload"></i>Upload <strong>${Header.formatRate(sample.tx)}</strong></div>
-        `;
+        const next = this.interfaces.find(row => !row.wan && !graphed.has(row.interface));
 
-        graphTooltip.classList.remove("hidden");
+        this.draft.push({
+            id: this.newId(),
+            type: "traffic",
+            width: 6,
+            hidden: false,
+            interface: next ? next.interface : ""
+        });
 
-        // Next to the cursor line, flipped near the right edge.
-        const box = graphTooltip.getBoundingClientRect();
-        const left = x + 14 + box.width > g.width ? x - 14 - box.width : x + 14;
+        this.renderEditor();
 
-        graphTooltip.style.left = `${Math.max(0, left)}px`;
-        graphTooltip.style.top = `${g.m.top + 8}px`;
+        layoutList.lastElementChild?.scrollIntoView({ block: "nearest" });
 
     },
 
 
-    onPointerMove(event) {
+    async saveEditor() {
 
-        const g = this.layout();
-
-        if (!g.points.length) return;
-
-        const rect = trafficGraph.getBoundingClientRect();
-        const mouseX = event.clientX - rect.left;
-
-        if (mouseX < g.m.left - 8 || mouseX > g.width - g.m.right + 8) {
-            this.onPointerLeave();
+        if (this.draft.every(w => w.hidden)) {
+            layoutError.textContent = "Show at least one widget.";
+            layoutError.classList.remove("hidden");
             return;
         }
 
-        // Nearest sample in time.
-        let best = 0;
+        saveLayoutBtn.disabled = true;
 
-        g.points.forEach((p, i) => {
-            if (Math.abs(g.x(p.t) - mouseX) < Math.abs(g.x(g.points[best].t) - mouseX)) best = i;
-        });
+        const result = await this.saveLayout(this.draft);
 
-        if (best !== this.hoverIndex) {
-            this.hoverIndex = best;
-            this.drawGraph();
+        saveLayoutBtn.disabled = false;
+
+        if (result !== true) {
+            layoutError.textContent = result;
+            layoutError.classList.remove("hidden");
+            return;
         }
 
-    },
-
-
-    onPointerLeave() {
-
-        if (this.hoverIndex === null) return;
-
-        this.hoverIndex = null;
-        this.drawGraph();
+        this.closeEditor();
+        this.render();
+        this.update();
 
     },
 
@@ -427,23 +576,33 @@ window.Page.dashboard = {
     // Lifecycle
     // ------------------------------------------------------------
 
-    init() {
+    async init() {
 
-        this.history = [];
-        this.hoverIndex = null;
-        this.interfaceNames = "";
+        editDashboardBtn.onclick = () => this.openEditor();
+        addGraphBtn.onclick = () => this.addDraftGraph();
+        saveLayoutBtn.onclick = () => this.saveEditor();
+        cancelLayoutBtn.onclick = () => this.closeEditor();
+        closeLayoutModal.onclick = () => this.closeEditor();
 
-        try { this.graphInterface = localStorage.getItem(this.GRAPH_KEY) || ""; } catch { this.graphInterface = ""; }
+        resetLayoutBtn.onclick = () => {
+            this.draft = this.defaultLayout.map(w => ({ ...w }));
+            layoutError.classList.add("hidden");
+            this.renderEditor();
+        };
 
-        ChaosSelect.enhance(graphInterfaceSelect);
-        graphInterfaceSelect.onchange = () => this.showInterface(graphInterfaceSelect.value);
+        layoutModal.onclick = e => {
+            if (e.target === layoutModal) this.closeEditor();
+        };
 
-        trafficGraph.addEventListener("pointermove", e => this.onPointerMove(e));
-        trafficGraph.addEventListener("pointerleave", () => this.onPointerLeave());
+        this.onKey = e => {
+            if (e.key === "Escape" && this.draft) this.closeEditor();
+        };
 
-        // Redraw at the new pixel size when the window changes.
-        this.resizeObserver = new ResizeObserver(() => this.drawGraph());
-        this.resizeObserver.observe(trafficGraph);
+        document.addEventListener("keydown", this.onKey);
+
+        await this.loadLayout();
+
+        this.render();
 
         this.update();
         this.timer = setInterval(() => this.update(), 1000);
@@ -454,9 +613,329 @@ window.Page.dashboard = {
 
         clearInterval(this.timer);
 
-        if (this.resizeObserver) {
+        this.shown.forEach(item => item.graph?.destroy());
+        this.shown = [];
+
+        document.removeEventListener("keydown", this.onKey);
+
+        this.draft = null;
+
+    },
+
+
+    // ------------------------------------------------------------
+    // One traffic graph
+    // ------------------------------------------------------------
+
+    Graph: class {
+
+        // Plot margins inside the SVG, in pixels (room for axis labels).
+        static MARGIN = { top: 10, right: 12, bottom: 26, left: 72 };
+
+        static WINDOW_SECONDS = 60;
+
+        static SVG_NS = "http://www.w3.org/2000/svg";
+
+        constructor(svg, tooltip) {
+
+            this.svg = svg;
+            this.tooltip = tooltip;
+
+            // Samples from /api/dashboard: [{ t, rx, tx }] with rates in Mbps.
+            this.history = [];
+
+            // Index of the sample under the mouse, or null.
+            this.hoverIndex = null;
+
+            svg.addEventListener("pointermove", e => this.onPointerMove(e));
+            svg.addEventListener("pointerleave", () => this.onPointerLeave());
+
+            // Redraw at the new pixel size when the window changes.
+            this.resizeObserver = new ResizeObserver(() => this.draw());
+            this.resizeObserver.observe(svg);
+
+        }
+
+        destroy() {
+
             this.resizeObserver.disconnect();
-            this.resizeObserver = null;
+
+        }
+
+        // Chart colors from the design tokens (chardsoft.css), so the
+        // graph follows the light and dark theme: download in the accent
+        // color, upload neutral, grid lines like the hairlines.
+        get colors() {
+
+            const css = getComputedStyle(document.documentElement);
+            const token = name => css.getPropertyValue(name).trim();
+
+            return {
+                rx: token("--color-accent"),
+                tx: token("--color-text-muted"),
+                grid: token("--color-border"),
+                axis: token("--color-text-muted"),
+                surface: token("--color-surface")
+            };
+
+        }
+
+        /** A round axis maximum (1, 2, 2.5 or 5 x 10^n) above the data. */
+        niceMax(value) {
+
+            const target = Math.max(value * 1.15, 0.01);
+            const power = 10 ** Math.floor(Math.log10(target));
+
+            for (const step of [1, 2, 2.5, 5, 10]) {
+                if (step * power >= target) return step * power;
+            }
+
+            return 10 * power;
+
+        }
+
+        /** Axis labels: round values without trailing zeros, e.g. "25 Mbps". */
+        formatAxis(mbps) {
+
+            const trim = n => String(Number(n.toFixed(2)));
+
+            if (mbps === 0) return "0";
+            if (mbps >= 1000) return `${trim(mbps / 1000)} Gbps`;
+            if (mbps >= 1) return `${trim(mbps)} Mbps`;
+
+            return `${trim(mbps * 1000)} kbps`;
+
+        }
+
+        el(name, attrs = {}, text = null) {
+
+            const node = document.createElementNS(this.constructor.SVG_NS, name);
+
+            for (const [key, value] of Object.entries(attrs)) {
+                node.setAttribute(key, value);
+            }
+
+            if (text !== null) node.textContent = text;
+
+            return node;
+
+        }
+
+        /** Pixel geometry shared by drawing and hovering. */
+        layout() {
+
+            const { MARGIN: m, WINDOW_SECONDS: span } = this.constructor;
+
+            const width = this.svg.clientWidth;
+            const height = this.svg.clientHeight;
+
+            const points = this.history;
+            const end = points.length ? points[points.length - 1].t : Date.now() / 1000;
+            const start = end - span;
+
+            const peak = Math.max(0, ...points.flatMap(p => [p.rx, p.tx]));
+            const max = this.niceMax(peak);
+
+            const plotW = Math.max(1, width - m.left - m.right);
+            const plotH = Math.max(1, height - m.top - m.bottom);
+
+            return {
+                width, height, m, plotW, plotH, start, end, max, points,
+                x: t => m.left + ((t - start) / span) * plotW,
+                y: v => m.top + plotH - (v / max) * plotH
+            };
+
+        }
+
+        draw() {
+
+            const svg = this.svg;
+            const g = this.layout();
+            const colors = this.colors;
+
+            if (g.width < 50 || g.height < 50) return;
+
+            svg.setAttribute("viewBox", `0 0 ${g.width} ${g.height}`);
+            svg.replaceChildren();
+
+            // Horizontal grid lines with rate labels.
+            const ticks = 4;
+
+            for (let i = 0; i <= ticks; i++) {
+
+                const value = (g.max / ticks) * i;
+                const y = g.y(value);
+
+                svg.appendChild(this.el("line", {
+                    x1: g.m.left, x2: g.width - g.m.right, y1: y, y2: y,
+                    stroke: colors.grid
+                }));
+
+                svg.appendChild(this.el("text", {
+                    x: g.m.left - 10, y: y + 4,
+                    "text-anchor": "end", class: "graph-label"
+                }, this.formatAxis(value)));
+
+            }
+
+            // Time labels: seconds before the latest sample. Narrow
+            // graphs keep only every other one.
+            const marks = g.plotW < 300 ? [60, 30, 0] : [60, 45, 30, 15, 0];
+
+            for (const ago of marks) {
+
+                const x = g.x(g.end - ago);
+
+                svg.appendChild(this.el("line", {
+                    x1: x, x2: x, y1: g.m.top, y2: g.m.top + g.plotH,
+                    stroke: colors.grid
+                }));
+
+                svg.appendChild(this.el("text", {
+                    x: x, y: g.height - 6,
+                    "text-anchor": ago === 60 ? "start" : ago === 0 ? "end" : "middle",
+                    class: "graph-label"
+                }, ago === 0 ? "now" : `-${ago}s`));
+
+            }
+
+            if (!g.points.length) {
+
+                svg.appendChild(this.el("text", {
+                    x: g.m.left + g.plotW / 2, y: g.m.top + g.plotH / 2,
+                    "text-anchor": "middle", class: "graph-label"
+                }, "No data for this interface yet"));
+
+                this.tooltip.classList.add("hidden");
+
+                return;
+            }
+
+            // Area + line per direction.
+            const base = g.y(0);
+
+            for (const key of ["rx", "tx"]) {
+
+                const coords = g.points.map(p => `${g.x(p.t).toFixed(1)},${g.y(p[key]).toFixed(1)}`);
+                const first = g.x(g.points[0].t).toFixed(1);
+                const last = g.x(g.points[g.points.length - 1].t).toFixed(1);
+
+                svg.appendChild(this.el("polygon", {
+                    points: `${first},${base} ${coords.join(" ")} ${last},${base}`,
+                    fill: colors[key],
+                    "fill-opacity": key === "rx" ? .12 : .06
+                }));
+
+                svg.appendChild(this.el("polyline", {
+                    points: coords.join(" "),
+                    fill: "none",
+                    stroke: colors[key],
+                    "stroke-width": 1.5,
+                    "stroke-linejoin": "round",
+                    "stroke-linecap": "round"
+                }));
+
+            }
+
+            this.drawHover(g, colors);
+
+        }
+
+        drawHover(g, colors) {
+
+            const sample = this.hoverIndex !== null ? g.points[this.hoverIndex] : null;
+            const tooltip = this.tooltip;
+
+            if (!sample) {
+                tooltip.classList.add("hidden");
+                return;
+            }
+
+            const x = g.x(sample.t);
+
+            this.svg.appendChild(this.el("line", {
+                x1: x, x2: x, y1: g.m.top, y2: g.m.top + g.plotH,
+                stroke: colors.axis, "stroke-dasharray": "3 3"
+            }));
+
+            for (const key of ["rx", "tx"]) {
+
+                this.svg.appendChild(this.el("circle", {
+                    cx: x, cy: g.y(sample[key]), r: 4.5,
+                    fill: colors[key], stroke: colors.surface, "stroke-width": 2
+                }));
+
+            }
+
+            const ago = Math.round(g.end - sample.t);
+            const clock = new Date(sample.t * 1000).toLocaleTimeString();
+
+            const line = (swatch, label, value) => {
+                const row = document.createElement("div");
+                const icon = document.createElement("i");
+                const strong = document.createElement("strong");
+                icon.className = `legend-swatch ${swatch}`;
+                strong.textContent = Header.formatRate(value);
+                row.append(icon, label, strong);
+                return row;
+            };
+
+            const time = document.createElement("div");
+            time.className = "graph-tooltip-time";
+            time.textContent = `${clock} · ${ago === 0 ? "now" : `${ago}s ago`}`;
+
+            tooltip.replaceChildren(
+                time,
+                line("download", "Download", sample.rx),
+                line("upload", "Upload", sample.tx)
+            );
+
+            tooltip.classList.remove("hidden");
+
+            // Next to the cursor line, flipped near the right edge.
+            const box = tooltip.getBoundingClientRect();
+            const left = x + 14 + box.width > g.width ? x - 14 - box.width : x + 14;
+
+            tooltip.style.left = `${Math.max(0, left)}px`;
+            tooltip.style.top = `${g.m.top + 8}px`;
+
+        }
+
+        onPointerMove(event) {
+
+            const g = this.layout();
+
+            if (!g.points.length) return;
+
+            const rect = this.svg.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+
+            if (mouseX < g.m.left - 8 || mouseX > g.width - g.m.right + 8) {
+                this.onPointerLeave();
+                return;
+            }
+
+            // Nearest sample in time.
+            let best = 0;
+
+            g.points.forEach((p, i) => {
+                if (Math.abs(g.x(p.t) - mouseX) < Math.abs(g.x(g.points[best].t) - mouseX)) best = i;
+            });
+
+            if (best !== this.hoverIndex) {
+                this.hoverIndex = best;
+                this.draw();
+            }
+
+        }
+
+        onPointerLeave() {
+
+            if (this.hoverIndex === null) return;
+
+            this.hoverIndex = null;
+            this.draw();
+
         }
 
     }

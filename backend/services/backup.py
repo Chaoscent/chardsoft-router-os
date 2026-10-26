@@ -26,6 +26,8 @@ from services.config import (
 
 from services import transaction
 
+from services.dashboard_layout import validate_layout
+
 from services.logs import log_event
 
 # -------------------------------------------------------------------
@@ -436,10 +438,18 @@ def _validate_dashboard(data):
     _require(data.get("ping_interval", 5) in (5, 10, 30, 60), "Invalid ping interval.")
     _require(_single_line(data.get("ping_destination", ""), 253), "Invalid ping destination.")
 
-    return {
+    clean = {
         k: data[k] for k in ("ping_enabled", "ping_interval", "ping_destination")
         if k in data
     }
+
+    if "layout" in data:
+        try:
+            clean["layout"] = validate_layout(data["layout"])
+        except ValueError as error:
+            raise ValueError(f"Dashboard layout: {error}") from error
+
+    return clean
 
 
 def _validate_security(data):
