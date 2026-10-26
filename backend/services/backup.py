@@ -11,11 +11,16 @@ run commands as root), then applied through safe apply, so a backup
 that does not work on this router is rolled back like any change.
 """
 
+import base64
 import hashlib
 import ipaddress
 import json
+import os
 import re
 import time
+
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from services.config import (
     load_persistent,
@@ -41,6 +46,12 @@ OLD_FORMATS = ("chaos-router-os-backup",)
 VERSION = 1
 
 MAX_BACKUP_SIZE = 10 * 1024 * 1024
+
+# Encrypted backups: AES-256-GCM with a key from the password (scrypt,
+# about 32 MB of memory, well under a second on a Pi).
+CIPHER = "AES-256-GCM"
+KDF = {"name": "scrypt", "n": 2 ** 15, "r": 8, "p": 1}
+MIN_PASSWORD = 8
 
 PKI_SNAPSHOT = "openvpn_pki"
 
@@ -546,12 +557,106 @@ def get_validators():
 
 
 # -------------------------------------------------------------------
+# Encryption
+# -------------------------------------------------------------------
+
+def _b64(data):
+
+    return base64.b64encode(data).decode("ascii")
+
+
+def _derive_key(password, salt, kdf):
+
+    return hashlib.scrypt(
+        password.encode("utf-8"), salt=salt,
+        n=kdf["n"], r=kdf["r"], p=kdf["p"],
+        maxmem=256 * 1024 * 1024, dklen=32
+    )
+
+
+def _header_bytes(header):
+    """Everything outside the ciphertext, authenticated with it."""
+
+    return json.dumps(header, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def encrypt_backup(backup, password):
+    """
+    The backup as an encrypted file. Name and date stay readable, so the
+    restore dialog can say what it is before asking for the password.
+    """
+
+    if len(password) < MIN_PASSWORD:
+        raise ValueError(f"The backup password needs at least {MIN_PASSWORD} characters.")
+
+    salt = os.urandom(16)
+    nonce = os.urandom(12)
+
+    header = {
+        "format": FORMAT,
+        "version": VERSION,
+        "created": backup["created"],
+        "hostname": backup["hostname"],
+        "encryption": {"cipher": CIPHER, "kdf": dict(KDF), "salt": _b64(salt), "nonce": _b64(nonce)}
+    }
+
+    plain = json.dumps(backup, separators=(",", ":")).encode("utf-8")
+    sealed = AESGCM(_derive_key(password, salt, KDF)).encrypt(nonce, plain, _header_bytes(header))
+
+    return {**header, "data": _b64(sealed)}
+
+
+def is_encrypted(raw):
+
+    return isinstance(raw, dict) and "encryption" in raw
+
+
+def decrypt_backup(raw, password):
+    """(True, backup dict) or (False, message)."""
+
+    if not password:
+        return False, "This backup is encrypted. Enter its password."
+
+    try:
+
+        header = {k: raw[k] for k in ("format", "version", "created", "hostname", "encryption")}
+        encryption = header["encryption"]
+        kdf = encryption["kdf"]
+
+        if encryption["cipher"] != CIPHER or kdf.get("name") != "scrypt":
+            return False, "This backup uses an encryption this router does not know."
+
+        # A forged header must not make the router spend minutes or
+        # gigabytes on the key.
+        if not (2 ** 10 <= kdf["n"] <= 2 ** 17 and kdf["r"] <= 16 and kdf["p"] <= 4):
+            return False, "The backup's encryption settings are not allowed."
+
+        salt = base64.b64decode(encryption["salt"], validate=True)
+        nonce = base64.b64decode(encryption["nonce"], validate=True)
+        sealed = base64.b64decode(raw["data"], validate=True)
+
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False, "The encrypted backup is incomplete."
+
+    try:
+        plain = AESGCM(_derive_key(password, salt, kdf)).decrypt(nonce, sealed, _header_bytes(header))
+    except (InvalidTag, ValueError):
+        return False, "Wrong password, or the backup file was changed."
+
+    try:
+        return True, json.loads(plain)
+    except ValueError:
+        return False, "The decrypted backup is not valid."
+
+
+# -------------------------------------------------------------------
 # Inspect / restore
 # -------------------------------------------------------------------
 
-def parse_backup(raw):
+def parse_backup(raw, password=None):
     """
-    Checks the file itself. Returns (True, backup) or (False, message).
+    Checks the file itself (decrypting it first if it is encrypted).
+    Returns (True, backup) or (False, message).
     """
 
     if isinstance(raw, (bytes, bytearray)):
@@ -573,6 +678,16 @@ def parse_backup(raw):
 
     if not isinstance(raw, dict) or raw.get("format") not in (FORMAT, *OLD_FORMATS):
         return False, "This is not a Chardsoft Router OS backup."
+
+    if is_encrypted(raw):
+
+        ok, raw = decrypt_backup(raw, password)
+
+        if not ok:
+            return False, raw
+
+        if not isinstance(raw, dict) or raw.get("format") not in (FORMAT, *OLD_FORMATS):
+            return False, "This is not a Chardsoft Router OS backup."
 
     if raw.get("version") != VERSION:
         return False, (
@@ -685,14 +800,14 @@ def restore_pki(snapshot):
     )
 
 
-def restore_backup(raw, selected=None):
+def restore_backup(raw, selected=None, password=None):
     """
     Restores the selected areas (all valid ones by default) through
     safe apply, in boot order. Returns a result dict with per-area
     outcomes; risky areas end up pending confirmation.
     """
 
-    ok, backup = parse_backup(raw)
+    ok, backup = parse_backup(raw, password)
 
     if not ok:
         return transaction.result(False, backup)

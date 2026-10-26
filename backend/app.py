@@ -296,6 +296,10 @@ from services.backup import (
 
         create_backup,
 
+        encrypt_backup,
+
+        is_encrypted,
+
         parse_backup,
 
         inspect_backup,
@@ -2291,13 +2295,31 @@ def config_revert_api():
 
 
 
-@app.route("/api/backup/export")
+@app.route("/api/backup/export", methods=["POST"])
 
 @login_required
 
 def backup_export_api():
 
+        data = request.get_json(silent=True) or {}
+
+        password = data.get("password") or ""
+
+        if not isinstance(password, str) or len(password) > 256:
+                return jsonify({"success": False, "message": "Invalid password."}), 400
+
         filename, backup = create_backup()
+
+        if password:
+
+                try:
+                        backup = encrypt_backup(backup, password)
+                except ValueError as error:
+                        return jsonify({"success": False, "message": str(error)}), 400
+
+                filename = filename.replace(".json", ".encrypted.json")
+
+
 
         return Response(
 
@@ -2321,6 +2343,23 @@ def backup_export_api():
 
 
 
+def backup_password(data):
+
+        password = data.get("password")
+
+        return password if isinstance(password, str) and len(password) <= 256 else None
+
+
+
+def backup_is_encrypted(raw):
+
+        try:
+                return is_encrypted(json.loads(raw) if isinstance(raw, str) else raw)
+        except ValueError:
+                return False
+
+
+
 @app.route("/api/backup/inspect", methods=["POST"])
 
 @login_required
@@ -2329,7 +2368,9 @@ def backup_inspect_api():
 
         data = request.get_json(silent=True) or {}
 
-        ok, backup = parse_backup(data.get("backup", ""))
+        raw = data.get("backup", "")
+
+        ok, backup = parse_backup(raw, backup_password(data))
 
         if not ok:
 
@@ -2337,7 +2378,10 @@ def backup_inspect_api():
 
                         "success": False,
 
-                        "message": backup
+                        "message": backup,
+
+                        # The page then asks for the password.
+                        "encrypted": backup_is_encrypted(raw)
 
                 }), 400
 
@@ -2371,7 +2415,9 @@ def backup_restore_api():
 
                 data.get("backup", ""),
 
-                areas if isinstance(areas, list) else None
+                areas if isinstance(areas, list) else None,
+
+                backup_password(data)
 
         ))
 

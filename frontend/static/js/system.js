@@ -408,6 +408,7 @@ window.Page.system = {
     // ------------------------------------------------------------
 
     backupText: null,
+    backupPassword: null,
     backupSummary: null,
 
 
@@ -418,11 +419,66 @@ window.Page.system = {
     },
 
 
+    /** Asks for an optional backup password; null when cancelled. */
+    async askBackupPassword() {
+
+        const body = document.createElement("div");
+
+        body.innerHTML = `
+            <label class="modal-field">
+                <span>Password</span>
+                <input id="backupPasswordInput" class="setting-input" type="password" autocomplete="new-password">
+            </label>
+            <label class="modal-field">
+                <span>Repeat password</span>
+                <input id="backupPasswordRepeat" class="setting-input" type="password" autocomplete="new-password">
+            </label>
+            <p class="modal-note">
+                Recommended: the file then needs this password to restore.
+                Leave both empty to download it unencrypted, with every
+                password and VPN key readable in the file.
+            </p>
+        `;
+
+        const confirmed = await ChaosModal.confirm({
+            title: "Download Backup",
+            subtitle: "Encrypt the backup with a password (at least 8 characters).",
+            body,
+            confirmText: "Download"
+        });
+
+        if (!confirmed) return null;
+
+        const password = body.querySelector("#backupPasswordInput").value;
+
+        if (password !== body.querySelector("#backupPasswordRepeat").value) {
+            backupStatus.textContent = "The passwords do not match. Nothing was downloaded.";
+            return null;
+        }
+
+        if (password && password.length < 8) {
+            backupStatus.textContent = "The password needs at least 8 characters. Nothing was downloaded.";
+            return null;
+        }
+
+        return password;
+
+    },
+
+
     async downloadBackup() {
 
-        backupStatus.textContent = "Preparing backup...";
+        const password = await this.askBackupPassword();
 
-        const res = await fetch("/api/backup/export");
+        if (password === null) return;
+
+        backupStatus.textContent = password ? "Preparing encrypted backup..." : "Preparing backup...";
+
+        const res = await fetch("/api/backup/export", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password })
+        });
 
         if (res.status === 401) {
             location.href = "/login";
@@ -430,13 +486,15 @@ window.Page.system = {
         }
 
         if (!res.ok) {
-            backupStatus.textContent = "The backup could not be created.";
+            let message = "The backup could not be created.";
+            try { message = (await res.json()).message || message; } catch {}
+            backupStatus.textContent = message;
             return;
         }
 
         const disposition = res.headers.get("Content-Disposition") || "";
         const name = disposition.match(/filename="([^"]+)"/)?.[1]
-            || "chaos-router-backup.json";
+            || "chardsoft-router-backup.json";
 
         const link = document.createElement("a");
 
@@ -446,7 +504,9 @@ window.Page.system = {
 
         URL.revokeObjectURL(link.href);
 
-        backupStatus.textContent = `✓ Downloaded ${name}`;
+        backupStatus.textContent = password
+            ? `✓ Downloaded ${name} (encrypted)`
+            : `✓ Downloaded ${name} (not encrypted: keep it somewhere safe)`;
 
     },
 
@@ -477,6 +537,36 @@ window.Page.system = {
     },
 
 
+    /** The password of an encrypted backup; null when cancelled. */
+    async askRestorePassword(fileName, retry) {
+
+        const body = document.createElement("div");
+
+        body.innerHTML = `
+            <label class="modal-field">
+                <span>Password</span>
+                <input id="restorePasswordInput" class="setting-input" type="password" autocomplete="off">
+            </label>
+        `;
+
+        const shown = ChaosModal.confirm({
+            title: "Encrypted Backup",
+            subtitle: retry
+                ? `Wrong password for ${fileName}. Try again.`
+                : `${fileName} is encrypted. Enter the password it was downloaded with.`,
+            body,
+            confirmText: "Open"
+        });
+
+        body.querySelector("input").focus();
+
+        const confirmed = await shown;
+
+        return confirmed ? body.querySelector("input").value : null;
+
+    },
+
+
     readBackupFile(file) {
 
         if (!file) return;
@@ -498,11 +588,22 @@ window.Page.system = {
     },
 
 
-    async inspectBackup(text, fileName) {
+    async inspectBackup(text, fileName, password = null) {
 
-        const data = await this.postBackup("/api/backup/inspect", { backup: text });
+        const data = await this.postBackup("/api/backup/inspect", { backup: text, password });
 
         if (!data) return;
+
+        if (!data.success && data.encrypted) {
+
+            backupStatus.textContent = data.message;
+
+            const entered = await this.askRestorePassword(fileName, password !== null);
+
+            if (entered !== null) this.inspectBackup(text, fileName, entered);
+
+            return;
+        }
 
         if (!data.success) {
             backupStatus.textContent = data.message;
@@ -510,6 +611,7 @@ window.Page.system = {
         }
 
         this.backupText = text;
+        this.backupPassword = password;
         this.backupSummary = data;
 
         const created = data.created
@@ -606,6 +708,7 @@ window.Page.system = {
 
         const data = await this.postBackup("/api/backup/restore", {
             backup: this.backupText,
+            password: this.backupPassword,
             areas: areas
         });
 
@@ -630,6 +733,7 @@ window.Page.system = {
         backupSummary.classList.add("hidden");
 
         this.backupText = null;
+        this.backupPassword = null;
 
         // Restored hostname, timeouts and ping settings show up here.
         this.load();
@@ -884,6 +988,7 @@ window.Page.system = {
     cancelRestore() {
 
         this.backupText = null;
+        this.backupPassword = null;
         this.backupSummary = null;
 
         backupSummary.classList.add("hidden");
