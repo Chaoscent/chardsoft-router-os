@@ -1277,7 +1277,46 @@ def validate_lan_bridge(data):
         if lan["bridge"] and not ports:
             return False, "Choose at least one port for the LAN bridge."
 
+    if lan["bridge"]:
+
+        # A port gives up its own address. One that got it from another
+        # router (DHCP) would cut every connection over it, often the
+        # one used to reach this page or SSH.
+        for name in (ports if ports is not None else get_wired_interfaces()):
+
+            if get_bridge_master(name) == BRIDGE:
+                continue
+
+            address = dhcp_client_address(name)
+
+            if address:
+                return False, (
+                    f"{name} gets its address {address} from another router (DHCP). "
+                    f"As a bridge port it would lose it, and every connection over it "
+                    f"with it. Leave {name} out of the bridge, or switch it to WAN."
+                )
+
     return True, {"bridge": lan["bridge"], "ip": lan["ip"], "subnet": lan["subnet"], "ports": ports}
+
+
+def dhcp_client_address(interface):
+    """
+    The IPv4 address an interface got by DHCP (ip shows it as
+    "dynamic"), or None.
+    """
+
+    output = run(["ip", "-o", "-4", "addr", "show", "dev", interface]) or ""
+
+    for line in output.splitlines():
+
+        if " dynamic" in line:
+
+            match = re.search(r"inet (\S+)", line)
+
+            if match:
+                return match.group(1).split("/")[0]
+
+    return None
 
 
 def set_lan_bridge(data):
