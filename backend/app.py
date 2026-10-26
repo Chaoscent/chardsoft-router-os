@@ -3638,6 +3638,12 @@ def startup():
         router_apps.sync_integration_later()
 
 
+def watch_interfaces():
+
+        # New interfaces (USB Wi-Fi, VPN servers) get the names too.
+        router_apps.watch_interfaces()
+
+
 def start_setup_wifi():
 
         # Not set up yet: open the setup Wi-Fi with its captive portal.
@@ -3671,6 +3677,8 @@ if (
         startup()
 
         start_setup_wifi()
+
+        watch_interfaces()
 
 
 

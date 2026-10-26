@@ -633,6 +633,54 @@ def sync_integration_later():
     threading.Thread(target=run, daemon=True).start()
 
 
+WATCH_SECONDS = 15
+
+_watching = False
+
+
+def watch_interfaces():
+    """
+    Syncs the names again when an interface appears or goes away (a USB
+    Wi-Fi stick, a VPN server starting), so its devices can reach the
+    router and the apps by name without a restart.
+    """
+
+    global _watching
+
+    if _watching:
+        return
+
+    _watching = True
+
+    def names():
+        try:
+            return tuple(sorted(os.listdir("/sys/class/net")))
+        except OSError:
+            return ()
+
+    def run():
+
+        last = names()
+
+        while True:
+
+            time.sleep(WATCH_SECONDS)
+
+            current = names()
+
+            if current == last:
+                continue
+
+            last = current
+
+            try:
+                sync_integration()
+            except Exception as e:
+                log_event("apps", f"Updating the app names failed: {e}", "warning")
+
+    threading.Thread(target=run, daemon=True, name="interface-watch").start()
+
+
 def get_logs(app_id, lines=200):
 
     if not addon_installed():
