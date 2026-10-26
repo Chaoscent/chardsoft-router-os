@@ -2,6 +2,7 @@ import os
 import subprocess
 import re
 import threading
+import time
 
 from services.modem_detector import detect_modem
 from services.config import load_settings
@@ -129,6 +130,64 @@ ACCESS_TECH = {
 }
 
 
+# The active band, from the modem itself (QMI): ModemManager does not
+# report it. Asked through ModemManager's proxy (-p), at most every
+# BAND_SECONDS (the Modem page refreshes often).
+BAND_SECONDS = 30
+
+_band_cache = {"time": 0.0, "port": None, "value": None}
+
+
+def qmi_port(info):
+    """The QMI control port from `mmcli -m`, e.g. "cdc-wdm0", or None."""
+
+    match = re.search(r"\b(cdc-wdm\d+) \(qmi\)", info or "")
+
+    return match.group(1) if match else None
+
+
+def format_bands(output):
+    """
+    "B3 + n78" from `qmicli --nas-get-rf-band-info`: LTE bands as B<n>,
+    5G NR as n<n>, anything else as qmicli names it.
+    """
+
+    bands = []
+
+    for name in re.findall(r"Active Band Class:\s*'([^']+)'", output or ""):
+
+        lte = re.fullmatch(r"eutran-(\d+)", name)
+        nr = re.fullmatch(r"(?:nr5g-band-|nr5g-|n)(\d+)", name)
+
+        label = f"B{lte.group(1)}" if lte else f"n{nr.group(1)}" if nr else name
+
+        if label not in bands:
+            bands.append(label)
+
+    return " + ".join(bands) or None
+
+
+def get_active_band(info):
+
+    port = qmi_port(info)
+
+    if not port or not run(["which", "qmicli"]):
+        return None
+
+    now = time.monotonic()
+
+    if _band_cache["port"] == port and now - _band_cache["time"] < BAND_SECONDS:
+        return _band_cache["value"]
+
+    ok, output = run_command(privileged([
+        "qmicli", "-p", "-d", f"/dev/{port}", "--nas-get-rf-band-info"
+    ]))
+
+    _band_cache.update(time=now, port=port, value=format_bands(output) if ok else None)
+
+    return _band_cache["value"]
+
+
 def format_access_tech(value):
     """
     "lte, 5gnr" -> "5G NSA", "5gnr" -> "5G SA", "lte" -> "LTE".
@@ -248,8 +307,8 @@ def get_modem_data():
         "rsrq": radio.get("rsrq"),
         "sinr": radio.get("sinr"),
 
-        # ModemManager does not report the active band.
-        "band": None,
+        # ModemManager does not report it: asked over QMI.
+        "band": get_active_band(info),
 
         # "sim-pin" while the SIM waits for its PIN, "sim-puk" when it
         # is blocked; "none" or None when unlocked.

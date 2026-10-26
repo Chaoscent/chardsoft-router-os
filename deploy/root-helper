@@ -857,6 +857,17 @@ def cmd_easyrsa(args):
     return [tool, *args]
 
 
+def cmd_qmicli(args):
+
+    # Only the active band, through ModemManager's proxy.
+    if len(args) != 4 or args[0] != "-p" or args[1] != "-d" \
+            or not re.fullmatch(r"/dev/cdc-wdm[0-9]{1,2}", args[2]) \
+            or args[3] != "--nas-get-rf-band-info":
+        refuse("qmicli: only -p -d /dev/cdc-wdmN --nas-get-rf-band-info.")
+
+    return [find_tool("qmicli"), *args]
+
+
 def cmd_apps(args):
 
     real = os.path.realpath(APPS_CLI)
@@ -919,6 +930,7 @@ def plan(argv):
         "journalctl": lambda: cmd_journalctl(args),
         "nmcli": lambda: cmd_nmcli(args),
         "mmcli": lambda: cmd_mmcli(args),
+        "qmicli": lambda: cmd_qmicli(args),
         "hostnamectl": lambda: cmd_hostnamectl(args),
         "hostname": lambda: cmd_hostname(args),
         "sysctl": lambda: cmd_sysctl(args),
