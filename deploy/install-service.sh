@@ -187,6 +187,14 @@ if command -v avahi-publish >/dev/null; then
     systemctl enable "$MDNS_SERVICE" >/dev/null 2>&1
     systemctl restart "$MDNS_SERVICE"
 
+    # Never announce the router's names on the modem (the internet side).
+    # Left alone when interfaces are already chosen there.
+    AVAHI_CONF=/etc/avahi/avahi-daemon.conf
+    if [[ -f $AVAHI_CONF ]] && ! grep -Eq '^\s*(allow|deny)-interfaces\s*=' "$AVAHI_CONF"; then
+        sed -i '/^\[server\]/a # Chardsoft Router OS: no mDNS on the modem.\ndeny-interfaces=wwan0,wwan1' "$AVAHI_CONF"
+        systemctl try-restart avahi-daemon
+    fi
+
 else
     echo "avahi-utils is not installed: .local names only work through the router's DNS." >&2
 fi

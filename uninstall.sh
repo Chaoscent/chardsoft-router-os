@@ -266,6 +266,17 @@ undo_system_changes() {
 }
 
 
+restore_avahi() {
+
+    local conf=/etc/avahi/avahi-daemon.conf
+
+    [[ -f $conf ]] && grep -q '^# Chardsoft Router OS: no mDNS on the modem.$' "$conf" || return 0
+
+    step "Avahi"
+    run sed -i '/^# Chardsoft Router OS: no mDNS on the modem.$/{N;d}' "$conf"
+}
+
+
 restore_caddy() {
 
     step "Caddy"
@@ -407,6 +418,7 @@ main() {
     stop_services
     undo_system_changes
     restore_caddy
+    restore_avahi
     remove_packages
     remove_files
     finish
