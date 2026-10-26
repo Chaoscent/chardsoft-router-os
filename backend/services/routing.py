@@ -211,6 +211,46 @@ def apply_nat(enabled, wan):
     return True, f"NAT on {wan}." if enabled else "NAT off."
 
 
+# TCP MSS clamping (mangle table): mobile networks often have a smaller
+# MTU than the LAN, and without it some sites stall for LAN devices
+# (path MTU discovery blocked somewhere on the way).
+MSS_CHAIN = "CHAOS-MSS"
+
+
+def apply_mss_clamping():
+
+    for tool in filter(None, (which("iptables"), which("ip6tables"))):
+
+        def mangle(*args):
+            return run_command(privileged([tool, "-t", "mangle", *args]))
+
+        mangle("-N", MSS_CHAIN)
+
+        ok, result = mangle("-F", MSS_CHAIN)
+
+        if not ok:
+            return False, f"Could not reset MSS clamping: {result}"
+
+        ok, result = mangle(
+            "-A", MSS_CHAIN, "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN",
+            "-j", "TCPMSS", "--clamp-mss-to-pmtu"
+        )
+
+        if not ok:
+            return False, f"Could not set up MSS clamping: {result}"
+
+        hooked, _ = mangle("-C", "FORWARD", "-j", MSS_CHAIN)
+
+        if not hooked:
+
+            ok, result = mangle("-A", "FORWARD", "-j", MSS_CHAIN)
+
+            if not ok:
+                return False, f"Could not activate MSS clamping: {result}"
+
+    return True, "OK"
+
+
 def apply_routing():
 
     settings = get_routing_settings()
@@ -225,6 +265,11 @@ def apply_routing():
 
     if not ok:
         return False, result
+
+    ok, mss = apply_mss_clamping()
+
+    if not ok:
+        return False, mss
 
     forwarding = "on" if settings["forwarding"] else "off"
 
