@@ -1574,8 +1574,29 @@ def get_clients():
     return clients
 
 
+def get_lan_client_counts():
+    """
+    (connected, active) LAN devices for the dashboard. Neighbours on the
+    WAN side (the upstream router, the modem) don't count, nor entries
+    that never answered. Active: exchanged packets with the router in
+    the last half minute or so (the kernel's REACHABLE, or being
+    re-checked right now: DELAY, PROBE).
+    """
+
+    wan = get_wan_interface()
+
+    lan = [
+        c for c in get_clients()
+        if c["interface"] != wan
+        and not c["interface"].startswith("wwan")
+        and c["state"] not in ("Failed", "Incomplete")
+    ]
+
+    active = sum(c["state"] in ("Online", "Delay", "Probe") for c in lan)
+
+    return len(lan), active
+
+
 def get_connected_clients():
 
-    return len(
-        get_clients()
-    )
+    return get_lan_client_counts()[0]

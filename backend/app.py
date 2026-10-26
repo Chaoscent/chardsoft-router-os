@@ -94,6 +94,8 @@ from services.network import (
 
         get_connected_clients,
 
+        get_lan_client_counts,
+
         get_clients,
 
         get_lan_config,
@@ -1013,6 +1015,8 @@ def dashboard_api():
 
         traffic = get_traffic()
 
+        client_counts = get_lan_client_counts()
+
         interfaces = get_traffic_interfaces()
 
         names = {row["interface"] for row in interfaces}
@@ -1040,15 +1044,9 @@ def dashboard_api():
 
                 "time": get_time(),
 
-                "clients": get_connected_clients(),
+                "clients": client_counts[0],
 
-                "active": max(
-
-                        1 if traffic["rx"] > 0 or traffic["tx"] > 0 else 0,
-
-                        0
-
-                ),
+                "active": client_counts[1],
 
                 "download": traffic["rx"],
 
