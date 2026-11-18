@@ -24,22 +24,26 @@
             <div class="card">
                 <span>Connected clients</span>
                 <div class="card-metric" data-field="clients">--</div>
+                <span class="tile-icon" aria-hidden="true"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/users.svg') }})"></span></span>
             </div>
         </a>
 
         <div class="card">
             <span>Active clients</span>
             <div class="card-metric" data-field="active">--</div>
+            <span class="tile-icon" aria-hidden="true"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/circle-check.svg') }})"></span></span>
         </div>
 
         <div class="card">
             <span>Download</span>
             <div class="card-metric" data-field="download">--</div>
+            <span class="tile-icon" aria-hidden="true"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/download.svg') }})"></span></span>
         </div>
 
         <div class="card">
             <span>Upload</span>
             <div class="card-metric" data-field="upload">--</div>
+            <span class="tile-icon" aria-hidden="true"><span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/upload.svg') }})"></span></span>
         </div>
     </div>
 </template>
@@ -89,7 +93,6 @@
                 <thead>
                     <tr>
                         <th>Interface</th>
-                        <th>Type</th>
                         <th class="num">Download</th>
                         <th class="num">Upload</th>
                     </tr>

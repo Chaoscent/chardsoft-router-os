@@ -335,18 +335,20 @@ window.Page.dashboard = {
             tr.title = graphed.has(row.interface) ? "Go to its graph" : "Add a graph for it";
             tr.setAttribute("aria-selected", String(graphed.has(row.interface)));
 
-            const cells = [
-                row.interface,
-                row.kind,
-                Header.formatRate(row.rx),
-                Header.formatRate(row.tx)
-            ];
+            // Name with its kind (WAN, Wi-Fi, ...) underneath: fits narrow widgets.
+            const name = document.createElement("td");
+            const kind = document.createElement("small");
 
-            cells.forEach((text, i) => {
+            name.className = "interface-name-cell";
+            name.textContent = row.interface;
+            kind.textContent = row.kind;
+            name.append(" ", kind);
+            tr.appendChild(name);
+
+            [row.rx, row.tx].forEach(rate => {
                 const td = document.createElement("td");
-                td.textContent = text;
-                if (i === 0) td.className = "interface-name-cell";
-                if (i >= 2) td.className = "num";
+                td.className = "num";
+                td.textContent = Header.formatRate(rate);
                 tr.appendChild(td);
             });
 
@@ -359,7 +361,7 @@ window.Page.dashboard = {
             const tr = document.createElement("tr");
             tr.className = "empty-row";
             const td = document.createElement("td");
-            td.colSpan = 4;
+            td.colSpan = 3;
             td.textContent = "No interfaces measured yet.";
             tr.appendChild(td);
             rows.push(tr);
@@ -600,6 +602,10 @@ window.Page.dashboard = {
 
         document.addEventListener("keydown", this.onKey);
 
+        // The graphs use the theme's colors: redraw at once on a switch.
+        this.onTheme = () => this.shown.forEach(item => item.graph?.draw());
+        window.addEventListener("themechange", this.onTheme);
+
         await this.loadLayout();
 
         this.render();
@@ -617,6 +623,7 @@ window.Page.dashboard = {
         this.shown = [];
 
         document.removeEventListener("keydown", this.onKey);
+        window.removeEventListener("themechange", this.onTheme);
 
         this.draft = null;
 

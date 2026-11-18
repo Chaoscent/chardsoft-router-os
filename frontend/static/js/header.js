@@ -286,7 +286,48 @@ window.Header = {
     },
 
 
+    /**
+     * Light / dark switch in the menu bar. Without a choice the page
+     * follows the system; the choice is shared with chardsoft.com.
+     */
+    setUpTheme() {
+
+        const button = document.getElementById("themeToggle");
+
+        if (!button) return;
+
+        const root = document.documentElement;
+        const systemDark = matchMedia("(prefers-color-scheme: dark)");
+
+        const current = () => root.dataset.theme || (systemDark.matches ? "dark" : "light");
+
+        const label = () => {
+            const next = current() === "dark" ? "light" : "dark";
+            button.setAttribute("aria-label", `Switch to ${next} mode`);
+            button.title = `Switch to ${next} mode`;
+        };
+
+        button.addEventListener("click", () => {
+
+            root.dataset.theme = current() === "dark" ? "light" : "dark";
+
+            try { localStorage.setItem("chardsoft-theme", root.dataset.theme); } catch {}
+
+            label();
+
+            // Pages that draw with the theme colors (dashboard graphs).
+            window.dispatchEvent(new Event("themechange"));
+        });
+
+        systemDark.addEventListener?.("change", label);
+        label();
+
+    },
+
+
     init() {
+
+        this.setUpTheme();
 
         /*
          * Keep Ping hidden until its

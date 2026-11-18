@@ -5,11 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Chardsoft Router OS</title>
+    <!-- The light/dark choice from the header switch, before the first paint. -->
+    <script>try{var t=localStorage.getItem("chardsoft-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+
     <link rel="icon" sizes="16x16 32x32 48x48" href="{{ asset('favicon.ico') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
 
     <link rel="stylesheet" href="{{ asset('chardsoft/chardsoft.css') }}">
+
+    <link rel="stylesheet" href="{{ asset('css/theme.css') }}">
     <link rel="stylesheet" href="{{ asset('css/style.css') }}">
 </head>
 <body>
@@ -25,7 +30,11 @@
             <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/panel-left.svg') }})" aria-hidden="true"></span>
         </button>
 
-        <span class="menubar-brand">Chardsoft Router OS</span>
+        <a class="menubar-brand" href="#/dashboard" aria-label="Chardsoft Router OS, dashboard">
+            <img src="{{ asset('logo-128.png') }}" alt="" width="28" height="28">
+            <span class="wordmark">Chard<span>soft</span></span>
+            <span class="menubar-product">Router OS</span>
+        </a>
 
         <span class="menubar-spacer"></span>
 
@@ -33,7 +42,14 @@
             <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/user.svg') }})" aria-hidden="true"></span><span id="headerUser">admin</span>
         </span>
 
-        <button class="menubar-button" type="button" onclick="chaosLogout()">
+        <!-- Light / dark (header.js); shared with chardsoft.com. -->
+        <button id="themeToggle" class="menubar-button menubar-icon theme-toggle" type="button"
+                aria-label="Switch to light mode" title="Switch to light mode">
+            <span class="cs-icon icon-sun" style="--icon:url({{ asset('chardsoft/icons/sun.svg') }})" aria-hidden="true"></span>
+            <span class="cs-icon icon-moon" style="--icon:url({{ asset('chardsoft/icons/moon.svg') }})" aria-hidden="true"></span>
+        </button>
+
+        <button class="menubar-button signout" type="button" onclick="chaosLogout()" aria-label="Sign out">
             <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/log-out.svg') }})" aria-hidden="true"></span><span>Sign out</span>
         </button>
 
