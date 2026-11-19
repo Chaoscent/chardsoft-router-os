@@ -558,6 +558,24 @@ def csrf_protect():
 
         return check_csrf()
 
+
+@app.after_request
+def security_headers(response):
+
+        headers = response.headers
+
+        # No other site may show the dashboard in a frame (clickjacking).
+        headers.setdefault("X-Frame-Options", "DENY")
+        headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+        headers.setdefault("X-Content-Type-Options", "nosniff")
+        headers.setdefault("Referrer-Policy", "same-origin")
+
+        # API answers hold settings, keys and client lists.
+        if request.path.startswith("/api/"):
+                headers.setdefault("Cache-Control", "no-store")
+
+        return response
+
 # Largest request accepted (config backups are the biggest uploads).
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 

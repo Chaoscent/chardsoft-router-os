@@ -1,3 +1,4 @@
+import hashlib
 import time
 from functools import wraps
 
@@ -86,10 +87,16 @@ def set_session_timeouts(idle_timeout=None, absolute_timeout=None):
     save_security_config(config)
 
 
+# Checked when the user doesn't exist, so a wrong name takes as long
+# as a wrong password and the timing doesn't reveal valid names.
+_DUMMY_HASH = generate_password_hash("chardsoft-no-such-user")
+
+
 def verify_login(username, password):
     users = load_users()
 
     if username not in users:
+        check_password_hash(_DUMMY_HASH, password)
         return False
 
     return check_password_hash(
@@ -98,12 +105,30 @@ def verify_login(username, password):
     )
 
 
+def password_stamp(username, users=None):
+    """
+    A short fingerprint of the user's password hash. Sessions carry it;
+    a new password changes it and so ends every session signed in with
+    the old one, also on other devices (cookies can't be revoked
+    otherwise).
+    """
+
+    users = load_users() if users is None else users
+    entry = users.get(username)
+
+    if not entry:
+        return None
+
+    return hashlib.sha256(entry["password"].encode()).hexdigest()[:16]
+
+
 def login_user(username):
     now = time.time()
 
     session.clear()
 
     session["user"] = username
+    session["stamp"] = password_stamp(username)
     session["created_at"] = now
     session["last_activity"] = now
 
@@ -122,6 +147,13 @@ def is_logged_in():
     last_activity = session.get("last_activity")
 
     if created_at is None or last_activity is None:
+        session.clear()
+        return False
+
+    # Password changed (or account gone) since this session signed in.
+    stamp = password_stamp(session["user"])
+
+    if not stamp or session.get("stamp") != stamp:
         session.clear()
         return False
 

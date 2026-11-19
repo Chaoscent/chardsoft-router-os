@@ -135,6 +135,10 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   OpenVPN prefers ChaCha20 on CPUs without AES; app names for interfaces
   added later; real active client count; LAN bridge refuses ports with a
   DHCP address from another router.
+- Security review of the web API: frame and sniffing headers, no caching
+  of API answers, a password change ends every other session, unknown
+  user names take as long as wrong passwords. Tests: `tests/` (89, run
+  `cd backend && ../.venv/bin/python -m unittest discover -s ../tests`).
 - IPv6 for the LAN (`services/ipv6.py`): a ULA prefix per router, one /64 per
   served LAN, router advertisements from dnsmasq, NAT66 to the WAN, the WAN
   kept on accept_ra=2, no IPv6 around a full-tunnel VPN.
