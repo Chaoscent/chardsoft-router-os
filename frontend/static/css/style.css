@@ -522,7 +522,7 @@ main{
 
 .card-value{
     font-family:var(--font-mono);
-    font-size:var(--text-lg);
+    font-size:15px;
     font-weight:var(--weight-semibold);
 }
 
