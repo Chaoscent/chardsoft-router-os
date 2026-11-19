@@ -66,7 +66,7 @@ def validate_layout(layout):
         if kind not in WIDGET_TYPES:
             raise ValueError("Unknown widget type.")
 
-        if not isinstance(widget_id, str) or not ID_RE.match(widget_id) or widget_id in ids:
+        if not isinstance(widget_id, str) or not ID_RE.fullmatch(widget_id) or widget_id in ids:
             raise ValueError("Invalid widget id.")
 
         if isinstance(width, bool) or width not in WIDTHS:
@@ -88,7 +88,7 @@ def validate_layout(layout):
 
             interface = widget.get("interface", "")
 
-            if not isinstance(interface, str) or not INTERFACE_RE.match(interface):
+            if not isinstance(interface, str) or not INTERFACE_RE.fullmatch(interface):
                 raise ValueError("Invalid interface name.")
 
             entry["interface"] = interface
