@@ -276,6 +276,9 @@ window.Page.dashboard = {
 
         }
 
+        // The page was left while the request ran.
+        if (!this.run) return;
+
         const values = {
             ...data,
             download: Header.formatRate(data.download),
@@ -580,6 +583,10 @@ window.Page.dashboard = {
 
     async init() {
 
+        // Leaving the page while the layout loads ends this run
+        // (destroy() clears it): nothing renders into a page that's gone.
+        const run = this.run = {};
+
         editDashboardBtn.onclick = () => this.openEditor();
         addGraphBtn.onclick = () => this.addDraftGraph();
         saveLayoutBtn.onclick = () => this.saveEditor();
@@ -608,6 +615,8 @@ window.Page.dashboard = {
 
         await this.loadLayout();
 
+        if (this.run !== run) return;
+
         this.render();
 
         this.update();
@@ -616,6 +625,8 @@ window.Page.dashboard = {
     },
 
     destroy() {
+
+        this.run = null;
 
         clearInterval(this.timer);
 

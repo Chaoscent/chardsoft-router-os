@@ -13,8 +13,9 @@ The NAT rule lives in a dedicated chain in the nat table, hooked into
 POSTROUTING. ufw only manages the filter table, so enabling, disabling
 or reloading the firewall never removes it.
 
-Only IPv4 is handled. Turning on IPv6 forwarding makes the kernel
-ignore router advertisements, which can cut the modem's IPv6 off.
+IPv6 for the LAN (a prefix of its own, router advertisements, NAT66)
+is optional and lives in services/ipv6.py; its switch and prefix are
+stored here, so forwarding and NAT stay one setting for both.
 """
 
 from services.config import load_settings
@@ -35,6 +36,8 @@ from services.vpn_common import (
 
 from services.firewall import is_forwarding_enabled
 
+from services import ipv6
+
 # -------------------------------------------------------------------
 # Configuration
 # -------------------------------------------------------------------
@@ -43,7 +46,10 @@ ROUTING = "routing"
 
 DEFAULT_SETTINGS = {
     "forwarding": True,
-    "nat": True
+    "nat": True,
+    # Off until switched on; the prefix is chosen the first time.
+    "ipv6": False,
+    "ula_prefix": ""
 }
 
 CHAIN = "CHAOS-NAT"
@@ -70,7 +76,9 @@ def get_routing_baseline():
 
     return {
         "forwarding": is_forwarding_enabled(),
-        "nat": False
+        "nat": False,
+        "ipv6": False,
+        "ula_prefix": ""
     }
 
 
@@ -82,14 +90,34 @@ def validate_routing_settings(data):
     settings = get_routing_settings()
     settings.update(data or {})
 
-    for key in ("forwarding", "nat"):
+    for key in ("forwarding", "nat", "ipv6"):
 
         if not isinstance(settings.get(key), bool):
             return False, f"Invalid value for {key}."
 
+    prefix = settings.get("ula_prefix") or ""
+
+    if not isinstance(prefix, str):
+        return False, "Invalid IPv6 prefix."
+
+    if prefix:
+
+        network = ipv6.parse_ula_prefix(prefix)
+
+        if not network:
+            return False, "The IPv6 prefix must be a /48 in fd00::/8, like fd12:3456:789a::/48."
+
+        prefix = str(network)
+
+    # Chosen once, kept when IPv6 is switched off and on again.
+    elif settings["ipv6"]:
+        prefix = ipv6.new_ula_prefix()
+
     return True, {
         "forwarding": settings["forwarding"],
-        "nat": settings["nat"]
+        "nat": settings["nat"],
+        "ipv6": settings["ipv6"],
+        "ula_prefix": prefix
     }
 
 
@@ -149,6 +177,7 @@ def get_routing_status():
         "forwarding": is_forwarding_enabled(),
         "nat": is_nat_active(wan),
         "lan_networks": get_lan_networks(),
+        "ipv6": ipv6.get_status(),
         "installed": bool(which("iptables") and which("sysctl"))
     }
 
@@ -271,9 +300,14 @@ def apply_routing():
     if not ok:
         return False, mss
 
+    ok, v6 = ipv6.apply(settings["forwarding"], settings["nat"])
+
+    if not ok:
+        return False, v6
+
     forwarding = "on" if settings["forwarding"] else "off"
 
-    return True, f"Forwarding {forwarding}. {result}"
+    return True, f"Forwarding {forwarding}. {result} {v6}"
 
 
 def verify_routing():
@@ -286,4 +320,4 @@ def verify_routing():
     if settings["nat"] and not is_nat_active(get_wan_interface()):
         return False, "The NAT rule is not active."
 
-    return True, "OK"
+    return ipv6.verify(settings["forwarding"], settings["nat"])

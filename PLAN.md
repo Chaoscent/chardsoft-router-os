@@ -45,6 +45,13 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   back), 10.42.0.1/24 on wlan1 with DHCP and NAT.
 - [ ] **LAN bridge** with eth0 + wlan1, DHCP on br0, revert and reboot. A port
   with a DHCP address from another router is now refused before applying.
+- [ ] **IPv6 for the LAN** (Firewall page, Routing & NAT): with the modem
+  and with eth0 as WAN, a phone and a laptop on the LAN get an `fdXX:` address
+  and reach `ipv6.google.com`; the WAN keeps its own IPv6 with forwarding on
+  (`ip -6 addr show wwan0`, `ip -6 route`); the LAN address survives
+  NetworkManager reconnecting the bridge and an access point restart (the
+  watcher re-adds it within 15 s); with a full-tunnel VPN, LAN devices fall
+  back to IPv4 (`curl -6` fails quickly, `curl -4` works).
 - [ ] **VPN client** with a real provider: the LAN's public IP is the VPN's;
   kill switch (stop the tunnel: LAN devices lose the internet, the VPN page
   says so; disconnect: internet back).
@@ -80,10 +87,11 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 
 ## 3. Still to build
 
-- [ ] **IPv6** (router advertisements, DHCPv6, forwarding; CLAT/464XLAT for
-  IPv6-only mobile networks). IPv6 forwarding is deliberately left off:
-  turning it on makes the kernel ignore router advertisements, which can cut
-  off the modem's IPv6. Needs the modem on the Pi to test.
+- [ ] **CLAT/464XLAT** for IPv6-only mobile plans (IPv4 for LAN devices
+  through an IPv6-only connection).
+- [ ] **IPv6 through the VPN** (LAN IPv6 into a full tunnel; today devices
+  fall back to IPv4 while one is connected) and **prefix delegation** where a
+  provider offers it (public addresses instead of NAT66).
 - [ ] **Full-tunnel VPN and the WAN side:** answers to connections from the
   internet side (WireGuard/OpenVPN servers on the router, remote access over
   the modem) also go into the tunnel and break. Needs policy routing for
@@ -127,6 +135,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   OpenVPN prefers ChaCha20 on CPUs without AES; app names for interfaces
   added later; real active client count; LAN bridge refuses ports with a
   DHCP address from another router.
+- IPv6 for the LAN (`services/ipv6.py`): a ULA prefix per router, one /64 per
+  served LAN, router advertisements from dnsmasq, NAT66 to the WAN, the WAN
+  kept on accept_ra=2, no IPv6 around a full-tunnel VPN.
 - Dashboard widgets (several traffic graphs, editor); Wi-Fi channel width;
   active modem band over QMI; sentence case per the design kit.
 

@@ -730,6 +730,13 @@ def apply_kill_switch(profiles=None):
     profile = kill_switch_profile(profiles)
     tools = [t for t in (shutil.which("iptables"), shutil.which("ip6tables")) if t]
 
+    # IPv6 is never sent into the tunnel (its NAT is IPv4 only), so
+    # with any full-tunnel profile the LAN's IPv6 must not leave
+    # through the WAN either: it would go around the VPN. Rejected
+    # quickly, devices fall back to IPv4.
+    engaged = engaged_profile(profiles)
+    guard6 = engaged if engaged and engaged.get("full_tunnel") else None
+
     if not tools:
         return (False, "iptables is not available.") if profile else (True, "OK")
 
@@ -747,7 +754,7 @@ def apply_kill_switch(profiles=None):
         if not ok:
             return False, f"Could not reset the kill switch: {result}"
 
-        if profile:
+        if profile or (guard6 and tool.endswith("ip6tables")):
             for out in outs:
                 ok, result = ipt("-A", KILL_CHAIN, "-o", out, "-j", "REJECT")
                 if not ok:

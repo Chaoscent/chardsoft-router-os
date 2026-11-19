@@ -330,6 +330,8 @@ from services.caddy import tls_allowed, root_certificate, BEHIND_CADDY
 
 from services import apps as router_apps
 
+from services import ipv6
+
 from services.update import (
 
         read_version,
@@ -3642,6 +3644,9 @@ def watch_interfaces():
 
         # New interfaces (USB Wi-Fi, VPN servers) get the names too.
         router_apps.watch_interfaces()
+
+        # The LAN's IPv6 addresses come back after an interface reset.
+        ipv6.watch_lan_addresses()
 
 
 def start_setup_wifi():

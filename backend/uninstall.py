@@ -11,7 +11,7 @@ its own code, but further:
 - Wi-Fi, DHCP, DNS, VPN servers and client profiles off, their units,
   configs, keys and certificates removed.
 - Firewall: every rule Chardsoft Router OS added removed, ufw off.
-- IP forwarding and NAT off; the CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH and CHAOS-MSS
+- IP forwarding (IPv4 and IPv6) and NAT off; the CHAOS-NAT, CHAOS-NAT6, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH and CHAOS-MSS
   iptables chains removed.
 - LAN bridge removed. The WAN/LAN routing properties Chardsoft Router OS set
   on Ethernet connections (never-default, route-metric) go back to
@@ -97,7 +97,8 @@ def area_settings():
         ("dns", None),
         ("dhcp", dhcp.off_settings()),
         ("blocked_devices", {"devices": []}),
-        ("routing", {"forwarding": False, "nat": False}),
+        # IPv6 off also removes the LAN's IPv6 addresses.
+        ("routing", {"forwarding": False, "nat": False, "ipv6": False}),
         ("firewall", {
             **load_defaults(firewall.FIREWALL, firewall.BUILTIN_FIREWALL),
             "enabled": False,
@@ -178,7 +179,7 @@ def remove_chains():
 
     from shutil import which
 
-    from services import routing, clients, setup_network, vpn_profiles
+    from services import routing, clients, setup_network, vpn_profiles, ipv6
 
     for tool in filter(None, (which("iptables"), which("ip6tables"))):
         remove_chain(tool, "filter", clients.CHAIN, ("INPUT", "FORWARD"))
@@ -188,6 +189,9 @@ def remove_chains():
     if which("iptables"):
         remove_chain(which("iptables"), "nat", routing.CHAIN, ("POSTROUTING",))
         remove_chain(which("iptables"), "nat", setup_network.NAT_CHAIN, ("PREROUTING",))
+
+    if which("ip6tables"):
+        remove_chain(which("ip6tables"), "nat", ipv6.NAT_CHAIN, ("POSTROUTING",))
 
     return True, "OK"
 

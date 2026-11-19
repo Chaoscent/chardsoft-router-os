@@ -783,6 +783,13 @@ def get_essential_rules():
                      "port", "67", "proto", "udp"]
         })
 
+        # Stateless DHCPv6 (DNS servers) when IPv6 for the LAN is on.
+        rules.append({
+            "description": f"DHCPv6 on {lan}",
+            "args": ["allow", "in", "on", lan, "from", "any", "to", "any",
+                     "port", "547", "proto", "udp"]
+        })
+
         rules.append({
             "description": f"DNS on {lan}",
             "args": ["allow", "in", "on", lan, "from", "any", "to", "any",

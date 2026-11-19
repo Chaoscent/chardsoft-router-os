@@ -549,6 +549,19 @@ def render_dnsmasq_config(settings):
         "dhcp-authoritative"
     ]
 
+    # IPv6 for the LAN (routing settings): router advertisements with
+    # the prefix of each served interface (see services/ipv6.py).
+    from services import ipv6
+
+    v6 = ipv6.get_settings()
+    v6_networks = ipv6.lan_networks(
+        [scope["served"] for scope in served_scopes(settings)],
+        v6["prefix"]
+    ) if ipv6.is_enabled(v6) else {}
+
+    if v6_networks:
+        lines.append("enable-ra")
+
     for scope in served_scopes(settings):
 
         # A bridge port (eth0 in br0) is served on its bridge.
@@ -578,6 +591,14 @@ def render_dnsmasq_config(settings):
             ),
             f"dhcp-option=tag:{tag},option:router,{gateway}"
         ]
+
+        # SLAAC from the interface's prefix; stateless DHCPv6 and the
+        # advertisement itself name the router as DNS server.
+        if interface in v6_networks:
+            lines.append(
+                f"dhcp-range=set:{tag},::,constructor:{interface},"
+                f"ra-stateless,64,{scope['lease_time']}"
+            )
 
         # Without explicit servers dnsmasq advertises itself as DNS.
         if scope["dns"]:
@@ -813,6 +834,15 @@ def apply_dhcp_settings():
             return True, "DHCP server disabled."
 
         return False, "dnsmasq is not available."
+
+    # The IPv6 prefixes follow the served interfaces; dnsmasq builds
+    # its advertisements from the addresses.
+    from services import ipv6
+
+    ok, result = ipv6.sync_lan_addresses()
+
+    if not ok:
+        return False, result
 
     if served:
         ok, result = install_dnsmasq_config(

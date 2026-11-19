@@ -234,11 +234,12 @@ Off by default. When on, the chosen ports (Ethernet and Wi-Fi, all by default) s
 - **USB data mode:** Quectel modems (e.g. RM520N-GL) in MBIM mode lose every received packet on Linux (`cdc_mbim` counts them as RX errors): the connection is up, but nothing comes back. The installer switches them to QMI (`deploy/modem-usb-mode.sh`, `AT+QCFG="usbnet",0`). The Modem page shows the data mode and the addresses, and offers the switch when received data is being dropped.
 - **APN order when the field is empty:** NetworkManager's carrier database (can be outdated), then the APN the network gave the modem (never `IMS`, which is for calls), then the empty APN (the network's default for the SIM). NetworkManager retries a failing connection a few times, then pauses.
 - **IPv6-only plans:** the Modem page shows "Connected (IPv6 only)". IPv4 through such a plan needs 464XLAT (CLAT), which is not built yet.
+- **IPv6 for the LAN** (`services/ipv6.py`, switched in the routing settings): mobile networks rarely delegate a prefix, so the router picks a unique local /48 once (`ula_prefix`) and gives each LAN that DHCP serves a /64 of it (subnet ID from the interface name, so it stays put). dnsmasq announces it (`enable-ra`, `ra-stateless`), NAT66 (`CHAOS-NAT6`) shares the WAN's address. Forwarding on would make the kernel drop router advertisements on a WAN where it handles them itself, so such a WAN is set to `accept_ra=2` first. The addresses are set with `ip` and re-added by a 15 s watcher. While a full-tunnel VPN profile is engaged, the kill switch chain rejects LAN IPv6 to the WAN (the tunnel carries IPv4 only), so nothing bypasses it.
 
 ## Firewall, Routing, NAT
 
 - **ufw** with default policies: incoming and routed traffic denied, outgoing allowed.
-- **Essential rules:** SSH, the dashboard, DHCP and DNS are allowed on the LAN interfaces only.
+- **Essential rules:** SSH, the dashboard, DHCP, DHCPv6 and DNS are allowed on the LAN interfaces only.
 - **Routing:** IP forwarding and masquerading to the WAN.
 - **On by default:** shipped in `/etc/chaos-router-os` and applied from the first boot.
 

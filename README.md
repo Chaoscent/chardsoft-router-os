@@ -305,6 +305,7 @@ A ready-made sudoers file will ship with the installer.
 | 🧪 | Clients page (reserve DHCP IP, block device, ping, Wake-on-LAN) |
 | 🧪 | Firewall page (ufw, default policies, rules) |
 | 🧪 | Routing & NAT (IP forwarding, masquerading to the WAN, MSS clamping) |
+| 🧪 | IPv6 for the LAN (own prefix per LAN, router advertisements, NAT66; off by default) |
 | 🧪 | eth0 LAN/WAN switch (Ethernet uplink instead of the modem) |
 | 🧪 | LAN bridge (br0: chosen Ethernet and Wi-Fi ports in one network) |
 | 🧪 | VPN page: WireGuard server |

@@ -13,6 +13,7 @@ window.Page.firewall = {
         "fwLoggingInput",
         "routeForwardingInput",
         "routeNatInput",
+        "routeIpv6Input",
         "fwActionInput",
         "fwDirectionInput",
         "fwInterfaceInput",
@@ -468,12 +469,18 @@ window.Page.firewall = {
 
         routeForwardingInput.value = String(settings.forwarding);
         routeNatInput.value = String(settings.nat);
+        routeIpv6Input.value = String(settings.ipv6);
+
+        const v6 = this.routing.ipv6;
+
+        routeIpv6Prefix.textContent = settings.ula_prefix || "Chosen when IPv6 is turned on";
+        routeIpv6Wan.textContent = v6.wan_address || "None";
 
         routeWan.textContent = eth0_role === "wan"
             ? `${wan} (Ethernet, WAN mode)`
             : `${wan} (modem)`;
 
-        [routeForwardingInput, routeNatInput]
+        [routeForwardingInput, routeNatInput, routeIpv6Input]
             .forEach(select => ChaosSelect.refresh(select));
 
         if (!routeStatus.dataset.keep) {
@@ -487,10 +494,20 @@ window.Page.firewall = {
 
     describeRouting() {
 
-        const { forwarding, nat, wan } = this.routing;
+        const { forwarding, nat, wan, ipv6 } = this.routing;
 
         if (forwarding && nat) {
-            return `LAN devices reach the internet through ${wan}.`;
+
+            let text = `LAN devices reach the internet through ${wan}.`;
+
+            if (ipv6.enabled) {
+                const lans = ipv6.lans.map(l => `${l.interface} ${l.network}`).join(", ");
+                text += ipv6.wan_address
+                    ? ` IPv6 on: ${lans || "no LAN served by DHCP yet"}.`
+                    : ` IPv6 is on, but ${wan} has no IPv6 address: devices use IPv4.`;
+            }
+
+            return text;
         }
 
         if (!forwarding) {
@@ -506,6 +523,7 @@ window.Page.firewall = {
 
         const forwarding = routeForwardingInput.value === "true";
         const nat = routeNatInput.value === "true";
+        const ipv6 = routeIpv6Input.value === "true";
 
         if (
             (!forwarding && this.routing.settings.forwarding) ||
@@ -526,7 +544,8 @@ window.Page.firewall = {
 
         const res = await this.send("/api/routing/settings", {
             forwarding: forwarding,
-            nat: nat
+            nat: nat,
+            ipv6: ipv6
         });
 
         if (!res) return;

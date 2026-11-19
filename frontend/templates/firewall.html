@@ -86,6 +86,15 @@
                 or eth0 when it is switched to WAN on the Network page.
             </p>
 
+            <p class="setting-hint">
+                IPv6 for the LAN gives every network the DHCP server serves
+                an IPv6 prefix of its own, announced to devices with router
+                advertisements, and shares the WAN's IPv6 address like NAT
+                does for IPv4. This works with any mobile network. While a
+                full-tunnel VPN is connected, LAN devices use IPv4 only, so
+                nothing goes around the tunnel.
+            </p>
+
             <div class="settings-grid">
 
                 <div class="setting-field">
@@ -107,6 +116,24 @@
                 <div class="setting-field">
                     <label>Internet interface (WAN)</label>
                     <div id="routeWan" class="setting-input setting-readonly">--</div>
+                </div>
+
+                <div class="setting-field">
+                    <label for="routeIpv6Input">IPv6 for the LAN</label>
+                    <select id="routeIpv6Input" class="setting-input">
+                        <option value="true">Enabled</option>
+                        <option value="false">Disabled</option>
+                    </select>
+                </div>
+
+                <div class="setting-field">
+                    <label>LAN IPv6 prefix</label>
+                    <div id="routeIpv6Prefix" class="setting-input setting-readonly">--</div>
+                </div>
+
+                <div class="setting-field">
+                    <label>WAN IPv6 address</label>
+                    <div id="routeIpv6Wan" class="setting-input setting-readonly">--</div>
                 </div>
 
             </div>

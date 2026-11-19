@@ -96,7 +96,9 @@ AREAS = {area.name: area for area in (
         apply=routing.apply_routing,
         verify=routing.verify_routing,
         baseline=routing.get_routing_baseline,
-        boot_defaults=True
+        boot_defaults=True,
+        # IPv6 on or off changes the router advertisements.
+        dependents=("dhcp",)
     ),
 
     # Blocking your own device locks you out: confirm like the firewall.
