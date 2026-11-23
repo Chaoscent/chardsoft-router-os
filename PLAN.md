@@ -98,7 +98,6 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   traffic that came in on the WAN.
 - [ ] **Media and files for apps** (Jellyfin's media folder is root-only in
   `/var/lib/chaos-router-apps`): a shared folder (Samba/SFTP) or a USB drive.
-- [ ] **RAM-heavy apps on 1 GB boards:** warn or hide them in the catalog.
 - [ ] **Optional setup step:** check the WAN or modem.
 - [ ] **Hardware Edition** (OLED, buttons, RGB, GPS) and the Apps Addon (v2).
 
@@ -120,6 +119,8 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 
 ## Done since the last plan
 
+- Apps that need more memory than the board has (`min_ram_mb` in the
+  catalog) show a warning and ask before installing.
 - Settings format version (`schema.json`) with update steps on start and
   for older backups; backups from a newer Router OS are refused.
 - Root helper (`deploy/root-helper`): the only program the app may run as

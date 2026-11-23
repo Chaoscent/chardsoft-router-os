@@ -146,6 +146,35 @@ def get_app_hosts():
 # Apps page
 # -------------------------------------------------------------------
 
+def board_ram_mb(meminfo="/proc/meminfo"):
+    """
+    The board's memory as sold (1024, 2048, 4096 ...). The kernel reports
+    a bit less than that (firmware and GPU keep some), so MemTotal is
+    rounded up to the next power of two.
+    """
+
+    try:
+        with open(meminfo) as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    total_mb = int(line.split()[1]) // 1024
+                    break
+            else:
+                return None
+    except (OSError, ValueError, IndexError):
+        return None
+
+    if total_mb <= 0:
+        return None
+
+    size = 256
+
+    while size < total_mb:
+        size *= 2
+
+    return size
+
+
 def get_apps():
 
     job = job_view()
@@ -182,12 +211,16 @@ def get_apps():
     status = {s["id"]: s for s in status} if ok else {}
 
     apps = []
+    board_mb = board_ram_mb()
 
     for entry in catalog:
 
         app_id = entry.get("id", "")
         installed = status.get(app_id)
         host = (installed or {}).get("host") or app_host(app_id)
+
+        min_ram = entry.get("min_ram_mb")
+        min_ram = min_ram if isinstance(min_ram, int) and min_ram > 0 else None
 
         apps.append({
             "id": app_id,
@@ -196,6 +229,9 @@ def get_apps():
             "category": entry.get("category", ""),
             "website": entry.get("website", ""),
             "download_mb": entry.get("download_mb"),
+            "min_ram_mb": min_ram,
+            # The board has less memory than the app needs to run well.
+            "low_ram": bool(min_ram and board_mb and board_mb < min_ram),
             "https": entry.get("https") is True,
             "first_steps": entry.get("first_steps", ""),
             "installed": installed is not None,
@@ -210,6 +246,7 @@ def get_apps():
     return {
         "addon": addon,
         "apps": apps,
+        "board_ram_mb": board_mb,
         "base_domain": base_domain(),
         "job": job
     }

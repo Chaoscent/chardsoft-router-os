@@ -1386,6 +1386,7 @@ select.setting-input{
 .inspector-result,
 .inspector-warning,
 .modal-warning,
+.app-ram-warning,
 .setup-error{
     display:flex;
     align-items:center;
@@ -1399,7 +1400,8 @@ select.setting-input{
 
 .modem-notice,
 .inspector-warning,
-.modal-warning{
+.modal-warning,
+.app-ram-warning{
     border-color:var(--color-warning);
     background:var(--color-warning-subtle);
 }
@@ -2203,6 +2205,7 @@ select.setting-input{
     grid-template-areas:
         "head description"
         "head address"
+        "head notes"
         "head actions";
     align-items:start;
     gap:var(--space-1) var(--space-5);
@@ -2251,6 +2254,11 @@ select.setting-input{
 .app-card > .setting-hint{
     grid-column:2;
     margin:0;
+}
+
+.app-card > .app-ram-warning{
+    grid-area:notes;
+    margin:var(--space-1) 0;
 }
 
 .app-address{
@@ -2703,6 +2711,7 @@ a.setup-open{
             "head"
             "description"
             "address"
+            "notes"
             "actions";
     }
 

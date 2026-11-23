@@ -274,6 +274,10 @@ window.Page.apps = {
             ? `Download: about ${app.download_mb >= 1000 ? `${(app.download_mb / 1000).toFixed(1)} GB` : `${app.download_mb} MB`}.`
             : "";
 
+        const ram = app.low_ram && !app.installed
+            ? `This router has ${this.gigabytes(this.data.board_ram_mb)} of memory; ${this.escape(app.name)} needs ${this.gigabytes(app.min_ram_mb)} to run well. It may be slow or make the router run out of memory.`
+            : "";
+
         card.innerHTML = `
             <div class="app-card-head">
                 <div class="app-icon" aria-hidden="true">${this.escape(app.name.charAt(0))}</div>
@@ -293,6 +297,7 @@ window.Page.apps = {
                 ${app.first_steps ? `<p class="setting-hint">${this.escape(app.first_steps)}</p>` : ""}
             ` : `
                 <p class="setting-hint">${this.escape(size)}</p>
+                ${ram ? `<p class="app-ram-warning">${ram}</p>` : ""}
             `}
 
             <div class="app-actions">${actions}</div>
@@ -310,6 +315,11 @@ window.Page.apps = {
     // ------------------------------------------------------------
     // Actions
     // ------------------------------------------------------------
+
+    gigabytes(mb) {
+        return mb >= 1024 ? `${+(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
+    },
+
 
     async act(app, action) {
 
@@ -339,6 +349,18 @@ window.Page.apps = {
             if (!confirmed) return;
 
             body = { delete_data: box.querySelector("input").checked };
+
+        }
+
+        if (action === "install" && app.low_ram) {
+
+            const confirmed = await ChaosModal.confirm({
+                title: `Install ${app.name} anyway?`,
+                subtitle: `${app.name} needs ${this.gigabytes(app.min_ram_mb)} of memory to run well; this router has ${this.gigabytes(this.data.board_ram_mb)}. Other apps and the router itself may slow down. You can remove it again later.`,
+                confirmText: "Install anyway"
+            });
+
+            if (!confirmed) return;
 
         }
 
