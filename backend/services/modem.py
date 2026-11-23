@@ -195,6 +195,19 @@ def format_bands(output):
     return " + ".join(bands) or None
 
 
+def band_label(bands, network):
+    """
+    In 5G NSA the modem only reports its LTE anchor (e.g. "B3"); the 5G
+    carrier is there, but its band is not. "B3 + 5G" says so instead of
+    looking like plain LTE.
+    """
+
+    if bands and network == "5G NSA" and not re.search(r"\bn\d+", bands):
+        return f"{bands} + 5G"
+
+    return bands
+
+
 def get_active_band(info):
 
     port = qmi_port(info)
@@ -365,7 +378,7 @@ def read_modem_data():
         "sinr": radio.get("sinr"),
 
         # ModemManager does not report it: asked over QMI.
-        "band": get_active_band(info),
+        "band": band_label(get_active_band(info), format_access_tech(field(r"access tech:\s+(.+)"))),
 
         # "sim-pin" while the SIM waits for its PIN, "sim-puk" when it
         # is blocked; "none" or None when unlocked.

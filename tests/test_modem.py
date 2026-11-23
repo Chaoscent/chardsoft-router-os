@@ -66,6 +66,25 @@ def sample(rx, errors, tx):
     return {"rx_packets": rx, "rx_errors": errors, "tx_packets": tx}
 
 
+class BandTests(unittest.TestCase):
+
+    def test_nsa_without_5g_band_says_5g(self):
+        self.assertEqual(modem.band_label("B3", "5G NSA"), "B3 + 5G")
+
+    def test_known_5g_band_is_kept(self):
+        self.assertEqual(modem.band_label("B3 + n78", "5G NSA"), "B3 + n78")
+
+    def test_lte_and_unknown_stay(self):
+        self.assertEqual(modem.band_label("B20", "LTE"), "B20")
+        self.assertIsNone(modem.band_label(None, "5G NSA"))
+
+    def test_pi_qmicli_output(self):
+        output = ("Band Information:\n\tRadio Interface:   'lte'\n\tActive Band Class: 'eutran-3'\n"
+                  "\tActive Channel:    '1300'\nBand Information (Extended):\n\tRadio Interface:   'lte'\n"
+                  "\tActive Band Class: 'eutran-3'\n")
+        self.assertEqual(modem.band_label(modem.format_bands(output), "5G NSA"), "B3 + 5G")
+
+
 class WatchdogTests(unittest.TestCase):
 
     def setUp(self):
