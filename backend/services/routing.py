@@ -38,6 +38,8 @@ from services.firewall import is_forwarding_enabled
 
 from services import ipv6
 
+from services import wan_routing
+
 # -------------------------------------------------------------------
 # Configuration
 # -------------------------------------------------------------------
@@ -304,6 +306,13 @@ def apply_routing():
 
     if not ok:
         return False, v6
+
+    # LAN traffic leaves through the WAN, whatever other default
+    # routes the router has (see services/wan_routing.py).
+    ok, lan = wan_routing.sync()
+
+    if not ok:
+        return False, f"Could not route the LAN to the WAN: {lan}"
 
     forwarding = "on" if settings["forwarding"] else "off"
 

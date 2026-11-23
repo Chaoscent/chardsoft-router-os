@@ -47,6 +47,12 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   back), 10.42.0.1/24 on wlan1 with DHCP and NAT.
 - [ ] **LAN bridge** with eth0 + wlan1, DHCP on br0, revert and reboot. A port
   with a DHCP address from another router is now refused before applying.
+- [ ] **LAN routing:** with eth0 or wlan0 also on a home network (its default
+  route has the better metric), a phone on the router's Wi-Fi still goes out
+  through the modem (`ip rule`, `ip route show table 4242`,
+  `ip route get 1.1.1.1 from <phone> iif wlan1`).
+- [ ] **Modem watchdog:** when the modem is stuck (rx errors rising, nothing
+  received), it is reset within about a minute and the Logs say so.
 - [ ] **IPv6 for the LAN** (Firewall page, Routing & NAT): with the modem
   and with eth0 as WAN, a phone and a laptop on the LAN get an `fdXX:` address
   and reach `ipv6.google.com`; the WAN keeps its own IPv6 with forwarding on

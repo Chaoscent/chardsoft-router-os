@@ -722,6 +722,24 @@ def kill_switch_profile(profiles=None):
 
 def apply_kill_switch(profiles=None):
     """
+    The kill switch for the engaged profile, and the LAN's routing: a
+    full tunnel takes the LAN's traffic from the WAN table (see
+    services/wan_routing.py), so both follow every engage/disengage.
+    """
+
+    result = _apply_kill_switch(profiles)
+
+    try:
+        from services import wan_routing
+        wan_routing.sync()
+    except Exception as e:
+        print(f"[vpn] LAN routing: {e}")
+
+    return result
+
+
+def _apply_kill_switch(profiles=None):
+    """
     Rebuilds the kill switch chain: forwarded traffic out of the WAN (and
     any modem) is rejected while it applies. With the tunnel up, LAN
     traffic leaves through the tunnel and never matches.

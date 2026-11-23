@@ -332,6 +332,7 @@ from services import apps as router_apps
 
 from services import ipv6
 from services import modem_watchdog
+from services import wan_routing
 
 from services.update import (
 
@@ -3688,6 +3689,10 @@ def watch_interfaces():
 
         # A modem that is "connected" but passes no data gets restarted.
         modem_watchdog.watch()
+
+        # LAN traffic follows the WAN (its gateway changes with every
+        # modem connection) and steps aside for a full-tunnel VPN.
+        wan_routing.watch()
 
 
 def start_setup_wifi():
