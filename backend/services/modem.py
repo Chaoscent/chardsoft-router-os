@@ -12,10 +12,14 @@ from services import transaction
 SIGNAL_ENABLED = False
 
 
+# mmcli can hang while the modem resets; nothing may wait for ever.
+COMMAND_TIMEOUT = 15
+
+
 def run(cmd):
     try:
-        return subprocess.check_output(cmd, text=True)
-    except:
+        return subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=COMMAND_TIMEOUT)
+    except Exception:
         return None
 
 
@@ -25,10 +29,14 @@ def privileged(cmd):
     return wrap(cmd)
 
 
+# Connecting (nmcli up) can take a minute; more means the modem hangs.
+CHANGE_TIMEOUT = 120
+
+
 def run_command(cmd):
 
     from services.network import run_command as runner
-    return runner(cmd)
+    return runner(cmd, timeout=CHANGE_TIMEOUT)
 
 
 def enable_signal_polling(index):
@@ -274,7 +282,36 @@ def no_data(hardware, state, model=None):
     }
 
 
-def get_modem_data():
+# One reading serves every page for a moment: the header, the Modem
+# page and the dashboard all ask every few seconds, and each reading
+# runs several mmcli calls that take seconds while the modem is busy.
+MODEM_CACHE_SECONDS = 2.0
+
+_modem_cache = {"time": 0.0, "data": None}
+_modem_lock = threading.Lock()
+
+
+def get_modem_data(max_age=MODEM_CACHE_SECONDS):
+    """
+    The modem data, at most max_age seconds old. Callers that arrive
+    while a reading runs wait for it instead of starting their own.
+    """
+
+    with _modem_lock:
+
+        cached = _modem_cache["data"]
+
+        if cached is not None and time.monotonic() - _modem_cache["time"] < max_age:
+            return dict(cached)
+
+        data = read_modem_data()
+
+        _modem_cache.update(time=time.monotonic(), data=data)
+
+        return dict(data)
+
+
+def read_modem_data():
     """
     Live modem data from ModemManager. "state" is "ready", "not_ready"
     (a modem is there but does not answer yet) or "absent".
@@ -704,7 +741,7 @@ def unlock_sim(pin, remember=True):
     if index is None:
         return {"success": False, "message": "No modem found."}
 
-    data = get_modem_data()
+    data = get_modem_data(max_age=0)
 
     if data.get("lock") == "sim-puk":
         return {"success": False, "message": "The SIM is blocked (PUK required). Unblock it in a phone first."}
@@ -719,7 +756,7 @@ def unlock_sim(pin, remember=True):
 
     ok, result = run_command(privileged(["mmcli", "-i", sim, f"--pin={pin}"]))
 
-    after = get_modem_data()
+    after = get_modem_data(max_age=0)
 
     if not ok:
         retries = after.get("pin_retries")

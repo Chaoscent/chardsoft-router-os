@@ -82,7 +82,7 @@ window.ChaosApply = {
         }
 
         if (!this.pollTimer) {
-            this.pollTimer = setInterval(() => this.check(), 3000);
+            this.pollTimer = Poll.every(3000, () => this.check());
         }
 
     },
@@ -93,7 +93,7 @@ window.ChaosApply = {
         applyBanner.classList.add("hidden");
 
         clearInterval(this.tickTimer);
-        clearInterval(this.pollTimer);
+        Poll.stop(this.pollTimer);
 
         this.tickTimer = null;
         this.pollTimer = null;

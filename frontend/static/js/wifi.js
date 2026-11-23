@@ -602,14 +602,14 @@ window.Page.wifi = {
 
         this.load();
 
-        this.timer = setInterval(() => this.loadClients(), 10000);
+        this.timer = Poll.every(10000, () => this.loadClients());
 
     },
 
 
     destroy() {
 
-        clearInterval(this.timer);
+        Poll.stop(this.timer);
         this.timer = null;
 
         ChaosModal.close();

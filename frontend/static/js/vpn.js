@@ -781,14 +781,14 @@ window.Page.vpn = {
 
         this.load();
 
-        this.timer = setInterval(() => this.refresh(), 10000);
+        this.timer = Poll.every(10000, () => this.refresh());
 
     },
 
 
     destroy() {
 
-        clearInterval(this.timer);
+        Poll.stop(this.timer);
         this.timer = null;
 
         ChaosModal.close();

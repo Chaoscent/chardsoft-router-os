@@ -239,7 +239,7 @@ window.Header = {
             this.pingTimer !== null
         ) {
 
-            clearInterval(
+            Poll.stop(
                 this.pingTimer
             );
 
@@ -278,9 +278,9 @@ window.Header = {
 
 
         this.pingTimer =
-            setInterval(
-                () => this.updatePing(),
-                this.pingInterval * 1000
+            Poll.every(
+                this.pingInterval * 1000,
+                () => this.updatePing()
             );
 
     },
@@ -341,10 +341,11 @@ window.Header = {
         this.update();
 
 
+        // Waits for each answer: slow modem reads must not pile up.
         this.timer =
-            setInterval(
-                () => this.update(),
-                1000
+            Poll.every(
+                1000,
+                () => this.update()
             );
 
 

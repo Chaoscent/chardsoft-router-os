@@ -1061,7 +1061,7 @@ window.Page.network = {
         this.updateStatus();
         this.loadInterfaces().then(() => this.initLan());
 
-        this.timer = setInterval(() => this.updateStatus(), 3000);
+        this.timer = Poll.every(3000, () => this.updateStatus());
 
         const modal = this.$("confirmModal");
         const modalClose = this.$("modalClose");
@@ -1108,7 +1108,7 @@ window.Page.network = {
     destroy() {
 
         if (this.timer) {
-            clearInterval(this.timer);
+            Poll.stop(this.timer);
             this.timer = null;
         }
 

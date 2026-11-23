@@ -620,7 +620,7 @@ window.Page.dashboard = {
         this.render();
 
         this.update();
-        this.timer = setInterval(() => this.update(), 1000);
+        this.timer = Poll.every(1000, () => this.update());
 
     },
 
@@ -628,7 +628,7 @@ window.Page.dashboard = {
 
         this.run = null;
 
-        clearInterval(this.timer);
+        Poll.stop(this.timer);
 
         this.shown.forEach(item => item.graph?.destroy());
         this.shown = [];

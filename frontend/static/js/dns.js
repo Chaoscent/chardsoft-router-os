@@ -469,14 +469,14 @@ window.Page.dns = {
 
         this.load();
 
-        this.timer = setInterval(() => this.refreshStatus(), 10000);
+        this.timer = Poll.every(10000, () => this.refreshStatus());
 
     },
 
 
     destroy() {
 
-        clearInterval(this.timer);
+        Poll.stop(this.timer);
         this.timer = null;
 
     }

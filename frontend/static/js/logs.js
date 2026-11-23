@@ -200,11 +200,11 @@ window.Page.logs = {
         logLive.setAttribute("aria-pressed", String(this.live));
         logLive.classList.toggle("active", this.live);
 
-        clearInterval(this.timer);
+        Poll.stop(this.timer);
         this.timer = null;
 
         if (this.live) {
-            this.timer = setInterval(() => this.load(), 3000);
+            this.timer = Poll.every(3000, () => this.load());
         }
 
         this.load();
@@ -306,7 +306,7 @@ window.Page.logs = {
 
     destroy() {
 
-        clearInterval(this.timer);
+        Poll.stop(this.timer);
         clearTimeout(this.searchTimer);
 
         this.timer = null;

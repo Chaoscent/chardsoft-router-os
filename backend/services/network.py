@@ -83,6 +83,11 @@ def set_device_alias(mac, name):
 # Helpers
 # -------------------------------------------------------------------
 
+# Reading commands (ip, nmcli, mmcli) answer in well under a second;
+# one that hangs (a modem resetting) must not block a request for ever.
+READ_TIMEOUT = 30
+
+
 def run(cmd):
 
     try:
@@ -92,7 +97,8 @@ def run(cmd):
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            check=True
+            check=True,
+            timeout=READ_TIMEOUT
         )
 
         return result.stdout.strip()
@@ -118,7 +124,11 @@ def privileged(cmd):
     return ["sudo", "-n"] + cmd
 
 
-def run_command(cmd):
+def run_command(cmd, timeout=None):
+    """
+    (ok, output). No timeout by default: installs and updates take
+    minutes. Callers that talk to hardware pass one.
+    """
 
     try:
 
@@ -126,7 +136,8 @@ def run_command(cmd):
             cmd,
             text=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
+            timeout=timeout
         )
 
         stdout = result.stdout.strip()
@@ -145,6 +156,10 @@ def run_command(cmd):
     except FileNotFoundError:
 
         return False, f"Command not found: {cmd[0]}"
+
+    except subprocess.TimeoutExpired:
+
+        return False, f"{cmd[0]} did not answer within {timeout} seconds."
 
     except Exception as e:
 

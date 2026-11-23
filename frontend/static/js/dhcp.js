@@ -488,14 +488,14 @@ window.Page.dhcp = {
 
         };
 
-        this.timer = setInterval(() => this.loadLeases(), 10000);
+        this.timer = Poll.every(10000, () => this.loadLeases());
 
     },
 
 
     destroy() {
 
-        clearInterval(this.timer);
+        Poll.stop(this.timer);
         this.timer = null;
 
     }

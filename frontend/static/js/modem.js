@@ -215,13 +215,13 @@ init(){
 
     this.loadMobile();
     this.update();
-    this.timer=setInterval(()=>this.update(),3000);
+    this.timer=Poll.every(3000,()=>this.update());
 
 },
 
 destroy(){
 
-    clearInterval(this.timer);
+    Poll.stop(this.timer);
 
 }
 
