@@ -11,8 +11,9 @@ its own code, but further:
 - Wi-Fi, DHCP, DNS, VPN servers and client profiles off, their units,
   configs, keys and certificates removed.
 - Firewall: every rule Chardsoft Router OS added removed, ufw off.
-- IP forwarding (IPv4 and IPv6) and NAT off; the CHAOS-NAT, CHAOS-NAT6, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH and CHAOS-MSS
-  iptables chains removed.
+- IP forwarding (IPv4 and IPv6) and NAT off; the CHAOS-NAT, CHAOS-NAT6, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS,
+  CHAOS-LOOP and CHAOS-CLAT iptables chains removed; the LAN routing rules
+  and table 4242 removed; the CLAT service stopped.
 - LAN bridge removed. The WAN/LAN routing properties Chardsoft Router OS set
   on Ethernet connections (never-default, route-metric) go back to
   NetworkManager's defaults. eth0's address settings stay as they are,
@@ -185,6 +186,7 @@ def remove_chains():
         remove_chain(tool, "filter", clients.CHAIN, ("INPUT", "FORWARD"))
         remove_chain(tool, "filter", vpn_profiles.KILL_CHAIN, ("FORWARD",))
         remove_chain(tool, "mangle", routing.MSS_CHAIN, ("FORWARD",))
+        remove_chain(tool, "filter", routing.LOOP_CHAIN, ("FORWARD",))
 
     if which("iptables"):
         remove_chain(which("iptables"), "nat", routing.CHAIN, ("POSTROUTING",))

@@ -290,6 +290,48 @@ def apply_mss_clamping():
     return True, "OK"
 
 
+# Traffic that came in on the WAN never goes back out of it. With IPv6
+# forwarding on, packets for unused addresses in the modem's /64 would
+# otherwise be sent back to the carrier, which routes them to us again,
+# until their hop limit runs out: every stray packet sent ~60 times, on
+# mobile data. ufw's "deny routed" catches it too, but not with the
+# firewall off.
+LOOP_CHAIN = "CHAOS-LOOP"
+
+
+def apply_loop_guard(wan):
+
+    outs = sorted({wan, "wwan+"} - {None, ""})
+
+    for tool in filter(None, (which("iptables"), which("ip6tables"))):
+
+        def filt(*args):
+            return run_command(privileged([tool, *args]))
+
+        filt("-N", LOOP_CHAIN)
+
+        ok, result = filt("-F", LOOP_CHAIN)
+
+        if not ok:
+            return False, f"Could not reset the loop guard: {result}"
+
+        for out in outs:
+            ok, result = filt("-A", LOOP_CHAIN, "-i", out, "-o", out, "-j", "DROP")
+            if not ok:
+                return False, f"Could not set up the loop guard: {result}"
+
+        hooked, _ = filt("-C", "FORWARD", "-j", LOOP_CHAIN)
+
+        if not hooked:
+
+            ok, result = filt("-I", "FORWARD", "1", "-j", LOOP_CHAIN)
+
+            if not ok:
+                return False, f"Could not activate the loop guard: {result}"
+
+    return True, "OK"
+
+
 def apply_routing():
 
     settings = get_routing_settings()
@@ -309,6 +351,11 @@ def apply_routing():
 
     if not ok:
         return False, mss
+
+    ok, loop = apply_loop_guard(wan)
+
+    if not ok:
+        return False, loop
 
     ok, v6 = ipv6.apply(settings["forwarding"], settings["nat"])
 
