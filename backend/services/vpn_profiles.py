@@ -758,7 +758,8 @@ def _apply_kill_switch(profiles=None):
     if not tools:
         return (False, "iptables is not available.") if profile else (True, "OK")
 
-    outs = sorted({get_wan_interface(), "wwan+"} - {None, ""})
+    # The CLAT (IPv4 over an IPv6-only WAN) is a way out too.
+    outs = sorted({get_wan_interface(), "wwan+", "clat"} - {None, ""})
 
     for tool in tools:
 

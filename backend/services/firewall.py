@@ -802,6 +802,20 @@ def get_essential_rules():
                      "out", "on", wan]
         })
 
+        # IPv4 over an IPv6-only WAN (services/clat.py).
+        rules.append({
+            "description": f"IPv4 over IPv6 for {lan}",
+            "args": ["route", "allow", "in", "on", lan,
+                     "out", "on", "clat"]
+        })
+
+    if wan:
+        rules.append({
+            "description": f"IPv4 over IPv6 to {wan}",
+            "args": ["route", "allow", "in", "on", "clat",
+                     "out", "on", wan]
+        })
+
     for rule in rules:
 
         # Mark the rule so it is recognisable in ufw.

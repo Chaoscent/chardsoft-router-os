@@ -306,6 +306,7 @@ A ready-made sudoers file will ship with the installer.
 | 🧪 | Firewall page (ufw, default policies, rules) |
 | 🧪 | Routing & NAT (IP forwarding, masquerading to the WAN, MSS clamping) |
 | 🧪 | IPv6 for the LAN (own prefix per LAN, router advertisements, NAT66; off by default) |
+| 🧪 | IPv4 over IPv6-only mobile plans (CLAT/464XLAT with tayga; automatic) |
 | 🧪 | eth0 LAN/WAN switch (Ethernet uplink instead of the modem) |
 | 🧪 | LAN bridge (br0: chosen Ethernet and Wi-Fi ports in one network) |
 | 🧪 | VPN page: WireGuard server |

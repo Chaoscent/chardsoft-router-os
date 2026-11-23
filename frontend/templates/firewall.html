@@ -95,6 +95,14 @@
                 nothing goes around the tunnel.
             </p>
 
+            <p class="setting-hint">
+                IPv4 over IPv6 keeps IPv4 working when the mobile network
+                only gives IPv6 (many carriers now do): the router
+                translates the LAN's IPv4 into IPv6 for the carrier's
+                NAT64, like phones do. Automatic runs it only while the WAN
+                has no IPv4 of its own.
+            </p>
+
             <div class="settings-grid">
 
                 <div class="setting-field">
@@ -134,6 +142,19 @@
                 <div class="setting-field">
                     <label>WAN IPv6 address</label>
                     <div id="routeIpv6Wan" class="setting-input setting-readonly">--</div>
+                </div>
+
+                <div class="setting-field">
+                    <label for="routeClatInput">IPv4 over IPv6 (CLAT)</label>
+                    <select id="routeClatInput" class="setting-input">
+                        <option value="true">Automatic</option>
+                        <option value="false">Off</option>
+                    </select>
+                </div>
+
+                <div class="setting-field">
+                    <label>CLAT status</label>
+                    <div id="routeClatState" class="setting-input setting-readonly">--</div>
                 </div>
 
             </div>

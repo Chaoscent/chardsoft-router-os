@@ -78,6 +78,13 @@ def is_wanted():
 def wan_route(family, wan):
     """The WAN's default route as ip arguments, or None without one."""
 
+    # IPv6-only WAN: IPv4 goes through the CLAT (services/clat.py).
+    if family == "-4":
+        from services import clat
+        route = clat.active_route()
+        if route:
+            return [*route, "metric", WAN_METRIC]
+
     output = run(["ip", family, "route", "show", "default", "dev", wan]) or ""
 
     for line in output.splitlines():
@@ -146,7 +153,7 @@ def normalize_route(line):
 
     parts = line.split()
 
-    for extra in ("proto", "pref", "expires"):
+    for extra in ("proto", "pref", "expires", "scope"):
         if extra in parts:
             i = parts.index(extra)
             del parts[i:i + 2]
@@ -275,6 +282,12 @@ def watch():
     def loop():
 
         while True:
+
+            try:
+                from services import clat
+                clat.sync()
+            except Exception as e:
+                print(f"[routing] CLAT: {e}")
 
             try:
                 sync()

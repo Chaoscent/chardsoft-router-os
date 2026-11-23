@@ -179,7 +179,7 @@ def remove_chains():
 
     from shutil import which
 
-    from services import routing, clients, setup_network, vpn_profiles, ipv6, wan_routing
+    from services import routing, clients, setup_network, vpn_profiles, ipv6, wan_routing, clat
 
     for tool in filter(None, (which("iptables"), which("ip6tables"))):
         remove_chain(tool, "filter", clients.CHAIN, ("INPUT", "FORWARD"))
@@ -195,6 +195,9 @@ def remove_chains():
 
     # The LAN's routing rules and table (services/wan_routing.py).
     wan_routing.remove()
+
+    # The CLAT service and its NAT chain (services/clat.py).
+    clat.remove()
 
     return True, "OK"
 

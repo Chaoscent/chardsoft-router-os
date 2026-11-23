@@ -51,6 +51,12 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   route has the better metric), a phone on the router's Wi-Fi still goes out
   through the modem (`ip rule`, `ip route show table 4242`,
   `ip route get 1.1.1.1 from <phone> iif wlan1`).
+- [ ] **CLAT** with the IPv6-only Telekom SIM: after the installer ran again
+  (it adds tayga and `chaos-clat.service`), the Firewall page shows "Active,
+  NAT64 64:ff9b::/96" (or the carrier's prefix); a phone on the router's
+  Wi-Fi opens IPv4-only sites (`http://ipv4.google.com`, `ping 1.1.1.1` from
+  a laptop); `ip route get 1.1.1.1 from <phone> iif wlan1` says `dev clat`;
+  after a modem reconnect (new /64) it keeps working within 15 s.
 - [ ] **Modem watchdog:** when the modem is stuck (rx errors rising, nothing
   received), it is reset within about a minute and the Logs say so.
 - [ ] **IPv6 for the LAN** (Firewall page, Routing & NAT): with the modem
@@ -96,8 +102,6 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 
 ## 3. Still to build
 
-- [ ] **CLAT/464XLAT** for IPv6-only mobile plans (IPv4 for LAN devices
-  through an IPv6-only connection).
 - [ ] **IPv6 through the VPN** (LAN IPv6 into a full tunnel; today devices
   fall back to IPv4 while one is connected) and **prefix delegation** where a
   provider offers it (public addresses instead of NAT66).
@@ -127,6 +131,14 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 
 ## Done since the last plan
 
+- The dashboard stays responsive while the modem is slow (polls wait for
+  the last answer; one modem reading shared by all requests; timeouts).
+- Modem watchdog: a stuck data link (every received packet rejected, or no
+  answers at all) restarts the modem automatically.
+- LAN routing: LAN traffic always leaves through the WAN, even when another
+  interface has the better default route.
+- CLAT (464XLAT): IPv4 for the LAN over IPv6-only mobile plans.
+- "B3 + 5G" for 5G NSA, where the modem reports only the LTE band.
 - Setup wizard: an Internet step that shows the modem or Ethernet uplink
   and what to do if it is not online (never blocks setup).
 - Apps that need more memory than the board has (`min_ram_mb` in the

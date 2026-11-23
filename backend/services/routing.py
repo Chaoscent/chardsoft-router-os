@@ -40,6 +40,8 @@ from services import ipv6
 
 from services import wan_routing
 
+from services import clat
+
 # -------------------------------------------------------------------
 # Configuration
 # -------------------------------------------------------------------
@@ -51,7 +53,10 @@ DEFAULT_SETTINGS = {
     "nat": True,
     # Off until switched on; the prefix is chosen the first time.
     "ipv6": False,
-    "ula_prefix": ""
+    "ula_prefix": "",
+    # IPv4 for the LAN over an IPv6-only WAN (services/clat.py); only
+    # runs while the WAN has no IPv4 of its own.
+    "clat": True
 }
 
 CHAIN = "CHAOS-NAT"
@@ -80,7 +85,8 @@ def get_routing_baseline():
         "forwarding": is_forwarding_enabled(),
         "nat": False,
         "ipv6": False,
-        "ula_prefix": ""
+        "ula_prefix": "",
+        "clat": False
     }
 
 
@@ -92,7 +98,7 @@ def validate_routing_settings(data):
     settings = get_routing_settings()
     settings.update(data or {})
 
-    for key in ("forwarding", "nat", "ipv6"):
+    for key in ("forwarding", "nat", "ipv6", "clat"):
 
         if not isinstance(settings.get(key), bool):
             return False, f"Invalid value for {key}."
@@ -119,7 +125,8 @@ def validate_routing_settings(data):
         "forwarding": settings["forwarding"],
         "nat": settings["nat"],
         "ipv6": settings["ipv6"],
-        "ula_prefix": prefix
+        "ula_prefix": prefix,
+        "clat": settings["clat"]
     }
 
 
@@ -180,6 +187,7 @@ def get_routing_status():
         "nat": is_nat_active(wan),
         "lan_networks": get_lan_networks(),
         "ipv6": ipv6.get_status(),
+        "clat": clat.get_status(),
         "installed": bool(which("iptables") and which("sysctl"))
     }
 
@@ -306,6 +314,10 @@ def apply_routing():
 
     if not ok:
         return False, v6
+
+    # IPv4 over an IPv6-only WAN. Not fatal: the rest of the routing
+    # works without it, and its state is shown on the Firewall page.
+    clat.sync()
 
     # LAN traffic leaves through the WAN, whatever other default
     # routes the router has (see services/wan_routing.py).

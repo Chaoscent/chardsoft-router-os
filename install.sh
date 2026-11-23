@@ -57,6 +57,7 @@ PACKAGES=(
     network-manager
     dnsmasq hostapd iw rfkill
     modemmanager mobile-broadband-provider-info libqmi-utils
+    tayga
     ufw iptables
     wireguard-tools openvpn easy-rsa openresolv
     qrencode

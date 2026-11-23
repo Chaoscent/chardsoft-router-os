@@ -30,6 +30,10 @@ MDNS_UNIT_FILE=/etc/systemd/system/$MDNS_SERVICE.service
 AP_UNIT=chaos-hostapd@.service
 AP_UNIT_FILE=/etc/systemd/system/$AP_UNIT
 
+# IPv4 over an IPv6-only WAN (tayga); started by the app when needed.
+CLAT_UNIT=chaos-clat.service
+CLAT_UNIT_FILE=/etc/systemd/system/$CLAT_UNIT
+
 CADDYFILE=/etc/caddy/Caddyfile
 CADDY_BACKUP=/etc/caddy/Caddyfile.before-chaos
 # First line of deploy/Caddyfile: tells our config from someone else's.
@@ -53,7 +57,9 @@ if [[ ${1:-} == "--remove" ]]; then
         | awk '{print $1}' \
         | while read -r unit; do systemctl disable --now "$unit" 2>/dev/null || true; done
 
-    rm -f "$UNIT_FILE" "$MDNS_UNIT_FILE" "$AP_UNIT_FILE"
+    systemctl stop chaos-clat 2>/dev/null || true
+
+    rm -f "$UNIT_FILE" "$MDNS_UNIT_FILE" "$AP_UNIT_FILE" "$CLAT_UNIT_FILE" /etc/tayga/chaos-clat.conf
     systemctl daemon-reload
 
     # Caddy: back to the config it had before, or stopped (ours would
@@ -168,6 +174,7 @@ chmod 644 "$UNIT_FILE"
 
 # The access point unit; the app starts one instance per radio.
 install -m 644 "$APP_DIR/deploy/$AP_UNIT" "$AP_UNIT_FILE"
+install -m 644 "$APP_DIR/deploy/$CLAT_UNIT" "$CLAT_UNIT_FILE"
 
 systemctl daemon-reload
 systemctl enable "$SERVICE"

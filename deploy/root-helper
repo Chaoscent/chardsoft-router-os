@@ -79,11 +79,13 @@ WRITABLE = (
     (f"{PKI_DIR}/**", "pki"),
     (NAT_SCRIPT, "nat-script"),
     ("/etc/caddy/chaos-apps/*.caddy", "caddy"),
+    ("/etc/tayga/chaos-clat.conf", "tayga"),
 )
 
 # Folders the app may create.
 DIRECTORIES = (
     "/etc/hostapd",
+    "/etc/tayga",
     "/etc/caddy/chaos-apps",
     PKI_DIR,
     f"{PKI_DIR}/**",
@@ -395,6 +397,33 @@ def check_pki(text, path):
         refuse(f"PKI file not allowed: {name}")
 
 
+# The CLAT (services/clat.py): addresses only. data-dir would make
+# tayga write files as root; dynamic-pool belongs to a NAT64 server.
+TAYGA_KEYS = {"tun-device", "ipv4-addr", "ipv6-addr", "prefix", "map"}
+
+
+def check_tayga(text):
+
+    for line in text.splitlines():
+
+        line = line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        words = line.split()
+
+        if words[0] not in TAYGA_KEYS:
+            refuse(f"tayga option not allowed: {words[0]}")
+
+        if words[0] == "tun-device" and words[1:] != ["clat"]:
+            refuse("tayga tun-device must be clat.")
+
+        for word in words[1:]:
+            if not re.fullmatch(r"[0-9A-Fa-f:./]{1,43}|clat", word):
+                refuse(f"tayga value not allowed: {word}")
+
+
 def check_content(kind, text, path):
 
     if kind == "hostapd":
@@ -411,6 +440,8 @@ def check_content(kind, text, path):
         check_nat_script(text)
     elif kind == "pki":
         check_pki(text, path)
+    elif kind == "tayga":
+        check_tayga(text)
 
 
 # -------------------------------------------------------------------
@@ -654,7 +685,7 @@ SYSTEMCTL_VERBS = {
 SYSTEMCTL_OPTIONS = {"--now", "--quiet", "-q", "--no-block", "--no-pager", "--all", "--plain", "--no-legend"}
 
 UNITS = re.compile(
-    r"(dnsmasq|hostapd|caddy|chaos-router-mdns|chaos-router-os|NetworkManager|ModemManager|avahi-daemon|ufw"
+    r"(dnsmasq|hostapd|caddy|chaos-router-mdns|chaos-router-os|chaos-clat|NetworkManager|ModemManager|avahi-daemon|ufw"
     rf"|chaos-hostapd@{IFACE}|wg-quick@{IFACE}|openvpn-server@{NAME}|openvpn-client@{NAME}"
     r")(\.service)?"
 )

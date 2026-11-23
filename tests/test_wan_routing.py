@@ -161,6 +161,8 @@ class LanRoutingTests(unittest.TestCase):
                          "unreachable default metric 4000")
         self.assertEqual(wr.normalize_route("default via 192.0.0.1 dev wwan0 metric 100 linkdown"),
                          "default via 192.0.0.1 dev wwan0 metric 100")
+        self.assertEqual(wr.normalize_route("default dev clat scope link metric 100"),
+                         "default dev clat metric 100")
 
 
 if __name__ == "__main__":

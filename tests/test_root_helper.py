@@ -46,6 +46,18 @@ class GeneratedConfigs(unittest.TestCase):
     def test_caddy(self):
         helper.check_caddy(apps.caddy_snippet("uptime-kuma", "uptime-kuma.chaos-router.local", 3001))
 
+    def test_tayga(self):
+        from services import clat
+        helper.check_tayga(clat.render_config("64:ff9b::/96", "2a01:598:900e:7a75::c1a7", "2a01:598:900e:7a75::c1a6"))
+        for bad in ("data-dir /root\n", "tun-device eth0\n", "prefix 64:ff9b::/96; rm -rf /\n", "dynamic-pool 10.0.0.0/8\n"):
+            with self.assertRaises(helper.Refused, msg=bad):
+                helper.check_tayga(bad)
+
+    def test_clat_unit_and_config_path(self):
+        plan("systemctl", "restart", "chaos-clat")
+        self.assertEqual(helper.writable_kind("/etc/tayga/chaos-clat.conf"), "tayga")
+        self.assertIsNone(helper.writable_kind("/etc/tayga/other.conf"))
+
     def test_nat_script(self):
         helper.check_nat_script(openvpn.NAT_SCRIPT_CONTENT)
 

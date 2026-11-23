@@ -347,7 +347,12 @@ def apply(forwarding, nat):
     on = is_enabled(settings)
     wan = get_wan_interface()
 
-    ok, result = set_forwarding(on and forwarding, wan)
+    # The CLAT (IPv4 over an IPv6-only WAN) needs IPv6 forwarding too.
+    from services import clat
+
+    clat_needs = clat.is_wanted(wan) is True or clat.is_active()
+
+    ok, result = set_forwarding((on or clat_needs) and forwarding, wan)
 
     if not ok:
         return False, f"Could not change IPv6 forwarding: {result}"
