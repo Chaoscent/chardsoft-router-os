@@ -353,6 +353,7 @@ from factory_reset import factory_reset
 from setup import (
         is_setup_complete,
         get_setup_info,
+        get_internet_check,
         complete_setup
 )
 
@@ -803,6 +804,16 @@ def setup_page():
 def setup_info_api():
 
         return jsonify(get_setup_info(get_viewer_ip()))
+
+
+
+
+
+@app.route("/api/setup/internet")
+
+def setup_internet_api():
+
+        return jsonify(get_internet_check())
 
 
 

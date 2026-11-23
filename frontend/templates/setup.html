@@ -30,7 +30,8 @@
     <ol class="setup-steps" aria-label="Setup steps">
         <li data-step="1">Account</li>
         <li data-step="2">Wi-Fi</li>
-        <li data-step="3">Finish</li>
+        <li data-step="3">Internet</li>
+        <li data-step="4">Finish</li>
     </ol>
 
     <section class="card setup-card">
@@ -121,9 +122,28 @@
 
         </div>
 
-        <!-- Step 3: review -->
+        <!-- Step 3: internet check (only reads, never blocks) -->
 
         <div class="setup-step hidden" data-step="3">
+
+            <h2>Internet connection</h2>
+
+            <p class="setup-hint">
+                A quick look at the router's own internet connection. You can
+                go on either way and fix it later on the Modem or Network page.
+            </p>
+
+            <div id="setupInternet" class="setup-summary" aria-live="polite"></div>
+
+            <p id="setupInternetMessage" class="setup-hint"></p>
+
+            <button id="setupInternetRecheck" type="button" class="secondary-btn">Check again</button>
+
+        </div>
+
+        <!-- Step 4: review -->
+
+        <div class="setup-step hidden" data-step="4">
 
             <h2>Ready to go</h2>
 

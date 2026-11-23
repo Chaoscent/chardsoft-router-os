@@ -285,7 +285,8 @@ with a captive portal; the installer shows its name, password and QR code
         ↓
 Phone joins → setup page opens by itself
         ↓
-Admin account, optionally the first Wi-Fi network
+Admin account, optionally the first Wi-Fi network, a look at the
+internet connection (modem or Ethernet; only reads, never blocks)
         ↓
 Setup Wi-Fi replaced by the real one (or turned off)
         ↓

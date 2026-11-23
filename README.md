@@ -318,7 +318,7 @@ A ready-made sudoers file will ship with the installer.
 | 🧪 | Root helper (every system command checked before it runs as root) |
 | 🧪 | Encrypted backups (optional password, AES-256-GCM) |
 | 🧪 | Updates from the System page (backup first, automatic rollback) |
-| 🧪 | Setup Wizard (`/setup`: admin account, Wi-Fi; only until an account exists) |
+| 🧪 | Setup Wizard (`/setup`: admin account, Wi-Fi, internet check; only until an account exists) |
 | 🧪 | Caddy (ports 80 and 443, HTTPS from a local certificate authority) |
 | 🧪 | Apps page: one-click Apps Addon install, app catalog (install, open, start/stop, update, logs, remove) |
 

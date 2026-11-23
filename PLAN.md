@@ -34,7 +34,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   `/var/backups/chardsoft-router-os`.
 - [ ] **Setup Wi-Fi** with real phones (iOS, Android, Windows), including the
   old open bug: the wizard's Wi-Fi gave phones no address (check the Logs
-  entry "DHCP for the new Wi-Fi failed").
+  entry "DHCP for the new Wi-Fi failed"). The wizard's Internet step with
+  the real modem: no SIM, SIM PIN, mobile data off, online; and with eth0
+  as WAN.
 - [ ] **Modem:** LAN devices get internet through the modem; `mmcli` parsing
   (signal per section, "lte, 5gnr" → "5G NSA", SIM state); the active band
   (`sudo qmicli -p -d /dev/cdc-wdm0 --nas-get-rf-band-info`, the Modem page
@@ -67,6 +69,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - [ ] **Uninstall** in a VM (snapshot before), then `dpkg -l`, `/etc`,
   `iptables-save`, `nmcli connection`, `ufw status`; then a fresh install.
 - [ ] **RAM** on a 1 GB board: `free -h`, `ps -eo rss,comm --sort=-rss | head`.
+  The Apps page should warn on Jellyfin and Nextcloud there.
 
 ---
 
@@ -98,7 +101,6 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   traffic that came in on the WAN.
 - [ ] **Media and files for apps** (Jellyfin's media folder is root-only in
   `/var/lib/chaos-router-apps`): a shared folder (Samba/SFTP) or a USB drive.
-- [ ] **Optional setup step:** check the WAN or modem.
 - [ ] **Hardware Edition** (OLED, buttons, RGB, GPS) and the Apps Addon (v2).
 
 ---
@@ -119,6 +121,8 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 
 ## Done since the last plan
 
+- Setup wizard: an Internet step that shows the modem or Ethernet uplink
+  and what to do if it is not online (never blocks setup).
 - Apps that need more memory than the board has (`min_ram_mb` in the
   catalog) show a warning and ask before installing.
 - Settings format version (`schema.json`) with update steps on start and

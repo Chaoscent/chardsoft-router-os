@@ -1,5 +1,6 @@
 /*
- * First-time setup wizard (/setup): admin account, Wi-Fi, finish.
+ * First-time setup wizard (/setup): admin account, Wi-Fi, a look at
+ * the internet connection, finish.
  * Nothing is saved until the last step; the server checks everything
  * again and applies it in one go.
  */
@@ -53,9 +54,10 @@ const Setup = {
 
         this.$("setupBack").classList.toggle("hidden", step === 1 || done);
         this.$("setupNext").classList.toggle("hidden", done);
-        this.$("setupNext").textContent = step === 3 ? "Finish setup" : "Next";
+        this.$("setupNext").textContent = step === 4 ? "Finish setup" : "Next";
 
-        if (step === 3) this.renderSummary();
+        if (step === 3 && !this.internet) this.checkInternet();
+        if (step === 4) this.renderSummary();
 
         // Focus the first field for keyboard users.
         document.querySelector(`.setup-step[data-step="${step}"] input:not([type=checkbox])`)?.focus();
@@ -122,6 +124,88 @@ const Setup = {
 
 
     // ------------------------------------------------------------
+    // Internet (only shows what the router sees)
+    // ------------------------------------------------------------
+
+    internet: null,
+
+    async checkInternet() {
+
+        const box = this.$("setupInternet");
+        const message = this.$("setupInternetMessage");
+        const button = this.$("setupInternetRecheck");
+
+        button.disabled = true;
+        button.textContent = "Checking…";
+        message.textContent = "";
+        box.innerHTML = "";
+
+        try {
+            const res = await fetch("/api/setup/internet");
+            this.internet = res.ok ? await res.json() : null;
+        } catch {
+            this.internet = null;
+        }
+
+        button.disabled = false;
+        button.textContent = "Check again";
+
+        const net = this.internet;
+
+        if (!net) {
+            message.textContent = "The check did not answer. You can go on and look at it later.";
+            return;
+        }
+
+        const modem = net.modem;
+        const connection = modem ? "Mobile (modem)" : net.type === "Unknown" ? net.wan : net.type;
+
+        const rows = [
+            ["Status", net.online ? "Online" : "Not online yet", net.online ? "online" : "warning"],
+            ["Connection", `${connection} · ${net.wan}`]
+        ];
+
+        if (modem) {
+            if (modem.model) rows.push(["Modem", [modem.vendor, modem.model].filter(Boolean).join(" ")]);
+            if (modem.sim) rows.push(["SIM card", modem.sim]);
+            if (modem.carrier) rows.push(["Carrier", modem.network ? `${modem.carrier} · ${modem.network}` : modem.carrier]);
+            if (modem.signal) rows.push(["Signal", `${modem.signal}%`]);
+        }
+
+        rows.push(["Address", net.address || "None yet"]);
+
+        this.renderRows(box, rows);
+
+        message.textContent = net.message;
+
+    },
+
+
+    renderRows(box, rows) {
+
+        box.innerHTML = "";
+
+        for (const [label, value, status] of rows) {
+
+            const row = document.createElement("div");
+            row.className = "info-row";
+
+            const l = document.createElement("span");
+            l.textContent = label;
+
+            const v = document.createElement(status ? "span" : "strong");
+            v.textContent = value;
+            if (status) v.className = `status ${status}`;
+
+            row.append(l, v);
+            box.appendChild(row);
+
+        }
+
+    },
+
+
+    // ------------------------------------------------------------
     // Review / finish
     // ------------------------------------------------------------
 
@@ -131,28 +215,12 @@ const Setup = {
             ["Admin account", this.$("setupUsername").value.trim()],
             ["Wi-Fi", this.wifiEnabled()
                 ? `${this.$("setupSsid").value} (WPA2, ${this.$("setupCountry").value})`
-                : "Not now"]
+                : "Not now"],
+            ["Internet", !this.internet ? "Not checked"
+                : this.internet.online ? "Online" : "Not online yet (fix it after setup)"]
         ];
 
-        const summary = this.$("setupSummary");
-
-        summary.innerHTML = "";
-
-        for (const [label, value] of rows) {
-
-            const row = document.createElement("div");
-            row.className = "info-row";
-
-            const l = document.createElement("span");
-            l.textContent = label;
-
-            const v = document.createElement("strong");
-            v.textContent = value;
-
-            row.append(l, v);
-            summary.appendChild(row);
-
-        }
+        this.renderRows(this.$("setupSummary"), rows);
 
         const reconnect = this.$("setupReconnect");
 
@@ -285,7 +353,10 @@ const Setup = {
             return this.show(3);
         }
 
-        if (this.step === 3) return this.finish();
+        // The internet check never blocks: setup works offline too.
+        if (this.step === 3) return this.show(4);
+
+        if (this.step === 4) return this.finish();
 
     },
 
@@ -335,6 +406,8 @@ const Setup = {
                 button.textContent = visible ? "Show" : "Hide";
             };
         });
+
+        this.$("setupInternetRecheck").onclick = () => this.checkInternet();
 
         this.$("setupNext").onclick = () => this.next();
         this.$("setupBack").onclick = () => this.show(this.step - 1);

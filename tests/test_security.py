@@ -178,6 +178,7 @@ class SessionTests(unittest.TestCase):
     def test_setup_is_closed_once_set_up(self):
         browser = Browser()
         self.assertEqual(browser.get("/setup").status_code, 404)
+        self.assertEqual(browser.get("/api/setup/internet").status_code, 404)
         response = browser.post("/api/setup/complete", {"username": "evil", "password": "x" * 12})
         self.assertEqual(response.status_code, 404)
 

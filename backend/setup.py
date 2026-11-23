@@ -24,7 +24,9 @@ from werkzeug.security import generate_password_hash
 
 from services.config import load_persistent
 
-from services import transaction, wifi, dhcp, setup_network
+from services import transaction, wifi, dhcp, setup_network, modem, network
+
+from services.system import get_ping
 
 from services.caddy import dashboard_url
 
@@ -85,6 +87,80 @@ def get_setup_info(viewer_ip=None):
         # redirect is gone after setup, so the app's own port.
         "dashboard_url": dashboard_url(setup_network.ADDRESS)
     }
+
+
+def _modem_problem(data):
+    """(verdict, message) for a modem WAN that is not online, or None."""
+
+    if data["state"] == "absent":
+        return "no_modem", "No modem was found. Plug in the modem (or use Ethernet as the internet connection on the Network page)."
+
+    if data["state"] == "no_modemmanager":
+        return "no_modemmanager", "A modem is plugged in, but ModemManager is not installed. Run the installer again."
+
+    if data["state"] == "not_ready":
+        return "modem_starting", "The modem is starting. Check again in a minute."
+
+    if data.get("lock") in ("sim-pin", "ph-sim-pin", "ph-net-pin"):
+        return "sim_pin", "The SIM card waits for its PIN. Enter it on the Modem page after setup."
+
+    if data.get("lock") == "sim-puk":
+        return "sim_blocked", "The SIM card is blocked. Unblock it with its PUK in a phone first."
+
+    if data.get("connection") != "activated":
+        return "data_off", "The modem is ready. Switch on mobile data on the Modem page after setup."
+
+    return None
+
+
+def get_internet_check():
+    """
+    The optional "Internet" setup step: which uplink the router uses and
+    whether it works. Only reads; nothing is changed.
+    """
+
+    wan = network.get_wan_interface()
+    address = network.get_ip(wan)
+    address = None if address == "Unknown" else address
+
+    online = get_ping("1.1.1.1") != "-- ms"
+
+    result = {
+        "wan": wan,
+        "type": network.get_connection_type(wan),
+        "address": address,
+        "online": online,
+        "modem": None
+    }
+
+    if wan == network.MODEM_INTERFACE:
+
+        data = modem.get_modem_data()
+
+        # Not the IMEI: anyone on the setup Wi-Fi can open this page.
+        result["modem"] = {
+            key: data.get(key)
+            for key in ("state", "vendor", "model", "sim", "carrier", "network", "signal", "connection")
+        }
+
+        problem = None if online else _modem_problem(data)
+
+    else:
+
+        problem = None if online or address else (
+            "no_cable", f"{wan} has no address. Check the cable to your other router or modem."
+        )
+
+    if online:
+        verdict, message = "online", "The router is online."
+    elif problem:
+        verdict, message = problem
+    else:
+        verdict, message = "offline", "The connection is up, but the internet cannot be reached yet."
+
+    result.update(verdict=verdict, message=message)
+
+    return result
 
 
 def validate_admin(data):
