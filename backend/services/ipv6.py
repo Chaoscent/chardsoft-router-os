@@ -35,7 +35,8 @@ from services.network import (
     run,
     run_command,
     privileged,
-    get_wan_interface
+    get_wan_interface,
+    pick_ipv6
 )
 
 from services.vpn_common import which
@@ -405,7 +406,7 @@ def get_status():
                 "active": address in global_addresses(name)
             })
 
-    wan_addresses = [a.split("/")[0] for a in global_addresses(wan)] if wan else []
+    wan_lines = (run(["ip", "-6", "-o", "addr", "show", "dev", wan, "scope", "global"]) or "").splitlines() if wan else []
 
     return {
         "enabled": on,
@@ -413,7 +414,9 @@ def get_status():
         "forwarding": is_forwarding_enabled(),
         "nat": on and is_nat_active(wan, settings["prefix"]),
         "lans": lans,
-        "wan_address": wan_addresses[0] if wan_addresses else None,
+        # The same address the Modem page shows: a stable one, not a
+        # privacy address that changes every few hours.
+        "wan_address": pick_ipv6(wan_lines),
         "installed": bool(which("ip6tables"))
     }
 

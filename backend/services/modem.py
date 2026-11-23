@@ -6,6 +6,7 @@ import time
 
 from services.modem_detector import detect_modem
 from services.config import load_settings
+from services.network import pick_ipv6
 from services import transaction
 
 SIGNAL_ENABLED = False
@@ -109,10 +110,29 @@ def signal_values(text):
         for key, names in (("rsrp", ("rsrp",)), ("rsrq", ("rsrq",)), ("sinr", ("s/n", "snr", "sinr"))):
 
             for name in names:
-                if name in found:
+                if name in found and _plausible(key, found[name]):
                     values[key] = found[name]
 
     return values
+
+
+# What a real measurement can be. Modems report -32768 (or -3276.8)
+# for "no measurement", e.g. the 5G part of 5G NSA between bursts.
+SIGNAL_RANGES = {
+    "rsrp": (-160.0, -30.0),
+    "rsrq": (-45.0, 20.0),
+    "sinr": (-30.0, 50.0)
+}
+
+
+def _plausible(key, value):
+
+    low, high = SIGNAL_RANGES[key]
+
+    try:
+        return low <= float(value) <= high
+    except ValueError:
+        return False
 
 
 # ModemManager access technologies -> what people know them as.
@@ -778,18 +798,18 @@ def interface_addresses(interface):
     (IPv4, IPv6) global addresses of an interface, None when it has none.
     """
 
-    ipv4 = ipv6 = None
+    ipv4 = None
+    lines = (run(["ip", "-o", "addr", "show", "dev", interface, "scope", "global"]) or "").splitlines()
 
-    for line in (run(["ip", "-o", "addr", "show", "dev", interface, "scope", "global"]) or "").splitlines():
+    for line in lines:
 
         parts = line.split()
 
-        if "inet" in parts and ipv4 is None:
+        if "inet" in parts:
             ipv4 = parts[parts.index("inet") + 1].split("/")[0]
-        elif "inet6" in parts and ipv6 is None:
-            ipv6 = parts[parts.index("inet6") + 1].split("/")[0]
+            break
 
-    return ipv4, ipv6
+    return ipv4, pick_ipv6(lines)
 
 
 def data_link(hardware):

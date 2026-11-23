@@ -254,5 +254,55 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(self.kill_switch_rules({"name": "x", "full_tunnel": False}), [])
 
 
+class WanAddressTests(unittest.TestCase):
+    """The Modem page and the Firewall page show the same, stable address."""
+
+    LINES = [
+        "4: wwan0    inet 192.0.0.2/29 scope global wwan0",
+        "4: wwan0    inet6 2a01:598:9005:ee01:5546:63fd:6fb5:4ea1/64 scope global temporary dynamic",
+        "4: wwan0    inet6 2a01:598:9005:ee01:1111:2222:3333:4444/64 scope global deprecated dynamic",
+        "4: wwan0    inet6 2a01:598:9005:ee01:b52c:272e:5b7a:d8bb/64 scope global dynamic mngtmpaddr",
+    ]
+
+    def test_stable_address_wins(self):
+        from services.network import pick_ipv6
+        self.assertEqual(pick_ipv6(self.LINES), "2a01:598:9005:ee01:b52c:272e:5b7a:d8bb")
+
+    def test_only_temporary_falls_back(self):
+        from services.network import pick_ipv6
+        self.assertEqual(pick_ipv6(self.LINES[:2]), "2a01:598:9005:ee01:5546:63fd:6fb5:4ea1")
+        self.assertIsNone(pick_ipv6(self.LINES[:1]))
+
+    def test_both_pages_agree(self):
+        from services import modem
+        with mock.patch.object(modem, "run", return_value="\n".join(self.LINES)):
+            v4, v6 = modem.interface_addresses("wwan0")
+        with mock.patch.object(ipv6, "run", return_value="\n".join(self.LINES[1:])), \
+             mock.patch.object(ipv6, "get_wan_interface", return_value="wwan0"), \
+             mock.patch.object(ipv6, "is_forwarding_enabled", return_value=False), \
+             mock.patch.object(ipv6, "which", return_value=None):
+            status = ipv6.get_status()
+        self.assertEqual(v4, "192.0.0.2")
+        self.assertEqual(status["wan_address"], v6)
+
+
+class SignalTests(unittest.TestCase):
+
+    def test_placeholder_values_fall_back_to_lte(self):
+        from services import modem
+        text = ("  LTE |  rsrp: -95.00 dBm\n      |  rsrq: -11.00 dB\n      |  s/n: 7.00 dB\n"
+                "  5G  |  rsrp: -32768.00 dBm\n      |  rsrq: -32768.00 dB\n      |  s/n: -3276.80 dB\n")
+        self.assertEqual(modem.signal_values(text), {"rsrp": "-95.00", "rsrq": "-11.00", "sinr": "7.00"})
+
+    def test_real_5g_values_win(self):
+        from services import modem
+        text = ("  LTE |  rsrp: -95.00 dBm\n  5G  |  rsrp: -88.00 dBm\n")
+        self.assertEqual(modem.signal_values(text)["rsrp"], "-88.00")
+
+    def test_only_placeholders_give_nothing(self):
+        from services import modem
+        self.assertEqual(modem.signal_values("  5G  |  rsrp: -32768.00 dBm\n"), {})
+
+
 if __name__ == "__main__":
     unittest.main()

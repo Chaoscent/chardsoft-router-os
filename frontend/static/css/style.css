@@ -556,6 +556,29 @@ main{
     margin-top:var(--space-2);
 }
 
+/* In the card grids the label sits right above its field: a label
+   column left short labels far away from their fields. */
+.settings-grid > .setting-field,
+.settings-grid > .setting-group{
+    grid-template-columns:minmax(0,1fr);
+    gap:var(--space-0);
+}
+
+.settings-grid > .setting-field > :not(label),
+.settings-grid > .setting-group > :not(label){
+    grid-column:1;
+}
+
+.settings-grid > .setting-field > label,
+.settings-grid > .setting-group > label{
+    padding-top:0;
+}
+
+/* 3: space between an explanation and the fields under it. */
+.setting-hint + .settings-grid{
+    margin-top:var(--space-3);
+}
+
 .setting-field,
 .setting-group,
 .setup-field,
@@ -664,6 +687,10 @@ select.setting-input{
 .setting-readonly{
     display:flex;
     align-items:center;
+    height:auto;
+    min-height:var(--control-height);
+    padding-block:4px;
+    overflow-wrap:anywhere;
     color:var(--color-text-muted);
     background:var(--color-panel);
     border-color:var(--color-border);
@@ -2667,6 +2694,12 @@ a.setup-open{
     .setup-field > label,
     .key-row > label{
         padding-top:0;
+    }
+
+    /* Also beats the narrower label column of the setup and login boxes. */
+    .login-card .setup-field,
+    .setup-card .setup-field{
+        grid-template-columns:minmax(0,1fr);
     }
 
     .dashboard-system,

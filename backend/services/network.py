@@ -1600,3 +1600,34 @@ def get_lan_client_counts():
 def get_connected_clients():
 
     return get_lan_client_counts()[0]
+
+
+# Flags of IPv6 addresses not to show as "the" address: privacy
+# addresses change every few hours, deprecated ones are on their way out.
+UNSTABLE_IPV6_FLAGS = {"temporary", "deprecated", "tentative", "dadfailed"}
+
+
+def pick_ipv6(lines):
+    """
+    The address to show from `ip -o addr` lines (newest first): the first
+    stable global one, else the first global one. None without any.
+    """
+
+    stable = fallback = None
+
+    for line in lines:
+
+        parts = line.split()
+
+        if "inet6" not in parts:
+            continue
+
+        address = parts[parts.index("inet6") + 1].split("/")[0]
+
+        fallback = fallback or address
+
+        if not UNSTABLE_IPV6_FLAGS & set(parts):
+            stable = address
+            break
+
+    return stable or fallback
