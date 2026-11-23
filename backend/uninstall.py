@@ -337,7 +337,7 @@ def main():
         step(f"{AREAS[name].label} off", area_off, name, data)
 
     step("Firewall rules", remove_ufw_rules)
-    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS)", remove_chains)
+    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS, CHAOS-LOOP, CHAOS-CLAT, LAN routing table)", remove_chains)
     step("Config files (dnsmasq, hostapd, VPN, Caddy routes)", remove_files)
     step("dnsmasq restarted", restart_dnsmasq)
     step("Routing properties of Ethernet connections", reset_route_properties)
