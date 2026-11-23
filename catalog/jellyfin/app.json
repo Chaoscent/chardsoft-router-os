@@ -6,6 +6,7 @@
   "website": "https://jellyfin.org",
   "port": 9103,
   "download_mb": 1200,
+  "min_ram_mb": 2048,
   "dirs": ["config", "cache", "media"],
   "first_steps": "Follow the setup on the first visit. Put your media into the app's media folder on the router (shown on the Apps page)."
 }

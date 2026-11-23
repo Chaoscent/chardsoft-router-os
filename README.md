@@ -76,6 +76,7 @@ Add `catalog/<app>/app.json` and `catalog/<app>/compose.yaml`:
   - `id` (the folder name), `name`, `description`, `category`, `website`.
   - `port`: a free port, 9100 and up.
   - `download_mb`.
+  - Optional `min_ram_mb`: the board memory the app needs to run well (1024, 2048, 4096...). On smaller boards the Apps page warns before installing.
   - Optional: `https` (true if it only works over HTTPS), `first_steps`, `secrets` (names of passwords to generate) and `dirs` (folders to create in its data folder).
 - **`compose.yaml`:**
   - Publish the web port as `"127.0.0.1:${CHAOS_PORT}:<port inside>"`.
