@@ -12,6 +12,7 @@ that does not work on this router is rolled back like any change.
 """
 
 import base64
+import copy
 import hashlib
 import ipaddress
 import json
@@ -29,7 +30,7 @@ from services.config import (
     save_system
 )
 
-from services import transaction
+from services import schema, transaction
 
 from services.dashboard_layout import validate_layout
 
@@ -114,6 +115,7 @@ def create_backup():
     backup = {
         "format": FORMAT,
         "version": VERSION,
+        "schema": schema.VERSION,
         "created": created,
         "hostname": hostname,
         **content,
@@ -703,6 +705,16 @@ def parse_backup(raw, password=None):
 
     if raw.get("checksum") != checksum(content):
         return False, "The backup file was changed or damaged (checksum mismatch)."
+
+    # Settings from an older Router OS are brought to this version's
+    # format before they are checked and restored.
+    try:
+        raw["config"] = copy.deepcopy(raw["config"])
+        schema.migrate_files(raw["config"], raw.get("schema", 1))
+    except ValueError as e:
+        return False, str(e)
+    except (TypeError, KeyError, AttributeError):
+        return False, "The backup's settings could not be updated to this version."
 
     return True, raw
 

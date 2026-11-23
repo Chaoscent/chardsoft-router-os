@@ -191,7 +191,11 @@ An app restart (not a reboot) keeps running changes but reverts unconfirmed ones
 
 ## Settings Format Changes
 
-There are no schema version numbers yet. When a format changes, the module reads the old format and converts it on the fly. For example, `wifi.json` and `dhcp.json` used to describe a single network or scope and are read as the settings of that one interface. The converted form is saved with the next change. Backups are validated with the same functions.
+`/var/lib/chaos-router-os/schema.json` holds the format version of the settings files (`backend/services/schema.py`); an install without it is version 1. On every start, before the boot sync, files from an older version go through the update steps in `MIGRATIONS`, in both the persistent and the running layer, and the new version is saved. Each step works on any subset of files and is safe to run twice. Settings from a newer version (after a downgrade) are left alone.
+
+Backups record the format as `schema`. A restore runs the same steps on an older backup before validating it, and refuses one from a newer Router OS.
+
+Small changes can still be read on the fly instead: `wifi.json` and `dhcp.json` used to describe a single network or scope and are read as the settings of that one interface; the converted form is saved with the next change.
 
 ---
 

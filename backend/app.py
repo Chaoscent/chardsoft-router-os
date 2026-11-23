@@ -382,6 +382,7 @@ from services.logs import (
 )
 
 from services.config import sync_boot
+from services import schema
 
 from services.traffic import get_traffic, get_history, get_interfaces as get_traffic_interfaces
 
@@ -3633,6 +3634,10 @@ def update_password():
 
 
 def startup():
+
+        # Settings files from an older Router OS are brought up to
+        # the current format before anything reads them.
+        schema.migrate()
 
         # After a boot, the running config is rebuilt from the
         # persistent (verified) config and applied to the system.
