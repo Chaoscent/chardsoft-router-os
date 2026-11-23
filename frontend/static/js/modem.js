@@ -63,7 +63,13 @@ renderDataLink(d){
     mobileAddresses.textContent=[d.ipv4,d.ipv6].filter(Boolean).join(" · ")||"--";
 
     const sw=d.usb_switch||{};
-    const show=d.data_dropped||sw.running||(sw.message&&sw.success===false);
+
+    // Restarted by the watchdog in the last 15 minutes.
+    const restarted=d.auto_restart&&Date.now()/1000-d.auto_restart<900
+        ?`The data link was stuck, so the modem was restarted automatically at ${new Date(d.auto_restart*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}.`
+        :"";
+
+    const show=d.data_dropped||sw.running||(sw.message&&sw.success===false)||restarted;
 
     modemDataCard.classList.toggle("hidden",!show);
 
@@ -71,7 +77,9 @@ renderDataLink(d){
 
     modemDataInfo.textContent=d.quectel&&d.usb_mode==="mbim"
         ?`Mobile data is connected, but the modem's received data is discarded: ${d.rx_errors} received packets were dropped as errors. Quectel modems do this in MBIM mode on Linux. QMI mode fixes it; the modem restarts once (about a minute without mobile data).`
-        :`Mobile data is connected, but ${d.rx_errors} received packets were dropped as errors.`;
+        :d.data_dropped
+            ?`Mobile data is connected, but ${d.rx_errors} received packets were dropped as errors. The router restarts the modem by itself if this goes on.`
+            :restarted;
 
     modemSwitchQmi.classList.toggle("hidden",!(d.quectel&&d.usb_mode==="mbim"));
     modemSwitchQmi.disabled=!!sw.running;

@@ -24,7 +24,7 @@ for name, folder in (("CHAOS_DEFAULTS_DIR", "etc"), ("CHAOS_STATE_DIR", "var"), 
 
 os.environ.setdefault("CHAOS_SKIP_STARTUP", "1")
 
-from services import modem  # noqa: E402
+from services import modem, modem_watchdog as wd  # noqa: E402
 
 
 class ReadingCacheTests(unittest.TestCase):
@@ -60,6 +60,64 @@ class ReadingCacheTests(unittest.TestCase):
             first = modem.get_modem_data()
             first["state"] = "changed"
             self.assertEqual(modem.get_modem_data()["state"], "ready")
+
+
+def sample(rx, errors, tx):
+    return {"rx_packets": rx, "rx_errors": errors, "tx_packets": tx}
+
+
+class WatchdogTests(unittest.TestCase):
+
+    def setUp(self):
+        wd.state.update(previous=None, stuck=0, resets=[], last_reset=None)
+        self.counters = sample(100, 0, 100)
+        self.resets = []
+
+    def run_samples(self, steps, connection="activated"):
+        """steps: (received, errors, sent) per sample; returns check() results."""
+        results = []
+        with mock.patch.object(wd.modem, "wwan_interface", return_value=("wwan0", "qmi_wwan")), \
+             mock.patch.object(wd.modem, "get_connection_state", return_value=connection), \
+             mock.patch.object(wd, "counters", side_effect=lambda i: dict(self.counters)), \
+             mock.patch.object(wd, "reset_modem", side_effect=lambda reason: self.resets.append(reason) or True):
+            results.append(wd.check())
+            for rx, err, tx in steps:
+                c = self.counters
+                self.counters = sample(c["rx_packets"] + rx, c["rx_errors"] + err, c["tx_packets"] + tx)
+                results.append(wd.check())
+        return results
+
+    def test_rejected_packets_lead_to_one_reset(self):
+        results = self.run_samples([(0, 1500, 0)] * 3)
+        self.assertEqual(results, ["ok", "stuck", "stuck", "reset"])
+        self.assertEqual(len(self.resets), 1)
+        self.assertIn("rejected", self.resets[0])
+        self.assertIsNotNone(wd.state["last_reset"])
+
+    def test_sending_without_answers_is_stuck_too(self):
+        self.assertEqual(self.run_samples([(0, 0, 200)] * 3)[-1], "reset")
+
+    def test_a_working_link_is_left_alone(self):
+        results = self.run_samples([(0, 1500, 0), (0, 1500, 0), (5, 1500, 10), (0, 1500, 0)])
+        self.assertEqual(results, ["ok", "stuck", "stuck", "ok", "stuck"])
+        self.assertEqual(self.resets, [])
+
+    def test_quiet_link_is_not_stuck(self):
+        self.assertNotIn("reset", self.run_samples([(0, 0, 3)] * 6))
+
+    def test_cooldown_and_hourly_limit(self):
+        stuck = [(0, 1500, 0)] * 30
+        with mock.patch.object(wd.time, "monotonic", side_effect=[i * 100.0 for i in range(1000)]):
+            self.run_samples(stuck)
+        # A reset every 300 s at most, 3 per hour.
+        self.assertLessEqual(len(self.resets), wd.MAX_RESETS_PER_HOUR)
+        self.assertGreaterEqual(len(self.resets), 2)
+
+    def test_nothing_happens_without_mobile_data(self):
+        self.assertEqual(set(self.run_samples([(0, 1500, 0)] * 4, connection="deactivated")), {"idle"})
+
+    def test_counter_restart_is_not_stuck(self):
+        self.assertFalse(wd.is_stuck(sample(500, 900, 500), sample(3, 2, 3)))
 
 
 if __name__ == "__main__":

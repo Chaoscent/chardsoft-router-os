@@ -331,6 +331,7 @@ from services.caddy import tls_allowed, root_certificate, BEHIND_CADDY
 from services import apps as router_apps
 
 from services import ipv6
+from services import modem_watchdog
 
 from services.update import (
 
@@ -2554,9 +2555,12 @@ def logs_clear_api():
 
 def modem_api():
 
+        data = get_modem_data()
 
+        # When the watchdog last restarted a stuck modem (Unix time).
+        data["auto_restart"] = modem_watchdog.state["last_reset"]
 
-        return jsonify(get_modem_data())
+        return jsonify(data)
 
 
 
@@ -3681,6 +3685,9 @@ def watch_interfaces():
 
         # The LAN's IPv6 addresses come back after an interface reset.
         ipv6.watch_lan_addresses()
+
+        # A modem that is "connected" but passes no data gets restarted.
+        modem_watchdog.watch()
 
 
 def start_setup_wifi():
