@@ -58,6 +58,7 @@ Networking-first installation.
 * WiFi (hostapd, 2.4 / 5 / 6 GHz, one network per radio, QR code to join)
 * DHCP (dnsmasq, one range per interface)
 * DNS (dnsmasq)
+* Routes (routing tables and rules in plain words, your own static routes)
 * Clients
 * Firewall (ufw)
 * VPN (WireGuard and OpenVPN, servers and clients)

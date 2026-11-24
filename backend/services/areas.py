@@ -13,6 +13,7 @@ from services import (
     network,
     firewall,
     routing,
+    routes,
     clients,
     dhcp,
     dns,
@@ -64,7 +65,7 @@ AREAS = {area.name: area for area in (
         baseline=network.get_network_baseline,
         confirm=True,
         dependents=(
-            "wifi", "firewall", "routing", "dhcp", "dns",
+            "wifi", "firewall", "routing", "static_routes", "dhcp", "dns",
             "wireguard", "openvpn", "vpn_profiles"
         )
     ),
@@ -99,6 +100,16 @@ AREAS = {area.name: area for area in (
         boot_defaults=True,
         # IPv6 on or off changes the router advertisements.
         dependents=("dhcp",)
+    ),
+
+    # Your own routes (Routes page). A wrong one can cut the browser
+    # off, so it waits for confirmation. Routes that cannot be added yet
+    # wait without failing the change (see routes.sync).
+    Area(
+        "static_routes", "Static routes",
+        apply=routes.sync,
+        baseline=lambda: {"routes": []},
+        confirm=True
     ),
 
     # Blocking your own device locks you out: confirm like the firewall.

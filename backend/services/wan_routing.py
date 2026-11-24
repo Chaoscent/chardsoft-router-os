@@ -294,6 +294,14 @@ def watch():
             except Exception as e:
                 print(f"[routing] LAN routing: {e}")
 
+            # Static routes the kernel dropped with their interface, or
+            # that waited for their gateway (Routes page).
+            try:
+                from services import routes
+                routes.sync()
+            except Exception as e:
+                print(f"[routing] static routes: {e}")
+
             time.sleep(WATCH_SECONDS)
 
     threading.Thread(target=loop, daemon=True, name="lan-routing").start()

@@ -1936,6 +1936,52 @@ select.setting-input{
     margin-top:var(--space-3);
 }
 
+/* Routes page */
+.route-family{
+    display:inline-flex;
+    gap:var(--space-1);
+    margin-left:auto;
+}
+
+.route-family .widget-title-btn{
+    margin-left:0;
+}
+
+.route-family .widget-title-btn[aria-pressed="true"]{
+    color:var(--color-accent);
+    border-color:var(--color-accent);
+    background:var(--color-accent-subtle);
+}
+
+.route-table tr.route-mine{
+    background:var(--color-accent-subtle);
+}
+
+.route-rules{
+    margin-top:var(--space-4);
+}
+
+.route-rules > summary{
+    width:fit-content;
+    font-size:var(--text-sm);
+    color:var(--color-text-muted);
+    cursor:pointer;
+}
+
+.route-rules > .setting-hint{
+    margin:var(--space-3) 0;
+}
+
+/* Addresses stay whole; narrow screens scroll the table sideways. */
+td.mono{
+    font-family:var(--font-mono);
+    white-space:nowrap;
+}
+
+.card > .setting-hint + .table-scroll{
+    margin-top:var(--space-3);
+}
+
 /* Wi-Fi QR code: dark on white in both themes, so phones can scan it. */
 .wifi-qr{
     display:grid;

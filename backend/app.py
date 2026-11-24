@@ -336,6 +336,7 @@ from services import wan_routing
 from services import data_usage
 from services import internet_check
 from services import qr
+from services import routes as static_routes
 
 from services.update import (
 
@@ -976,6 +977,8 @@ VALID_PAGES = {
         "dhcp",
 
         "dns",
+
+        "routes",
 
         "clients",
 
@@ -1758,6 +1761,32 @@ def safe_apply_response(outcome):
         # 400 when nothing changed (invalid input or a failed apply that
         # was rolled back), 200 when applied (possibly awaiting confirm).
         return jsonify(outcome), 200 if outcome["success"] else 400
+
+
+
+
+@app.route("/api/routes")
+
+@login_required
+
+def routes_api():
+
+        return jsonify(static_routes.get_status())
+
+
+
+@app.route("/api/routes/settings", methods=["POST"])
+
+@login_required
+
+def routes_settings_api():
+
+        ok, result = static_routes.validate_settings(request.get_json(silent=True))
+
+        if not ok:
+                return jsonify({"success": False, "message": result}), 400
+
+        return safe_apply_response(transaction.change(static_routes.SETTINGS, result))
 
 
 

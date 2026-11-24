@@ -1,0 +1,193 @@
+<section class="page">
+
+    <div class="page-header">
+        <h1>Routes</h1>
+    </div>
+
+    <!-- The user's own static routes (services/routes.py) -->
+
+    <div class="card">
+
+        <span>Your routes</span>
+
+        <p class="setting-hint">
+            Send traffic for a network to a gateway of your choice, e.g. another router on your
+            network that leads to 10.20.0.0/16. The router uses them, and so do your devices, as far
+            as the firewall lets their traffic through. The internet connection itself is chosen on
+            the Network page.
+        </p>
+
+        <div class="table-scroll">
+
+            <table class="client-table data-table">
+
+                <thead>
+                    <tr>
+                        <th>Destination</th>
+                        <th>Gateway</th>
+                        <th>Interface</th>
+                        <th class="num">Metric</th>
+                        <th>Note</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+
+                <tbody id="routeTable"></tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <!-- Add or edit one route -->
+
+    <div class="card" id="routeFormCard">
+
+        <span id="routeFormTitle">Add route</span>
+
+        <div class="settings-grid">
+
+            <div class="setting-field">
+                <label for="routeDestInput">Destination</label>
+                <input
+                    id="routeDestInput"
+                    class="setting-input"
+                    type="text"
+                    placeholder="e.g. 10.20.0.0/16"
+                    autocomplete="off"
+                    spellcheck="false">
+            </div>
+
+            <div class="setting-field">
+                <label for="routeGatewayInput">Gateway</label>
+                <input
+                    id="routeGatewayInput"
+                    class="setting-input"
+                    type="text"
+                    placeholder="e.g. 192.168.1.5"
+                    autocomplete="off"
+                    spellcheck="false">
+            </div>
+
+            <div class="setting-field">
+                <label for="routeInterfaceInput">Interface</label>
+                <select id="routeInterfaceInput" class="setting-input"></select>
+            </div>
+
+        </div>
+
+        <div class="settings-grid">
+
+            <div class="setting-field">
+                <label for="routeMetricInput">Metric</label>
+                <input
+                    id="routeMetricInput"
+                    class="setting-input"
+                    type="number"
+                    min="0"
+                    max="9999"
+                    placeholder="0 (lower wins)"
+                    inputmode="numeric">
+            </div>
+
+            <div class="setting-field">
+                <label for="routeCommentInput">Note</label>
+                <input
+                    id="routeCommentInput"
+                    class="setting-input"
+                    type="text"
+                    maxlength="64"
+                    placeholder="Optional, e.g. Office network"
+                    autocomplete="off">
+            </div>
+
+            <div class="setting-field">
+                <label for="routeEnabledInput">Route</label>
+                <select id="routeEnabledInput" class="setting-input">
+                    <option value="true">On</option>
+                    <option value="false">Off (kept, not used)</option>
+                </select>
+            </div>
+
+        </div>
+
+        <p class="setting-hint">
+            A gateway is enough in most cases: the router finds the interface by itself. Without a
+            gateway, the destination must be reachable directly on the interface (e.g. a VPN tunnel).
+            Changes wait for your confirmation, so a wrong route cannot lock you out.
+        </p>
+
+        <div class="setting-row">
+            <button id="routeCancel" class="secondary-btn hidden" type="button">Cancel</button>
+            <button id="routeSubmit" class="save-btn" type="button">Add route</button>
+        </div>
+
+        <div id="routeStatus" class="setting-status" role="status"></div>
+
+    </div>
+
+
+    <!-- What the kernel uses right now -->
+
+    <div class="card">
+
+        <span>
+            Routing tables
+            <span class="route-family" role="group" aria-label="IP version">
+                <button id="routeShow4" class="secondary-btn widget-title-btn" type="button" aria-pressed="true">IPv4</button>
+                <button id="routeShow6" class="secondary-btn widget-title-btn" type="button" aria-pressed="false">IPv6</button>
+            </span>
+        </span>
+
+        <div class="table-scroll">
+
+            <table class="client-table data-table route-table">
+
+                <thead>
+                    <tr>
+                        <th>Destination</th>
+                        <th>Via</th>
+                        <th>Interface</th>
+                        <th class="num">Metric</th>
+                        <th>Origin</th>
+                        <th>Table</th>
+                    </tr>
+                </thead>
+
+                <tbody id="routeKernelTable"></tbody>
+
+            </table>
+
+        </div>
+
+        <details class="route-rules">
+
+            <summary>How the router picks a table (rules)</summary>
+
+            <p class="setting-hint">
+                Rules are checked from the lowest number up; the first table with a matching route
+                wins. "Your devices" is the table for traffic from your network: it always leaves
+                through the internet connection, even when another interface has a default route.
+            </p>
+
+            <div class="table-scroll">
+                <table class="client-table data-table">
+                    <thead>
+                        <tr>
+                            <th class="num">Order</th>
+                            <th>Rule</th>
+                            <th>Meaning</th>
+                        </tr>
+                    </thead>
+                    <tbody id="routeRuleTable"></tbody>
+                </table>
+            </div>
+
+        </details>
+
+    </div>
+
+</section>

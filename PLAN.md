@@ -69,6 +69,12 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   mobile data off, a SIM PIN, a pulled antenna or a stopped CLAT give the
   matching message and button ("Switch on mobile data", "Restart modem",
   "Repair").
+- [ ] **Routes page:** a static route to a network behind another router on
+  the LAN (e.g. `10.20.0.0/16 via 192.168.1.5`) shows "Active", is in
+  `ip route show proto 77`, and the router reaches that network; it comes
+  back after unplugging and replugging the cable; a gateway outside every
+  network shows "Waiting" with the reason; the tables match `ip route show
+  table all`.
 - [ ] **Wi-Fi QR code** (Wi-Fi page, "Show QR code"): an iPhone and an Android
   phone join by scanning it, also with WPA3 and a hidden network.
 - [ ] **IPv6 for the LAN** (Firewall page, Routing & NAT): with the modem
@@ -150,6 +156,8 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   warning in the Logs, optional stop of the LAN's internet at the limit,
   "Resume anyway", correction to the carrier's count (Modem page).
 - Wi-Fi page: "Show QR code" for the saved network (drawn on the router).
+- Routes page: the routing tables (router, "Your devices", VPN tables) and
+  rules in plain words, and static routes of your own through Safe Apply.
 - The dashboard stays responsive while the modem is slow (polls wait for
   the last answer; one modem reading shared by all requests; timeouts).
 - Modem watchdog: a stuck data link (every received packet rejected, or no
