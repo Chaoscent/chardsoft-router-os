@@ -91,6 +91,13 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   (`timedatectl` says not synchronised): with a position the Logs say
   "Clock set from GNSS" and `date` is right; with internet time GNSS never
   touches it. The dashboard's "Location" widget (Edit dashboard) matches.
+- [ ] **GNSS map** (Modem page): the world map shows the router's dot; with
+  "Track: Keep 1 day" a drive draws a line. "Download map" for the router's
+  country at "Streets": the pmtiles tool comes from GitHub (checksum
+  checked), the progress shows, and afterwards the map has streets and
+  labels with no request leaving the router (browser dev tools: only the
+  router's address). Check the size and time it took over mobile data and
+  that "Stop download" and "Delete detailed map" work.
 - [ ] **Guest Wi-Fi:** first check what the radios allow (`iw phy` "valid
   interface combinations": the page says when a radio sends only one
   network; the Pi's own Wi-Fi may be such a radio, a USB adapter usually is
@@ -199,6 +206,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - Clients page: pause a device's internet (30 minutes to "until I resume
   it") and weekly offline times (e.g. school nights 21:00-07:00); the
   device keeps reaching the router.
+- GNSS map: built-in world map (Natural Earth), optional detailed
+  OpenStreetMap map of one country downloaded onto the router (Protomaps
+  build, pmtiles extract), and an optional position track.
 - GNSS from the modem (Modem page, optional dashboard widget): position,
   satellites per constellation, the mobile cell, and the clock from GNSS
   while there is no internet time.

@@ -3443,3 +3443,43 @@ a.setup-open{
 .dashboard-gnss .gnss-position{
     margin-top:var(--space-3);
 }
+
+.gnss-map-wrap{
+    position:relative;
+    margin-top:var(--space-3);
+}
+
+.gnss-map{
+    height:360px;
+    background:var(--color-surface-alt);
+    border:var(--hairline) solid var(--color-border);
+}
+
+.gnss-center{
+    position:absolute;
+    left:var(--space-2);
+    bottom:var(--space-2);
+    height:var(--control-height-sm);
+    font-size:var(--text-sm);
+    background:var(--color-panel);
+}
+
+.gnss-maps{
+    margin-top:var(--space-4);
+    padding-top:var(--space-4);
+    border-top:var(--hairline) solid var(--color-border);
+}
+
+.gnss-maps h3{
+    margin:0 0 var(--space-2);
+    font-family:var(--font-heading);
+    font-size:var(--text-md);
+}
+
+@media (max-width:640px){
+
+    .gnss-map{
+        height:280px;
+    }
+
+}

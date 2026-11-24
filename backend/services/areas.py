@@ -198,6 +198,8 @@ AREAS = {area.name: area for area in (
     Area("dashboard", "Dashboard"),
     # The data limit is enforced by data_usage's own watcher.
     Area("data_usage", "Data limit"),
+    # Where the detailed map is downloaded from (services/maps.py).
+    Area("maps", "Map source"),
     Area("security", "Session timeouts"),
     Area("shell", "Web shell"),
     Area("users", "Login", secret=True)

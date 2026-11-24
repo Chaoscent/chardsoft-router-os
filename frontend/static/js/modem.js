@@ -344,8 +344,11 @@ async loadGnss(first=false){
     if(first){
         gnssEnabledInput.value=String(data.enabled);
         gnssClockInput.value=String(data.set_clock);
-        ["gnssEnabledInput","gnssClockInput"].forEach(id=>ChaosSelect.refresh(document.getElementById(id)));
+        gnssTrackInput.value=String(data.track_days);
+        ["gnssEnabledInput","gnssClockInput","gnssTrackInput"].forEach(id=>ChaosSelect.refresh(document.getElementById(id)));
     }
+
+    this.lastGnss=data;
 
     this.renderGnss(data);
 
@@ -364,8 +367,11 @@ renderGnss(data){
     gnssPosition.textContent=p?`${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}`:"—";
     gnssMapRow.classList.toggle("hidden",!p);
 
+    this.mapView?.setPosition(p||null);
+    gnssCenter.classList.toggle("hidden",!p||!this.mapView);
+
     if(p){
-        gnssMap.href=`https://www.openstreetmap.org/?mlat=${p.latitude}&mlon=${p.longitude}#map=16/${p.latitude}/${p.longitude}`;
+        gnssOsm.href=`https://www.openstreetmap.org/?mlat=${p.latitude}&mlon=${p.longitude}#map=16/${p.latitude}/${p.longitude}`;
         gnssCopy.onclick=async()=>{
             try{
                 await navigator.clipboard.writeText(`${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}`);
@@ -413,7 +419,8 @@ async saveGnss(){
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
             enabled:gnssEnabledInput.value==="true",
-            set_clock:gnssClockInput.value==="true"
+            set_clock:gnssClockInput.value==="true",
+            track_days:Number(gnssTrackInput.value)
         })
     });
 
@@ -424,9 +431,229 @@ async saveGnss(){
 
     if(data.status)this.renderGnss(data.status);
 
+    this.loadTrack();
+
+},
+
+// ------------------------------------------------------------
+// Map
+// ------------------------------------------------------------
+
+/** MapLibre only once the card is on screen: it is a big download. */
+watchMap(){
+
+    const start=()=>this.openMap();
+
+    if(!("IntersectionObserver" in window))return start();
+
+    this.mapObserver=new IntersectionObserver(entries=>{
+        if(entries.some(e=>e.isIntersecting)){
+            this.mapObserver.disconnect();
+            start();
+        }
+    },{rootMargin:"200px"});
+
+    this.mapObserver.observe(gnssMap);
+
+},
+
+async openMap(){
+
+    const region=this.maps?.state==="ready"?this.maps.region:null;
+
+    try{
+
+        if(!window.ChaosMap)await this.loadScript("/static/js/map.js");
+
+        this.mapView?.destroy();
+        this.mapView=await ChaosMap.create(gnssMap,{region});
+
+        if(this.lastGnss)this.renderGnss(this.lastGnss);
+
+        this.loadTrack();
+
+    }catch(error){
+
+        gnssMap.textContent=`The map could not load: ${error.message}`;
+
+    }
+
+},
+
+loadScript(src){
+
+    return new Promise((resolve,reject)=>{
+        const script=document.createElement("script");
+        script.src=src;
+        script.onload=resolve;
+        script.onerror=()=>reject(new Error(src));
+        document.head.appendChild(script);
+    });
+
+},
+
+async loadTrack(){
+
+    if(!this.mapView)return;
+
+    const res=await fetch("/api/gnss/track");
+
+    if(res.ok)this.mapView.setTrack((await res.json()).points);
+
+},
+
+async clearTrack(){
+
+    if(!await ChaosModal.confirm({
+        title:"Clear the track?",
+        subtitle:"Every position recorded so far is deleted from the router.",
+        confirmText:"Clear"
+    }))return;
+
+    const res=await fetch("/api/gnss/track/clear",{method:"POST"});
+    const data=await res.json().catch(()=>({message:"Unexpected server response."}));
+
+    gnssStatus.textContent=data.success?`✓ ${data.message}`:data.message;
+
+    this.loadTrack();
+
+},
+
+// ------------------------------------------------------------
+// Detailed map download
+// ------------------------------------------------------------
+
+formatSize(bytes){
+
+    if(bytes==null)return "--";
+    if(bytes>=1e9)return `${(bytes/1e9).toFixed(1)} GB`;
+
+    return `${Math.round(bytes/1e6)} MB`;
+
+},
+
+async loadMaps(){
+
+    const res=await fetch("/api/maps");
+
+    if(!res.ok)return;
+
+    const data=await res.json();
+    const before=this.maps?.state;
+
+    this.maps=data;
+
+    // The list once (again when the router's country becomes known),
+    // that country first, unless a choice was made already.
+    if(!mapsCountry.options.length||(data.here&&data.here!==this.mapsHere&&!this.mapsChosen)){
+
+        this.mapsHere=data.here;
+
+        const here=data.countries.find(c=>c.code===data.here);
+        const list=here?[here,...data.countries.filter(c=>c!==here)]:data.countries;
+
+        mapsCountry.replaceChildren(...list.map(c=>new Option(c===here?`${c.name} (where the router is)`:c.name,c.code)));
+
+        const chosen=data.region?.code||data.here;
+
+        if(chosen)mapsCountry.value=chosen;
+
+        ChaosSelect.refresh(mapsCountry);
+
+    }
+
+    this.renderMaps(data);
+
+    if(before==="downloading"&&data.state==="ready")mapsStatus.textContent="✓ Map downloaded. The map now shows it.";
+
+    // Finished or deleted: the map switches its data.
+    if(before&&before!==data.state&&(data.state==="ready"||before==="ready")&&this.mapView)this.openMap();
+
+},
+
+renderMaps(data){
+
+    const downloading=data.state==="downloading";
+
+    mapsDownload.classList.toggle("hidden",downloading);
+    mapsCancel.classList.toggle("hidden",!downloading);
+    mapsDelete.classList.toggle("hidden",data.state!=="ready");
+    mapsChoice.classList.toggle("hidden",downloading);
+
+    mapsDownload.textContent=data.state==="ready"?"Download another country":"Download map";
+
+    const free=data.free!=null?` ${this.formatSize(data.free)} free on the router.`:"";
+
+    if(data.state==="ready"){
+        const r=data.region;
+        mapsInfo.textContent=`${r.name}, ${data.details[r.maxzoom]?.toLowerCase()||`zoom ${r.maxzoom}`}: ${this.formatSize(data.size)}, OpenStreetMap of ${r.build.replace(".pmtiles","")}.${free}`;
+    }else if(downloading){
+        mapsInfo.textContent=data.stage==="tool"
+            ?`Preparing the download of ${data.country} (fetching the pmtiles tool and the list of builds)...`
+            :data.downloaded
+                ?`Downloading ${data.country}: ${this.formatSize(data.downloaded)} so far, ${Math.floor(data.seconds/60)} min.${free}`
+                :`Downloading ${data.country}, ${Math.floor(data.seconds/60)} min so far (the tool's progress is below).${free}`;
+    }else{
+        mapsInfo.textContent=`None yet: the map shows the countries of the world only.${free}`;
+    }
+
+    // A failed download keeps the map there was: the error shows either way.
+    if(data.error&&!downloading)mapsStatus.textContent=`The last download failed: ${data.error}`;
+
+    mapsLog.textContent=data.log||"";
+    mapsLog.classList.toggle("hidden",!(downloading||data.state==="failed")||!data.log);
+
+},
+
+async mapsAction(url,body){
+
+    const res=await fetch(url,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(body||{})
+    });
+
+    const data=await res.json().catch(()=>({message:"Unexpected server response."}));
+
+    mapsStatus.textContent=data.success?`✓ ${data.message}`:data.message;
+
+    await this.loadMaps();
+
+},
+
+async downloadMap(){
+
+    const name=mapsCountry.selectedOptions[0]?.textContent||"this country";
+
+    if(!await ChaosModal.confirm({
+        title:`Download the map of ${name.replace(" (where the router is)","")}?`,
+        subtitle:"This can take a while and uses the router's internet (mobile data counts towards your limit). A detailed map you already have is replaced when the new one is done.",
+        confirmText:"Download"
+    }))return;
+
+    this.mapsAction("/api/maps/download",{country:mapsCountry.value,maxzoom:Number(mapsDetail.value)});
+
 },
 
 init(){
+
+    ["mapsCountry","mapsDetail","gnssTrackInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+
+    mapsDownload.onclick=()=>this.downloadMap();
+    mapsCountry.addEventListener("change",()=>{ this.mapsChosen=true; });
+    mapsCancel.onclick=()=>this.mapsAction("/api/maps/cancel");
+    mapsDelete.onclick=async()=>{
+        if(await ChaosModal.confirm({title:"Delete the detailed map?",subtitle:"The map shows the countries of the world only again.",confirmText:"Delete"}))
+            this.mapsAction("/api/maps/delete");
+    };
+
+    gnssTrackClear.onclick=()=>this.clearTrack();
+    gnssCenter.onclick=()=>this.mapView?.center();
+
+    this.loadMaps().then(()=>this.watchMap());
+    this.mapsTimer=Poll.every(5000,()=>this.loadMaps());
+    this.trackTimer=Poll.every(60000,()=>this.loadTrack());
+
 
     ["gnssEnabledInput","gnssClockInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
 
@@ -484,6 +711,15 @@ destroy(){
     Poll.stop(this.timer);
     Poll.stop(this.usageTimer);
     Poll.stop(this.gnssTimer);
+    Poll.stop(this.mapsTimer);
+    Poll.stop(this.trackTimer);
+
+    this.mapObserver?.disconnect();
+    this.mapView?.destroy();
+    this.mapView=null;
+    this.maps=null;
+    this.mapsHere=null;
+    this.mapsChosen=false;
 
 }
 

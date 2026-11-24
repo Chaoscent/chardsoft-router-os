@@ -542,6 +542,7 @@ def get_validators():
     from services.routes import validate_settings as validate_routes
     from services.internet_time import validate_settings as validate_internet_time
     from services.gnss import validate_settings as validate_gnss
+    from services.maps import validate_settings as validate_maps
 
     return {
         "network": _validate_network,
@@ -552,6 +553,7 @@ def get_validators():
         "blocked_devices": _validate_blocked,
         "internet_time": _validate_with(validate_internet_time),
         "gnss": _validate_with(validate_gnss),
+        "maps": _validate_with(validate_maps),
         "dhcp": _validate_with(validate_dhcp_settings),
         "dns": _validate_with(validate_dns_settings),
         "wifi": _validate_with(validate_wifi_settings),

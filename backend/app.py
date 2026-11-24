@@ -28,7 +28,9 @@ from flask import (
 
         url_for,
 
-        Response
+        Response,
+
+        send_file
 
 )
 
@@ -340,6 +342,7 @@ from services import device_usage
 from services import notifications
 from services import guest as guest_wifi
 from services import gnss
+from services import maps as offline_maps
 from services import internet_check
 from services import qr
 from services import routes as static_routes
@@ -1829,11 +1832,133 @@ def gnss_settings_api():
 
         data = request.get_json(silent=True) or {}
 
-        outcome = gnss.save_settings({k: data[k] for k in ("enabled", "set_clock") if k in data})
+        outcome = gnss.save_settings({k: data[k] for k in ("enabled", "set_clock", "track_days") if k in data})
 
         outcome["status"] = gnss.get_status(refresh=True)
 
         return safe_apply_response(outcome)
+
+
+
+
+
+@app.route("/api/gnss/track")
+
+@login_required
+
+def gnss_track_api():
+
+        return jsonify(gnss.get_track())
+
+
+
+
+
+@app.route("/api/gnss/track/clear", methods=["POST"])
+
+@login_required
+
+def gnss_track_clear_api():
+
+        ok, message = gnss.clear_track()
+
+        return jsonify({"success": ok, "message": message})
+
+
+
+
+
+@app.route("/api/maps")
+
+@login_required
+
+def maps_api():
+
+        status = offline_maps.get_status()
+
+        # For the country list: the one the router is in comes first.
+        position = gnss.get_status().get("position")
+
+        status["here"] = offline_maps.country_at(position["latitude"], position["longitude"]) if position else None
+
+        status["countries"] = sorted(
+                ({"code": code, "name": info["name"]} for code, info in offline_maps.countries().items()),
+                key=lambda c: c["name"]
+        )
+
+        return jsonify(status)
+
+
+
+
+
+@app.route("/api/maps/download", methods=["POST"])
+
+@login_required
+
+def maps_download_api():
+
+        data = request.get_json(silent=True) or {}
+
+        ok, message = offline_maps.start(data.get("country"), data.get("maxzoom"))
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
+
+
+
+
+
+@app.route("/api/maps/cancel", methods=["POST"])
+
+@login_required
+
+def maps_cancel_api():
+
+        ok, message = offline_maps.cancel()
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
+
+
+
+
+
+@app.route("/api/maps/delete", methods=["POST"])
+
+@login_required
+
+def maps_delete_api():
+
+        ok, message = offline_maps.delete()
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
+
+
+
+
+
+@app.route("/api/maps/settings", methods=["POST"])
+
+@login_required
+
+def maps_settings_api():
+
+        return safe_apply_response(offline_maps.save_settings(request.get_json(silent=True) or {}))
+
+
+
+
+
+@app.route("/maps/region.pmtiles")
+
+@login_required
+
+def maps_region_file():
+
+        if not offline_maps.read_meta():
+                abort(404)
+
+        # Range requests: the map reads only the pieces it shows.
+        return send_file(offline_maps.REGION, mimetype="application/octet-stream", conditional=True, max_age=0)
 
 
 

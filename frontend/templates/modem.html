@@ -334,6 +334,11 @@
             <p id="gnssMessage">--</p>
         </div>
 
+        <div class="gnss-map-wrap">
+            <div id="gnssMap" class="gnss-map" role="region" aria-label="Map with the router's position"></div>
+            <button id="gnssCenter" class="secondary-btn gnss-center hidden" type="button">Center on the router</button>
+        </div>
+
         <div class="info-grid gnss-figures">
 
             <div class="info-row">
@@ -345,8 +350,8 @@
                 <span></span>
                 <strong>
                     <button id="gnssCopy" class="table-btn" type="button">Copy</button>
-                    <a id="gnssMap" class="table-btn" target="_blank" rel="noopener noreferrer"
-                       title="Opens OpenStreetMap: only then the position leaves the router">Open map</a>
+                    <a id="gnssOsm" class="table-btn" target="_blank" rel="noopener noreferrer"
+                       title="Opens openstreetmap.org: only then the position leaves the router">openstreetmap.org</a>
                 </strong>
             </div>
 
@@ -400,6 +405,16 @@
                 </select>
             </div>
 
+            <div class="setting-field">
+                <label for="gnssTrackInput">Track (where the router was)</label>
+                <select id="gnssTrackInput" class="setting-input">
+                    <option value="0">Off</option>
+                    <option value="1">Keep 1 day</option>
+                    <option value="7">Keep 7 days</option>
+                    <option value="30">Keep 30 days</option>
+                </select>
+            </div>
+
         </div>
 
         <p class="setting-hint">
@@ -407,11 +422,60 @@
             offline times and log times are wrong until then. With a position, GNSS sets it right away.
         </p>
 
+        <p class="setting-hint">
+            The track stays on the router and is drawn on the map. Switching it off deletes it.
+        </p>
+
         <div class="setting-row">
+            <button id="gnssTrackClear" class="secondary-btn" type="button">Clear track</button>
             <button id="gnssSave" class="save-btn" type="button">Save</button>
         </div>
 
         <div id="gnssStatus" class="setting-status" role="status"></div>
+
+        <!-- The detailed map on the router (services/maps.py) -->
+
+        <div class="gnss-maps">
+
+            <h3>Detailed map</h3>
+
+            <p id="mapsInfo" class="setting-hint">--</p>
+
+            <div class="settings-grid" id="mapsChoice">
+
+                <div class="setting-field">
+                    <label for="mapsCountry">Country</label>
+                    <select id="mapsCountry" class="setting-input"></select>
+                </div>
+
+                <div class="setting-field">
+                    <label for="mapsDetail">Detail</label>
+                    <select id="mapsDetail" class="setting-input">
+                        <option value="12">Towns and main roads (smallest)</option>
+                        <option value="14" selected>Streets</option>
+                        <option value="15">Everything: buildings, paths (largest)</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <p class="setting-hint">
+                Downloads that country's OpenStreetMap data once, from Protomaps' daily build, onto the
+                router (a few hundred MB to several GB; over mobile data it counts towards your data
+                limit). After that the map needs no internet and tells no one where the router is.
+            </p>
+
+            <div class="setting-row">
+                <button id="mapsDelete" class="secondary-btn hidden" type="button">Delete detailed map</button>
+                <button id="mapsCancel" class="secondary-btn hidden" type="button">Stop download</button>
+                <button id="mapsDownload" class="save-btn" type="button">Download map</button>
+            </div>
+
+            <div id="mapsStatus" class="setting-status" role="status"></div>
+
+            <pre id="mapsLog" class="config-preview hidden"></pre>
+
+        </div>
 
     </div>
 

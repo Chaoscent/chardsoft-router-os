@@ -9,6 +9,9 @@ Settings (the "gnss" area, part of backups):
     set_clock   while the clock has not been synchronised over the
                 internet (no RTC battery, no mobile data yet), a fresh
                 fix sets it
+    track_days  0 (off), 1, 7 or 30: the positions of that many days
+                are kept (STATE_DIR/gnss_track.json) and drawn as a line
+                on the map; a point every 25 m moved or 5 minutes
 
 ModemManager hands over the receiver's latest NMEA sentences
 (`mmcli --location-get`); they are parsed here, so the page can say
@@ -22,19 +25,27 @@ A modem restart (watchdog, "Restart modem") turns the receiver off:
 the watcher (every 5 s while on) switches it on again.
 """
 
+import atexit
 import datetime
 import json
-import re
+import math
 import threading
 import time
 
 from services import transaction
-from services.config import load_settings
+from services.config import load_settings, load_persistent, save_persistent
 from services.logs import log_event
 
 SETTINGS = "gnss"
 
-DEFAULT_SETTINGS = {"enabled": False, "set_clock": True}
+DEFAULT_SETTINGS = {"enabled": False, "set_clock": True, "track_days": 0}
+
+TRACK = "gnss_track"
+TRACK_DAYS = (0, 1, 7, 30)
+TRACK_MIN_METERS = 25
+TRACK_MIN_SECONDS = 300
+TRACK_MAX_POINTS = 20000
+TRACK_SAVE_SECONDS = 60
 
 WATCH_SECONDS = 5
 
@@ -90,7 +101,10 @@ def validate_settings(data):
 
         value = data.get(key, default)
 
-        if not isinstance(value, bool):
+        if key == "track_days":
+            if isinstance(value, bool) or value not in TRACK_DAYS:
+                return False, "Keep the track for 0, 1, 7 or 30 days."
+        elif not isinstance(value, bool):
             return False, "Invalid value."
 
         clean[key] = value
@@ -105,7 +119,13 @@ def save_settings(data):
     if not ok:
         return transaction.result(False, clean)
 
-    return transaction.change(SETTINGS, clean)
+    outcome = transaction.change(SETTINGS, clean)
+
+    # Track off: the positions are deleted, not just hidden.
+    if outcome["success"] and not clean["track_days"]:
+        clear_track()
+
+    return outcome
 
 
 # ------------------------------------------------------------------
@@ -423,6 +443,89 @@ def maybe_set_clock(state, fresh):
 
 
 # ------------------------------------------------------------------
+# The track
+# ------------------------------------------------------------------
+
+_track = {"points": None, "saved": 0.0, "dirty": False}
+
+
+def meters(a, b):
+    """Distance between two (latitude, longitude) points."""
+
+    lat1, lon1, lat2, lon2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+
+    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+
+    return 6371000 * 2 * math.asin(math.sqrt(h))
+
+
+def _track_points():
+
+    if _track["points"] is None:
+        data = load_persistent(TRACK, [])
+        _track["points"] = [p for p in data if isinstance(p, list) and len(p) == 3] if isinstance(data, list) else []
+
+    return _track["points"]
+
+
+def _save_track(force=False):
+
+    if _track["points"] is not None and _track["dirty"] and (force or time.time() - _track["saved"] >= TRACK_SAVE_SECONDS):
+        save_persistent(TRACK, _track["points"])
+        _track.update(saved=time.time(), dirty=False)
+
+
+def add_to_track(latitude, longitude, now, days):
+    """Notes a position when it moved or a while passed; drops old points."""
+
+    points = _track_points()
+
+    keep_from = now - days * 86400
+
+    if points and points[0][0] < keep_from:
+        points[:] = [p for p in points if p[0] >= keep_from]
+        _track["dirty"] = True
+
+    last = points[-1] if points else None
+
+    if last is None or meters((last[1], last[2]), (latitude, longitude)) >= TRACK_MIN_METERS \
+            or now - last[0] >= TRACK_MIN_SECONDS:
+        points.append([round(now), round(latitude, 6), round(longitude, 6)])
+        del points[:-TRACK_MAX_POINTS]
+        _track["dirty"] = True
+
+    _save_track()
+
+
+def get_track():
+
+    days = get_settings()["track_days"]
+
+    with _lock:
+        points = list(_track_points()) if days else []
+
+    keep_from = time.time() - days * 86400
+
+    return {"days": days, "points": [p for p in points if p[0] >= keep_from]}
+
+
+def clear_track():
+
+    with _lock:
+        _track_points().clear()
+        _track["dirty"] = True
+        _save_track(force=True)
+
+    return True, "Track cleared."
+
+
+def flush():
+
+    with _lock:
+        _save_track(force=True)
+
+
+# ------------------------------------------------------------------
 # Reading
 # ------------------------------------------------------------------
 
@@ -432,6 +535,7 @@ def describe(state, settings, location, has_modem, now):
     view = {
         "enabled": settings["enabled"],
         "set_clock": settings["set_clock"],
+        "track_days": settings["track_days"],
         "level": "off",
         "message": "GNSS is off.",
         "position": None,
@@ -551,6 +655,11 @@ def sample():
                 _last["fix_seen"] = time.time()
                 fresh = True
 
+                days = settings["track_days"]
+
+                if days and state["latitude"] is not None and state["longitude"] is not None:
+                    add_to_track(state["latitude"], state["longitude"], time.time(), days)
+
         _last["reading"] = (state, location, time.time())
 
     if state:
@@ -591,6 +700,9 @@ def start_watch():
         return
 
     _watching = True
+
+    # A clean stop writes the newest track points.
+    atexit.register(flush)
 
     def loop():
 
