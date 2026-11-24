@@ -538,6 +538,7 @@ def get_validators():
     from services.dns import validate_dns_settings
     from services.routing import validate_routing_settings
     from services.modem import validate_stored_settings as validate_modem
+    from services.data_usage import validate_settings as validate_data_usage
 
     return {
         "network": _validate_network,
@@ -553,6 +554,7 @@ def get_validators():
         "vpn_profiles": _validate_profiles,
         "device_aliases": _validate_aliases,
         "dashboard": _validate_dashboard,
+        "data_usage": _validate_with(validate_data_usage),
         "security": _validate_security,
         "shell": _validate_shell,
         "users": _validate_users

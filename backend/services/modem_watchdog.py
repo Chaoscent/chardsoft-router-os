@@ -86,7 +86,7 @@ def counters(interface):
     return None if None in values.values() else values
 
 
-def reset_modem(reason):
+def reset_modem(reason, automatic=True):
 
     index = modem.get_modem_index()
 
@@ -98,7 +98,9 @@ def reset_modem(reason):
     # The next reading must not show the stuck state from before.
     modem._modem_cache.update(time=0.0, data=None)
 
-    if ok:
+    if ok and not automatic:
+        log_event("modem", f"Modem restarted: {reason}. It reconnects within a minute.")
+    elif ok:
         log_event("modem", f"Modem restarted automatically: {reason}. It reconnects within a minute.")
     else:
         log_event("modem", f"The modem's data link is stuck ({reason}), but restarting it failed: {output}", level="warning")

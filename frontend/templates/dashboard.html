@@ -49,6 +49,70 @@
 </template>
 
 
+<!-- "Why no internet?": each step of the uplink, the first problem
+     on top with the button that fixes it (/api/internet/check). -->
+<template id="widgetStatus">
+    <div class="card dashboard-status">
+
+        <span>
+            Internet
+            <button class="secondary-btn widget-title-btn status-recheck" type="button">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/refresh-cw.svg') }})" aria-hidden="true"></span>
+                Check again
+            </button>
+        </span>
+
+        <div class="status-headline">
+            <span class="status muted status-verdict">Checking</span>
+            <p class="status-message">Checking the connection...</p>
+        </div>
+
+        <div class="status-action setting-row hidden"></div>
+
+        <p class="status-result setting-status" role="status"></p>
+
+        <!-- Open while something is wrong; one click away otherwise. -->
+        <details class="status-details">
+            <summary>What was checked</summary>
+            <ol class="status-steps"
+                data-icon-ok="{{ asset('chardsoft/icons/circle-check.svg') }}"
+                data-icon-bad="{{ asset('chardsoft/icons/triangle-alert.svg') }}"></ol>
+        </details>
+
+    </div>
+</template>
+
+
+<!-- Mobile data used this billing period (/api/data-usage). -->
+<template id="widgetUsage">
+    <div class="card dashboard-usage">
+
+        <span>
+            Mobile data
+            <a class="widget-title-link" href="#/modem?show=data-limit">Data limit</a>
+        </span>
+
+        <div class="usage-numbers">
+            <div class="card-value usage-used">--</div>
+            <div class="usage-limit">this period</div>
+        </div>
+
+        <div class="usage-bar" role="progressbar" aria-label="Share of the data limit used" aria-valuemin="0" aria-valuemax="100">
+            <div class="usage-bar-fill"></div>
+        </div>
+
+        <p class="usage-detail setting-hint"></p>
+
+        <div class="usage-action setting-row hidden">
+            <button class="save-btn usage-resume" type="button">Resume anyway</button>
+        </div>
+
+        <p class="usage-result setting-status" role="status"></p>
+
+    </div>
+</template>
+
+
 <template id="widgetTraffic">
     <div class="card dashboard-graph">
 

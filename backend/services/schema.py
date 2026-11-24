@@ -7,7 +7,8 @@ not inside every settings file: some files are plain maps (users.json is
 keyed by user name) where an extra key would be read as data.
 
 Version 1 is the format of Router OS 0.1. An install without schema.json
-is version 1, as is a backup without a "schema" field.
+is version 1 (unless it has no settings files at all: a fresh install is
+current), as is a backup without a "schema" field.
 
 Adding a format change:
 
@@ -40,12 +41,40 @@ from pathlib import Path
 
 from services import config
 
-VERSION = 1
+VERSION = 2
 
 NAME = "schema"
 
+
+def _v1_to_v2(files):
+    """The dashboard gains the internet check and the mobile data widget."""
+
+    dashboard = files.get("dashboard")
+
+    if not isinstance(dashboard, dict) or not isinstance(dashboard.get("layout"), list):
+        return
+
+    layout = dashboard["layout"]
+
+    types = {w.get("type") for w in layout if isinstance(w, dict)}
+    ids = {w.get("id") for w in layout if isinstance(w, dict)}
+
+    new = [
+        {"id": kind, "type": kind, "width": 6, "hidden": False}
+        for kind in ("status", "usage")
+        if kind not in types and kind not in ids
+    ]
+
+    # Room left (16 widgets at most): after the overview, else first.
+    new = new[:max(0, 16 - len(layout))]
+
+    at = next((i + 1 for i, w in enumerate(layout) if isinstance(w, dict) and w.get("type") == "summary"), 0)
+
+    layout[at:at] = new
+
+
 # version a step starts from -> function(files)
-MIGRATIONS = {}
+MIGRATIONS = {1: _v1_to_v2}
 
 
 def stored_version():
@@ -54,6 +83,10 @@ def stored_version():
 
     if isinstance(data, dict) and isinstance(data.get("version"), int) and data["version"] >= 1:
         return data["version"]
+
+    # No settings at all: a fresh install, already current.
+    if not any(Path(config.STATE_DIR).glob("*.json")):
+        return VERSION
 
     return 1
 

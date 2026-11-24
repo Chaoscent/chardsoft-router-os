@@ -1797,6 +1797,185 @@ select.setting-input{
     align-self:stretch;
 }
 
+/* A small button or link at the right of a widget's title strip. */
+.widget-title-btn{
+    margin-left:auto;
+    font-family:var(--font-sans);
+    font-weight:var(--weight-semibold);
+    height:var(--control-height-sm);
+    padding:0 var(--space-3);
+    font-size:var(--text-sm);
+}
+
+.widget-title-link{
+    margin-left:auto;
+    font-family:var(--font-sans);
+    font-size:var(--text-sm);
+    font-weight:var(--weight-regular);
+}
+
+.dashboard-grid > .dashboard-status,
+.dashboard-grid > .dashboard-usage{
+    align-self:stretch;
+}
+
+.status-headline{
+    display:flex;
+    align-items:flex-start;
+    gap:var(--space-3);
+}
+
+.status-headline .status{
+    flex:none;
+    margin-top:2px;
+}
+
+.status-message{
+    margin:0;
+    font-weight:var(--weight-semibold);
+}
+
+.status-action{
+    justify-content:flex-start;
+    margin-top:var(--space-3);
+}
+
+.status-details{
+    margin-top:var(--space-4);
+    padding-top:var(--space-3);
+    border-top:var(--hairline) solid var(--color-border);
+}
+
+.status-details > summary{
+    width:fit-content;
+    font-size:var(--text-sm);
+    color:var(--color-text-muted);
+    cursor:pointer;
+}
+
+.status-result:empty,
+.usage-result:empty{
+    display:none;
+}
+
+.status-steps{
+    display:grid;
+    gap:var(--space-2);
+    margin:var(--space-3) 0 0;
+    padding:0;
+    list-style:none;
+}
+
+.status-step{
+    display:grid;
+    grid-template-columns:18px minmax(0,1fr);
+    gap:var(--space-2);
+    font-size:var(--text-sm);
+}
+
+.status-step .cs-icon{
+    width:16px;
+    height:16px;
+    margin-top:2px;
+}
+
+.status-step.ok .cs-icon{ color:var(--color-success); }
+.status-step.bad .cs-icon{ color:var(--color-danger); }
+.status-step.skipped{ color:var(--color-text-disabled); }
+
+.status-step strong{
+    font-weight:var(--weight-semibold);
+}
+
+.status-step p{
+    margin:0;
+    color:var(--color-text-muted);
+    overflow-wrap:anywhere;
+}
+
+.usage-numbers{
+    display:flex;
+    align-items:baseline;
+    flex-wrap:wrap;
+    gap:var(--space-2);
+}
+
+.usage-limit{
+    color:var(--color-text-muted);
+}
+
+.usage-bar{
+    height:8px;
+    margin:var(--space-3) 0;
+    overflow:hidden;
+    background:var(--color-panel);
+    border:var(--hairline) solid var(--color-border);
+    border-radius:var(--radius);
+}
+
+.usage-bar.hidden{
+    display:none;
+}
+
+.usage-bar-fill{
+    width:0;
+    height:100%;
+    background:var(--color-accent);
+    transition:width .3s ease;
+}
+
+.usage-bar.warning .usage-bar-fill{ background:var(--color-warning); }
+.usage-bar.limit .usage-bar-fill{ background:var(--color-danger); }
+
+.usage-detail{
+    margin:0;
+}
+
+.usage-action{
+    justify-content:flex-start;
+    margin-top:var(--space-3);
+}
+
+/* Wi-Fi QR code: dark on white in both themes, so phones can scan it. */
+.wifi-qr{
+    display:grid;
+    justify-items:center;
+    gap:var(--space-3);
+    text-align:center;
+}
+
+.wifi-qr-code{
+    width:min(260px, 70vw);
+    aspect-ratio:1;
+    padding:var(--space-2);
+    background:#fff;
+    border-radius:var(--radius);
+}
+
+.wifi-qr-code svg{
+    display:block;
+    width:100%;
+    height:100%;
+}
+
+.wifi-qr dl{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr);
+    gap:var(--space-1) var(--space-3);
+    margin:0;
+    text-align:left;
+}
+
+.wifi-qr dt{
+    color:var(--color-text-muted);
+}
+
+.wifi-qr dd{
+    margin:0;
+    font-family:var(--font-mono);
+    overflow-wrap:anywhere;
+}
+
 .widget-flash{
     animation:widget-flash 1.2s ease-out;
 }

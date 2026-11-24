@@ -10,9 +10,9 @@ import re
 
 
 # One per kind, except traffic graphs (one per interface you add).
-WIDGET_TYPES = ("summary", "traffic", "interfaces", "system")
+WIDGET_TYPES = ("summary", "status", "usage", "traffic", "interfaces", "system")
 
-SINGLE_TYPES = ("summary", "interfaces", "system")
+SINGLE_TYPES = ("summary", "status", "usage", "interfaces", "system")
 
 # Columns out of 12.
 WIDTHS = (3, 4, 6, 8, 9, 12)
@@ -27,6 +27,8 @@ ID_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 
 DEFAULT_LAYOUT = [
     {"id": "summary", "type": "summary", "width": 12, "hidden": False},
+    {"id": "status", "type": "status", "width": 6, "hidden": False},
+    {"id": "usage", "type": "usage", "width": 6, "hidden": False},
     {"id": "traffic-wan", "type": "traffic", "width": 9, "hidden": False, "interface": ""},
     {"id": "interfaces", "type": "interfaces", "width": 3, "hidden": False},
     {"id": "system", "type": "system", "width": 12, "hidden": False},

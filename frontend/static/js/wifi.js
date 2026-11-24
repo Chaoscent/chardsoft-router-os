@@ -97,6 +97,82 @@ window.Page.wifi = {
 
 
     /** The selected radio's network, or null without radios. */
+    /**
+     * The saved network as a QR code: phones join by scanning it with
+     * the camera (or Wi-Fi settings > QR icon).
+     */
+    async showQr() {
+
+        const network = this.network();
+
+        if (!network) return;
+
+        if (!network.enabled) {
+            ChaosModal.notice({
+                title: "This Wi-Fi is off",
+                subtitle: "Switch it on and save first; the QR code shows the saved network."
+            });
+            return;
+        }
+
+        let svg;
+
+        try {
+
+            const res = await fetch(`/api/wifi/qr?interface=${encodeURIComponent(network.interface)}`);
+
+            if (!res.ok) throw new Error();
+
+            svg = await res.text();
+
+        } catch {
+
+            ChaosModal.notice({ title: "No QR code", subtitle: "The router could not make the QR code. Try again." });
+            return;
+
+        }
+
+        const body = document.createElement("div");
+        body.className = "wifi-qr";
+
+        // The router's own SVG (segno), never page input.
+        const code = document.createElement("div");
+        code.className = "wifi-qr-code";
+        code.innerHTML = svg;
+        code.querySelector("svg")?.setAttribute("role", "img");
+        code.querySelector("svg")?.setAttribute("aria-label", `QR code to join ${network.ssid}`);
+
+        const list = document.createElement("dl");
+
+        const row = (term, value) => {
+            const dt = document.createElement("dt");
+            const dd = document.createElement("dd");
+            dt.textContent = term;
+            dd.textContent = value;
+            list.append(dt, dd);
+        };
+
+        row("Name", network.ssid);
+
+        if (network.security !== "open") row("Password", network.password || "");
+
+        body.append(code, list);
+
+        const changed = wifiSsidInput.value !== network.ssid
+            || (network.security !== "open" && wifiPasswordInput.value !== (network.password || ""));
+
+        ChaosModal.notice({
+            title: `Join ${network.ssid}`,
+            subtitle: changed
+                ? "Shows the saved network. Save & apply to use the name and password you just typed."
+                : "Point a phone's camera at the code to join. Anyone who can see it can join this Wi-Fi.",
+            body,
+            confirmText: "Done"
+        });
+
+    },
+
+
     network() {
 
         return this.data?.networks?.[this.selected] ?? null;
@@ -599,6 +675,8 @@ window.Page.wifi = {
         wifiSave.onclick = () => this.save();
 
         wifiPreview.onclick = () => this.preview();
+
+        wifiQr.onclick = () => this.showQr();
 
         this.load();
 

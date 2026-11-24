@@ -200,7 +200,8 @@ class LayoutTests(unittest.TestCase):
 
     def valid(self, **change):
         layout = dashboard_layout.default_layout()
-        layout[1].update(change)
+        # The WAN graph: the only widget with an interface.
+        next(w for w in layout if w["type"] == "traffic").update(change)
         return layout
 
     def test_default_is_valid(self):

@@ -168,6 +168,8 @@ AREAS = {area.name: area for area in (
     # Read only by the app: verified by validation, committed at once.
     Area("device_aliases", "Device names"),
     Area("dashboard", "Dashboard"),
+    # The data limit is enforced by data_usage's own watcher.
+    Area("data_usage", "Data limit"),
     Area("security", "Session timeouts"),
     Area("shell", "Web shell"),
     Area("users", "Login", secret=True)

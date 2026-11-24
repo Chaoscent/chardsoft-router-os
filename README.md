@@ -52,10 +52,10 @@ Networking-first installation.
 
 **Included**
 
-* Dashboard
-* Modem (ModemManager: mobile data, APN, SIM PIN)
+* Dashboard (internet check with one-click fixes, mobile data used this month)
+* Modem (ModemManager: mobile data, APN, SIM PIN, data limit per billing period)
 * Network (LAN bridge with selectable ports)
-* WiFi (hostapd, 2.4 / 5 / 6 GHz, one network per radio)
+* WiFi (hostapd, 2.4 / 5 / 6 GHz, one network per radio, QR code to join)
 * DHCP (dnsmasq, one range per interface)
 * DNS (dnsmasq)
 * Clients

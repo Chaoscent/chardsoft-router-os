@@ -21,6 +21,8 @@ window.Page.dashboard = {
 
     NAMES: {
         summary: "Overview (clients, download, upload)",
+        status: "Internet check",
+        usage: "Mobile data used",
         traffic: "Traffic graph",
         interfaces: "Interfaces",
         system: "System (CPU, RAM, uptime)"
@@ -28,6 +30,8 @@ window.Page.dashboard = {
 
     TEMPLATES: {
         summary: "widgetSummary",
+        status: "widgetStatus",
+        usage: "widgetUsage",
         traffic: "widgetTraffic",
         interfaces: "widgetInterfaces",
         system: "widgetSystem"
@@ -36,6 +40,8 @@ window.Page.dashboard = {
     // Columns out of 12 that make sense per widget.
     WIDTHS: {
         summary: [6, 8, 12],
+        status: [4, 6, 8, 12],
+        usage: [3, 4, 6, 8, 12],
         traffic: [4, 6, 8, 9, 12],
         interfaces: [3, 4, 6, 8, 12],
         system: [6, 8, 12]
@@ -165,6 +171,7 @@ window.Page.dashboard = {
             const item = { widget, element };
 
             if (widget.type === "traffic") this.setUpGraph(item);
+            if (widget.type === "status") this.setUpStatus(item);
 
             this.shown.push(item);
 
@@ -172,6 +179,13 @@ window.Page.dashboard = {
 
         // Empty until the first answer, filled every second.
         this.interfaceKey = null;
+
+        // A new or re-rendered widget shows the last answer at once.
+        if (this.lastStatus) this.renderStatus(this.lastStatus);
+        if (this.lastUsage) this.renderUsage(this.lastUsage);
+
+        this.updateStatus();
+        this.updateUsage();
 
     },
 
@@ -415,6 +429,305 @@ window.Page.dashboard = {
 
 
     // ------------------------------------------------------------
+    // Internet check
+    // ------------------------------------------------------------
+
+    setUpStatus(item) {
+
+        item.element.querySelector(".status-recheck").onclick = () => this.updateStatus(true);
+
+    },
+
+
+    statusWidget() {
+
+        return dashboardGrid.querySelector(".dashboard-status");
+
+    },
+
+
+    async updateStatus(byHand = false) {
+
+        const widget = this.statusWidget();
+
+        if (!widget || this.statusRunning) return;
+
+        this.statusRunning = true;
+
+        const button = widget.querySelector(".status-recheck");
+
+        if (byHand) {
+            button.disabled = true;
+            widget.querySelector(".status-result").textContent = "";
+        }
+
+        try {
+
+            const res = await fetch("/api/internet/check");
+
+            if (res.status === 401) {
+                location.href = "/login";
+                return;
+            }
+
+            if (res.ok) {
+                this.lastStatus = await res.json();
+                if (this.run) this.renderStatus(this.lastStatus);
+            }
+
+        } catch {
+
+            // The next round tries again.
+
+        } finally {
+
+            this.statusRunning = false;
+            button.disabled = false;
+
+        }
+
+    },
+
+
+    renderStatus(data) {
+
+        const widget = this.statusWidget();
+
+        if (!widget) return;
+
+        const verdict = widget.querySelector(".status-verdict");
+
+        verdict.className = `status status-verdict ${data.online ? "online" : "offline"}`;
+        verdict.textContent = data.online ? "Online" : "Problem";
+
+        let message = data.message;
+
+        if (data.auto_restart) {
+            const at = new Date(data.auto_restart * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            message += ` The modem's data link got stuck and was restarted automatically at ${at}.`;
+        }
+
+        widget.querySelector(".status-message").textContent = message;
+
+        // The headline's button: a fix the router runs, or a page link.
+        const actionBox = widget.querySelector(".status-action");
+        const action = data.action;
+
+        actionBox.replaceChildren();
+        actionBox.classList.toggle("hidden", !action);
+
+        if (action?.kind === "link") {
+
+            const a = document.createElement("a");
+            a.className = "secondary-btn";
+            a.href = action.href;
+            a.textContent = action.label;
+            actionBox.appendChild(a);
+
+        } else if (action?.kind === "fix") {
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "save-btn";
+            button.textContent = action.label;
+            button.onclick = () => this.runFix(action, button, widget.querySelector(".status-result"));
+            actionBox.appendChild(button);
+
+        }
+
+        // Opens by itself when a problem shows up, never closes a list
+        // that was opened by hand.
+        const details = widget.querySelector(".status-details");
+
+        if (!data.online && details.dataset.online !== "false") details.open = true;
+
+        details.dataset.online = String(data.online);
+
+        const list = widget.querySelector(".status-steps");
+
+        list.replaceChildren(...data.steps.map(step => {
+
+            const li = document.createElement("li");
+            li.className = `status-step ${step.ok === true ? "ok" : step.ok === false ? "bad" : "skipped"}`;
+
+            const icon = document.createElement("span");
+            icon.className = "cs-icon";
+            icon.setAttribute("aria-hidden", "true");
+            icon.style.setProperty("--icon", `url(${step.ok === false ? list.dataset.iconBad : list.dataset.iconOk})`);
+
+            const text = document.createElement("div");
+            const label = document.createElement("strong");
+            const detail = document.createElement("p");
+
+            label.textContent = step.label;
+            detail.textContent = step.detail;
+
+            text.append(label, detail);
+            li.append(icon, text);
+
+            // Read out as "Modem: OK, Connected to ..." by screen readers.
+            li.setAttribute("aria-label", `${step.label}: ${step.ok === false ? "problem" : "OK"}. ${step.detail}`);
+
+            return li;
+
+        }));
+
+    },
+
+
+    /** Runs a fix; its outcome goes into `result` (a status line). */
+    async runFix(action, button, result) {
+
+        if (action.fix === "restart_modem") {
+            const go = await ChaosModal.confirm({
+                title: "Restart the modem?",
+                subtitle: "Mobile data is gone for about a minute while it restarts.",
+                confirmText: "Restart modem"
+            });
+            if (!go) return;
+        }
+
+        if (action.fix === "resume") {
+            const go = await ChaosModal.confirm({
+                title: "Go over the data limit?",
+                subtitle: "Devices get the internet again until the next billing period. Your carrier may charge extra or slow the connection down.",
+                confirmText: "Resume anyway"
+            });
+            if (!go) return;
+        }
+
+        button.disabled = true;
+        result.textContent = "Working...";
+
+        try {
+
+            const res = await fetch("/api/internet/fix", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ fix: action.fix })
+            });
+
+            const data = await res.json().catch(() => ({ message: "Unexpected server response." }));
+
+            result.textContent = data.success ? `✓ ${data.message}` : data.message;
+
+        } catch {
+
+            result.textContent = "The router did not answer. Try again.";
+
+        }
+
+        button.disabled = false;
+
+        // A restart takes a while: check again now and once it had time.
+        this.updateStatus();
+        this.updateUsage();
+
+        if (action.fix === "restart_modem" || action.fix === "mobile_on") {
+            setTimeout(() => this.run && this.updateStatus(), 45000);
+        }
+
+    },
+
+
+    // ------------------------------------------------------------
+    // Mobile data used
+    // ------------------------------------------------------------
+
+    /** Bytes as the carriers count them: 1 GB = 1000 MB. */
+    formatBytes(bytes) {
+
+        if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(bytes >= 1e11 ? 0 : 2)} GB`;
+        if (bytes >= 1e6) return `${Math.round(bytes / 1e6)} MB`;
+        if (bytes >= 1e3) return `${Math.round(bytes / 1e3)} kB`;
+
+        return `${bytes} B`;
+
+    },
+
+
+    formatDate(iso) {
+
+        return new Date(`${iso}T00:00:00`).toLocaleDateString([], { day: "numeric", month: "short" });
+
+    },
+
+
+    async updateUsage() {
+
+        if (!dashboardGrid.querySelector(".dashboard-usage")) return;
+
+        try {
+
+            const res = await fetch("/api/data-usage");
+
+            if (res.ok) {
+                this.lastUsage = await res.json();
+                if (this.run) this.renderUsage(this.lastUsage);
+            }
+
+        } catch {
+
+            // The next round tries again.
+
+        }
+
+    },
+
+
+    renderUsage(data) {
+
+        const widget = dashboardGrid.querySelector(".dashboard-usage");
+
+        if (!widget) return;
+
+        const bar = widget.querySelector(".usage-bar");
+        const fill = widget.querySelector(".usage-bar-fill");
+
+        widget.querySelector(".usage-used").textContent = this.formatBytes(data.used);
+
+        widget.querySelector(".usage-limit").textContent = data.limit
+            ? `of ${this.formatBytes(data.limit)} · ${Math.round(data.percent)}%`
+            : "this period";
+
+        bar.classList.toggle("hidden", !data.limit);
+        bar.classList.toggle("warning", data.level === "warning");
+        bar.classList.toggle("limit", data.level === "limit" || data.level === "blocked");
+
+        const percent = Math.min(100, data.percent || 0);
+
+        fill.style.width = `${percent}%`;
+        bar.setAttribute("aria-valuenow", String(Math.round(percent)));
+
+        const parts = [];
+
+        if (!data.counting && !data.used) {
+            parts.push("Counts mobile data while a modem is connected.");
+        } else {
+            parts.push(`Today ${this.formatBytes(data.today)}.`);
+        }
+
+        parts.push(`Starts over on ${this.formatDate(data.period_end)} (${data.days_left} day${data.days_left === 1 ? "" : "s"}).`);
+
+        if (data.level === "blocked") {
+            parts.unshift("Limit reached: devices on your network are offline.");
+        } else if (data.level === "limit") {
+            parts.unshift(data.resumed ? "Over the limit (resumed by hand)." : "Limit reached.");
+        } else if (data.limit && data.projected > data.limit) {
+            parts.push(`At this rate about ${this.formatBytes(data.projected)} by then.`);
+        }
+
+        widget.querySelector(".usage-detail").textContent = parts.join(" ");
+
+        widget.querySelector(".usage-action").classList.toggle("hidden", data.level !== "blocked");
+
+        widget.querySelector(".usage-resume").onclick = event =>
+            this.runFix({ fix: "resume" }, event.currentTarget, widget.querySelector(".usage-result"));
+
+    },
+
+
+    // ------------------------------------------------------------
     // Editor
     // ------------------------------------------------------------
 
@@ -423,7 +736,7 @@ window.Page.dashboard = {
         this.draft = this.layout.map(w => ({ ...w }));
 
         // Every single widget is listed, so a hidden one can come back.
-        for (const type of ["summary", "interfaces", "system"]) {
+        for (const type of ["summary", "status", "usage", "interfaces", "system"]) {
             if (!this.draft.some(w => w.type === type)) {
                 const builtin = this.defaultLayout.find(w => w.type === type);
                 this.draft.push({ ...(builtin || { id: type, type, width: 12 }), hidden: true });
@@ -622,6 +935,10 @@ window.Page.dashboard = {
         this.update();
         this.timer = Poll.every(1000, () => this.update());
 
+        // Slower: the check pings, the count changes every 30 seconds.
+        this.statusTimer = Poll.every(30000, () => this.updateStatus());
+        this.usageTimer = Poll.every(30000, () => this.updateUsage());
+
     },
 
     destroy() {
@@ -629,6 +946,8 @@ window.Page.dashboard = {
         this.run = null;
 
         Poll.stop(this.timer);
+        Poll.stop(this.statusTimer);
+        Poll.stop(this.usageTimer);
 
         this.shown.forEach(item => item.graph?.destroy());
         this.shown = [];

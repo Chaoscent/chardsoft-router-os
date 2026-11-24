@@ -12,7 +12,7 @@ its own code, but further:
   configs, keys and certificates removed.
 - Firewall: every rule Chardsoft Router OS added removed, ufw off.
 - IP forwarding (IPv4 and IPv6) and NAT off; the CHAOS-NAT, CHAOS-NAT6, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS,
-  CHAOS-LOOP and CHAOS-CLAT iptables chains removed; the LAN routing rules
+  CHAOS-LOOP, CHAOS-QUOTA and CHAOS-CLAT iptables chains removed; the LAN routing rules
   and table 4242 removed; the CLAT service stopped.
 - LAN bridge removed. The WAN/LAN routing properties Chardsoft Router OS set
   on Ethernet connections (never-default, route-metric) go back to
@@ -180,13 +180,14 @@ def remove_chains():
 
     from shutil import which
 
-    from services import routing, clients, setup_network, vpn_profiles, ipv6, wan_routing, clat
+    from services import routing, clients, setup_network, vpn_profiles, ipv6, wan_routing, clat, data_usage
 
     for tool in filter(None, (which("iptables"), which("ip6tables"))):
         remove_chain(tool, "filter", clients.CHAIN, ("INPUT", "FORWARD"))
         remove_chain(tool, "filter", vpn_profiles.KILL_CHAIN, ("FORWARD",))
         remove_chain(tool, "mangle", routing.MSS_CHAIN, ("FORWARD",))
         remove_chain(tool, "filter", routing.LOOP_CHAIN, ("FORWARD",))
+        remove_chain(tool, "filter", data_usage.CHAIN, ("FORWARD",))
 
     if which("iptables"):
         remove_chain(which("iptables"), "nat", routing.CHAIN, ("POSTROUTING",))
@@ -337,7 +338,7 @@ def main():
         step(f"{AREAS[name].label} off", area_off, name, data)
 
     step("Firewall rules", remove_ufw_rules)
-    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS, CHAOS-LOOP, CHAOS-CLAT, LAN routing table)", remove_chains)
+    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS, CHAOS-LOOP, CHAOS-QUOTA, CHAOS-CLAT, LAN routing table)", remove_chains)
     step("Config files (dnsmasq, hostapd, VPN, Caddy routes)", remove_files)
     step("dnsmasq restarted", restart_dnsmasq)
     step("Routing properties of Ethernet connections", reset_route_properties)

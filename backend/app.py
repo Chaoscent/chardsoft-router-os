@@ -333,6 +333,9 @@ from services import apps as router_apps
 from services import ipv6
 from services import modem_watchdog
 from services import wan_routing
+from services import data_usage
+from services import internet_check
+from services import qr
 
 from services.update import (
 
@@ -1140,6 +1143,85 @@ def update_dashboard_layout():
         return jsonify({"success": True, "layout": layout})
 
 
+# ------------------------------------------------------------
+
+# Internet check and mobile data usage (dashboard)
+
+# ------------------------------------------------------------
+
+
+
+@app.route("/api/internet/check")
+
+@login_required
+
+def internet_check_api():
+
+        return jsonify(internet_check.run_check())
+
+
+
+@app.route("/api/internet/fix", methods=["POST"])
+
+@login_required
+
+def internet_fix_api():
+
+        data = request.get_json(silent=True) or {}
+
+        ok, message = internet_check.fix(str(data.get("fix") or ""))
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
+
+
+
+@app.route("/api/data-usage")
+
+@login_required
+
+def data_usage_api():
+
+        return jsonify(data_usage.get_status())
+
+
+
+@app.route("/api/data-usage/settings", methods=["POST"])
+
+@login_required
+
+def data_usage_settings_api():
+
+        ok, result = data_usage.validate_settings(request.get_json(silent=True))
+
+        if not ok:
+                return jsonify({"success": False, "message": result}), 400
+
+        outcome = transaction.change(data_usage.SETTINGS, result)
+
+        if outcome["success"]:
+                data_usage.sample()
+
+        return jsonify({**outcome, "status": data_usage.get_status()}), 200 if outcome["success"] else 400
+
+
+
+@app.route("/api/data-usage/used", methods=["POST"])
+
+@login_required
+
+def data_usage_used_api():
+
+        data = request.get_json(silent=True) or {}
+
+        if data.get("reset"):
+                data_usage.reset()
+                ok, message = True, "The count starts again at zero."
+        else:
+                ok, message = data_usage.set_used(data.get("used_gb"))
+
+        return jsonify({"success": ok, "message": message, "status": data_usage.get_status()}), 200 if ok else 400
+
+
 
 # ------------------------------------------------------------
 
@@ -1406,6 +1488,31 @@ def wifi_api():
 
         })
 
+
+
+
+
+@app.route("/api/wifi/qr")
+
+@login_required
+
+def wifi_qr_api():
+
+        # The saved network, so the code always matches what runs.
+        network = get_wifi_networks().get(request.args.get("interface", ""))
+
+        if not network or not network.get("ssid"):
+                return jsonify({"success": False, "message": "No such Wi-Fi network."}), 404
+
+        text = qr.wifi_payload(network["ssid"], network.get("password") or "",
+                               network.get("security", "wpa2"), network.get("hidden", False))
+
+        response = app.response_class(qr.svg(text), mimetype="image/svg+xml")
+
+        # Holds the password.
+        response.headers["Cache-Control"] = "no-store"
+
+        return response
 
 
 
@@ -3693,6 +3800,9 @@ def watch_interfaces():
         # LAN traffic follows the WAN (its gateway changes with every
         # modem connection) and steps aside for a full-tunnel VPN.
         wan_routing.watch()
+
+        # Mobile data used this billing period, and the data limit.
+        data_usage.watch()
 
 
 def start_setup_wifi():

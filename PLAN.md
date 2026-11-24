@@ -59,6 +59,18 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   after a modem reconnect (new /64) it keeps working within 15 s.
 - [ ] **Modem watchdog:** when the modem is stuck (rx errors rising, nothing
   received), it is reset within about a minute and the Logs say so.
+- [ ] **Mobile data counter:** the dashboard's "Mobile data" roughly matches
+  the carrier's app after a day (correct it on the Modem page if not); the
+  count survives a reboot (`/var/lib/chaos-router-os/data_usage_counter.json`);
+  with a small test limit and "Stop internet for devices", a phone on the
+  Wi-Fi loses the internet while the dashboard stays reachable
+  (`sudo iptables -S CHAOS-QUOTA`), and "Resume anyway" brings it back.
+- [ ] **Internet check** on the dashboard: shows "Online" when all is well;
+  mobile data off, a SIM PIN, a pulled antenna or a stopped CLAT give the
+  matching message and button ("Switch on mobile data", "Restart modem",
+  "Repair").
+- [ ] **Wi-Fi QR code** (Wi-Fi page, "Show QR code"): an iPhone and an Android
+  phone join by scanning it, also with WPA3 and a hidden network.
 - [ ] **IPv6 for the LAN** (Firewall page, Routing & NAT): with the modem
   and with eth0 as WAN, a phone and a laptop on the LAN get an `fdXX:` address
   and reach `ipv6.google.com`; the WAN keeps its own IPv6 with forwarding on
@@ -131,6 +143,13 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 
 ## Done since the last plan
 
+- Dashboard: "Internet" widget that checks the uplink step by step (modem,
+  sharing, data limit, ping over IPv4/IPv6, DNS, CLAT, LAN routing) and
+  offers the fix for the first problem.
+- Mobile data counter per billing period with an optional data limit:
+  warning in the Logs, optional stop of the LAN's internet at the limit,
+  "Resume anyway", correction to the carrier's count (Modem page).
+- Wi-Fi page: "Show QR code" for the saved network (drawn on the router).
 - The dashboard stays responsive while the modem is slow (polls wait for
   the last answer; one modem reading shared by all requests; timeouts).
 - Modem watchdog: a stuck data link (every received packet rejected, or no

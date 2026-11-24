@@ -66,8 +66,15 @@ class StartupTests(unittest.TestCase):
         clear()
 
     def test_fresh_install_is_stamped_current(self):
-        self.assertEqual(schema.migrate(), [])
-        self.assertEqual(config.load_persistent("schema"), {"version": schema.VERSION})
+        # Empty folders: the shared sandbox holds other tests' files.
+        state, runtime = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp())
+        with mock.patch.multiple(config, STATE_DIR=state, RUNTIME_DIR=runtime):
+            self.assertEqual(schema.migrate(), [])
+            self.assertEqual(config.load_persistent("schema"), {"version": schema.VERSION})
+
+    def test_settings_without_a_version_are_format_one(self):
+        config.save_persistent("dashboard", {"ping_enabled": True})
+        self.assertEqual(schema.stored_version(), 1)
 
     def test_old_install_is_updated_on_both_layers(self):
         config.save_persistent("dashboard", {"ping_enabled": True})

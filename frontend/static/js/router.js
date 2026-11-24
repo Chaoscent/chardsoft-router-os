@@ -155,11 +155,21 @@ async function loadController(route){
 
 }
 
+// "#/modem?show=data-limit": the page is "modem"; the page itself
+// reads what follows the "?" (see routeParam).
 function getRoute(){
 
-    return location.hash.replace("#/","") || DEFAULT_ROUTE;
+    return location.hash.replace("#/","").split("?")[0] || DEFAULT_ROUTE;
 
 }
+
+window.routeParam=function(name){
+
+    const query=location.hash.split("?")[1]||"";
+
+    return new URLSearchParams(query).get(name);
+
+};
 
 window.addEventListener("hashchange",()=>{
 

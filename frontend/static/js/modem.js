@@ -209,9 +209,145 @@ async saveMobile(extra={}){
 
 },
 
+// ------------------------------------------------------------
+// Data limit
+// ------------------------------------------------------------
+
+formatGb(bytes){
+
+    return `${(bytes/1e9).toFixed(2)} GB`;
+
+},
+
+renderUsage(data){
+
+    this.usage=data;
+
+    dataUsedNow.textContent=data.limit
+        ?`${this.formatGb(data.used)} of ${this.formatGb(data.limit)} (${data.percent}%)`
+        :this.formatGb(data.used);
+
+},
+
+async loadUsage(){
+
+    const res=await fetch("/api/data-usage");
+
+    if(!res.ok)return;
+
+    const data=await res.json();
+    const s=data.settings;
+
+    dataLimitInput.value=s.limit_gb?String(s.limit_gb):"";
+    dataDayInput.value=String(s.billing_day);
+    dataWarnInput.value=String(s.warn_percent);
+    dataBlockInput.value=String(s.block_at_limit);
+
+    // A value saved earlier that is not in the list stays selectable.
+    if(dataWarnInput.value!==String(s.warn_percent)){
+        dataWarnInput.add(new Option(`${s.warn_percent}%`,String(s.warn_percent)));
+        dataWarnInput.value=String(s.warn_percent);
+    }
+
+    ["dataDayInput","dataWarnInput","dataBlockInput"].forEach(id=>ChaosSelect.refresh(document.getElementById(id)));
+
+    this.renderUsage(data);
+
+},
+
+async saveUsage(){
+
+    const limit=dataLimitInput.value.trim();
+
+    if(limit&&!(Number(limit)>=0)){
+        dataLimitStatus.textContent="Enter the data per period in GB, or leave it empty for no limit.";
+        return;
+    }
+
+    dataLimitSave.disabled=true;
+    dataLimitStatus.textContent="Saving...";
+
+    const res=await fetch("/api/data-usage/settings",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            limit_gb:limit?Number(limit):0,
+            billing_day:Number(dataDayInput.value),
+            warn_percent:Number(dataWarnInput.value),
+            block_at_limit:dataBlockInput.value==="true"
+        })
+    });
+
+    const data=await res.json().catch(()=>({message:"Unexpected server response."}));
+
+    dataLimitSave.disabled=false;
+    dataLimitStatus.textContent=data.success?"✓ Saved.":data.message||"Failed to save.";
+
+    if(data.status)this.renderUsage(data.status);
+
+},
+
+async correctUsage(reset){
+
+    const value=dataUsedInput.value.trim();
+
+    if(!reset&&!(value!==""&&Number(value)>=0)){
+        dataUsedStatus.textContent="Enter the used data in GB, as your carrier's app shows it.";
+        return;
+    }
+
+    if(reset&&!await ChaosModal.confirm({
+        title:"Set the count to zero?",
+        subtitle:"The data used so far in this period is no longer counted.",
+        confirmText:"Set to zero"
+    }))return;
+
+    dataUsedSave.disabled=dataUsedReset.disabled=true;
+
+    const res=await fetch("/api/data-usage/used",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(reset?{reset:true}:{used_gb:Number(value)})
+    });
+
+    const data=await res.json().catch(()=>({message:"Unexpected server response."}));
+
+    dataUsedSave.disabled=dataUsedReset.disabled=false;
+    dataUsedStatus.textContent=data.success?`✓ ${data.message}`:data.message;
+
+    if(data.success)dataUsedInput.value="";
+    if(data.status)this.renderUsage(data.status);
+
+},
+
 init(){
 
     ["mobileEnabledInput","mobileRoamingInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+
+    for(let day=1;day<=28;day++){
+        dataDayInput.add(new Option(day===1?"1 (start of the month)":String(day),String(day)));
+    }
+
+    ["dataDayInput","dataWarnInput","dataBlockInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+
+    dataLimitSave.onclick=()=>this.saveUsage();
+    dataUsedSave.onclick=()=>this.correctUsage(false);
+    dataUsedReset.onclick=()=>this.correctUsage(true);
+    dataLimitInput.onkeydown=event=>{ if(event.key==="Enter")this.saveUsage(); };
+    dataUsedInput.onkeydown=event=>{ if(event.key==="Enter")this.correctUsage(false); };
+
+    this.loadUsage().then(()=>{
+        // From the dashboard's "Data limit" link.
+        if(window.routeParam?.("show")==="data-limit"){
+            dataLimitCard.scrollIntoView({block:"start",behavior:"smooth"});
+            dataLimitInput.focus({preventScroll:true});
+        }
+    });
+
+    this.usageTimer=Poll.every(30000,async()=>{
+        const res=await fetch("/api/data-usage");
+        if(res.ok)this.renderUsage(await res.json());
+    });
 
     modemSwitchQmi.onclick=()=>this.switchQmi();
 
@@ -230,6 +366,7 @@ init(){
 destroy(){
 
     Poll.stop(this.timer);
+    Poll.stop(this.usageTimer);
 
 }
 
