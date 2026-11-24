@@ -10,9 +10,9 @@ import re
 
 
 # One per kind, except traffic graphs (one per interface you add).
-WIDGET_TYPES = ("summary", "status", "usage", "traffic", "interfaces", "system")
+WIDGET_TYPES = ("summary", "status", "usage", "traffic", "interfaces", "system", "gnss")
 
-SINGLE_TYPES = ("summary", "status", "usage", "interfaces", "system")
+SINGLE_TYPES = ("summary", "status", "usage", "interfaces", "system", "gnss")
 
 # Columns out of 12.
 WIDTHS = (3, 4, 6, 8, 9, 12)

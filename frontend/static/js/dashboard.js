@@ -25,7 +25,8 @@ window.Page.dashboard = {
         usage: "Mobile data used",
         traffic: "Traffic graph",
         interfaces: "Interfaces",
-        system: "System (CPU, RAM, uptime)"
+        system: "System (CPU, RAM, uptime)",
+        gnss: "Location (modem GNSS)"
     },
 
     TEMPLATES: {
@@ -34,7 +35,8 @@ window.Page.dashboard = {
         usage: "widgetUsage",
         traffic: "widgetTraffic",
         interfaces: "widgetInterfaces",
-        system: "widgetSystem"
+        system: "widgetSystem",
+        gnss: "widgetGnss"
     },
 
     // Columns out of 12 that make sense per widget.
@@ -44,7 +46,8 @@ window.Page.dashboard = {
         usage: [3, 4, 6, 8, 12],
         traffic: [4, 6, 8, 9, 12],
         interfaces: [3, 4, 6, 8, 12],
-        system: [6, 8, 12]
+        system: [6, 8, 12],
+        gnss: [3, 4, 6, 8, 12]
     },
 
     WIDTH_LABELS: {
@@ -183,9 +186,69 @@ window.Page.dashboard = {
         // A new or re-rendered widget shows the last answer at once.
         if (this.lastStatus) this.renderStatus(this.lastStatus);
         if (this.lastUsage) this.renderUsage(this.lastUsage);
+        if (this.lastGnss) this.renderGnss(this.lastGnss);
 
         this.updateStatus();
         this.updateUsage();
+        this.updateGnss();
+
+    },
+
+
+    async updateGnss() {
+
+        if (!dashboardGrid.querySelector(".dashboard-gnss")) return;
+
+        try {
+
+            const res = await fetch("/api/gnss");
+
+            if (res.ok) {
+                this.lastGnss = await res.json();
+                if (this.run) this.renderGnss(this.lastGnss);
+            }
+
+        } catch {
+
+            // The next round tries again.
+
+        }
+
+    },
+
+
+    renderGnss(data) {
+
+        const widget = dashboardGrid.querySelector(".dashboard-gnss");
+
+        if (!widget) return;
+
+        const levels = {
+            fix: ["online", "Position"], searching: ["warning", "Searching"], starting: ["warning", "Starting"],
+            off: ["muted", "Off"], unsupported: ["muted", "Not available"], no_modem: ["muted", "No modem"]
+        };
+
+        const [badge, label] = levels[data.level] || ["muted", data.level];
+        const pill = widget.querySelector(".gnss-pill");
+        const p = data.position;
+
+        pill.className = `status gnss-pill ${badge}`;
+        pill.textContent = label;
+
+        widget.querySelector(".gnss-message").textContent = data.message;
+
+        const position = widget.querySelector(".gnss-position");
+
+        position.classList.toggle("hidden", !p);
+        position.textContent = p ? `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}` : "";
+
+        const parts = [];
+
+        if (p?.altitude != null) parts.push(`${Math.round(p.altitude)} m high`);
+        if (p?.speed_kmh >= 1) parts.push(`${Math.round(p.speed_kmh)} km/h`);
+        if (data.in_view) parts.push(`${data.heard} of ${data.in_view} satellites heard`);
+
+        widget.querySelector(".gnss-detail").textContent = parts.join(" · ");
 
     },
 
@@ -796,10 +859,10 @@ window.Page.dashboard = {
         this.draft = this.layout.map(w => ({ ...w }));
 
         // Every single widget is listed, so a hidden one can come back.
-        for (const type of ["summary", "status", "usage", "interfaces", "system"]) {
+        for (const type of ["summary", "status", "usage", "interfaces", "system", "gnss"]) {
             if (!this.draft.some(w => w.type === type)) {
                 const builtin = this.defaultLayout.find(w => w.type === type);
-                this.draft.push({ ...(builtin || { id: type, type, width: 12 }), hidden: true });
+                this.draft.push({ ...(builtin || { id: type, type, width: type === "gnss" ? 6 : 12 }), hidden: true });
             }
         }
 
@@ -998,6 +1061,7 @@ window.Page.dashboard = {
         // Slower: the check pings, the count changes every 30 seconds.
         this.statusTimer = Poll.every(30000, () => this.updateStatus());
         this.usageTimer = Poll.every(30000, () => this.updateUsage());
+        this.gnssTimer = Poll.every(10000, () => this.updateGnss());
 
     },
 
@@ -1008,6 +1072,7 @@ window.Page.dashboard = {
         Poll.stop(this.timer);
         Poll.stop(this.statusTimer);
         Poll.stop(this.usageTimer);
+        Poll.stop(this.gnssTimer);
 
         this.shown.forEach(item => item.graph?.destroy());
         this.shown = [];

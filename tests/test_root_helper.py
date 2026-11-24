@@ -125,6 +125,9 @@ class Commands(unittest.TestCase):
         ("wg", "set", "wg0", "private-key", "/etc/shadow"),
         ("nmcli", "connection", "import", "type", "openvpn", "file", "/tmp/x"),
         ("hostnamectl", "set-hostname", "a;b"),
+        ("date", "-s", "tomorrow"),
+        ("date", "-u", "-s", "@1795528404", "+%s"),
+        ("date", "-f", "/etc/shadow"),
         ("cat", "/etc/shadow"),
         ("cat", "/etc/hostapd/chaos-../../shadow"),
         ("rm", "-rf", "/etc"),
@@ -152,6 +155,7 @@ class Commands(unittest.TestCase):
             ("openvpn", "--genkey", "secret", "/etc/openvpn/server/chaos-tls-crypt.key"),
             ("find", helper.PKI_DIR, "-mindepth", "1", "-printf", "%y %P\\n"),
             ("hostnamectl", "set-hostname", "chardsoft-router"),
+            ("date", "-u", "-s", "@1795528404"),
         ):
             with self.subTest(argv=argv):
                 try:

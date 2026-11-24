@@ -1815,7 +1815,8 @@ select.setting-input{
 }
 
 .dashboard-grid > .dashboard-status,
-.dashboard-grid > .dashboard-usage{
+.dashboard-grid > .dashboard-usage,
+.dashboard-grid > .dashboard-gnss{
     align-self:stretch;
 }
 
@@ -3408,4 +3409,37 @@ a.setup-open{
 #wifiGuestCard > .setting-hint:first-of-type,
 #wifiGuestUnsupported{
     margin-bottom:var(--space-3);
+}
+
+
+/* ========================================================= */
+/* Modem page: GNSS                                          */
+/* ========================================================= */
+
+.gnss-verdict{
+    display:flex;
+    align-items:baseline;
+    gap:var(--space-2);
+    margin-top:var(--space-3);
+}
+
+.gnss-verdict p{
+    margin:0;
+}
+
+.gnss-verdict .status{
+    flex:none;
+}
+
+.gnss-figures{
+    margin:var(--space-3) 0;
+}
+
+.gnss-map-row strong{
+    display:flex;
+    gap:var(--space-1);
+}
+
+.dashboard-gnss .gnss-position{
+    margin-top:var(--space-3);
 }

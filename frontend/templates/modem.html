@@ -316,4 +316,103 @@
 
     </div>
 
+
+    <!-- The modem's satellite receiver (services/gnss.py) -->
+
+    <div id="gnssCard" class="card">
+
+        <span>GNSS (satellite position)</span>
+
+        <p class="setting-hint">
+            The modem has a receiver for GPS, GLONASS, Galileo and BeiDou. It needs an antenna on the
+            modem's GNSS port and a view of the sky. The position stays on the router; nothing is
+            downloaded to speed it up, so the first fix can take a few minutes.
+        </p>
+
+        <div class="gnss-verdict">
+            <span id="gnssPill" class="status muted">--</span>
+            <p id="gnssMessage">--</p>
+        </div>
+
+        <div class="info-grid gnss-figures">
+
+            <div class="info-row">
+                <span>Position</span>
+                <strong id="gnssPosition">—</strong>
+            </div>
+
+            <div class="info-row gnss-map-row hidden" id="gnssMapRow">
+                <span></span>
+                <strong>
+                    <button id="gnssCopy" class="table-btn" type="button">Copy</button>
+                    <a id="gnssMap" class="table-btn" target="_blank" rel="noopener noreferrer"
+                       title="Opens OpenStreetMap: only then the position leaves the router">Open map</a>
+                </strong>
+            </div>
+
+            <div class="info-row">
+                <span>Accuracy</span>
+                <strong id="gnssAccuracy">—</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Altitude</span>
+                <strong id="gnssAltitude">—</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Speed</span>
+                <strong id="gnssSpeed">—</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Satellites</span>
+                <strong id="gnssSatellites">—</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Mobile cell</span>
+                <strong id="gnssCell">—</strong>
+            </div>
+
+            <div class="info-row">
+                <span>Clock</span>
+                <strong id="gnssClock">—</strong>
+            </div>
+
+        </div>
+
+        <div class="settings-grid">
+
+            <div class="setting-field">
+                <label for="gnssEnabledInput">Receiver</label>
+                <select id="gnssEnabledInput" class="setting-input">
+                    <option value="false">Off</option>
+                    <option value="true">On</option>
+                </select>
+            </div>
+
+            <div class="setting-field">
+                <label for="gnssClockInput">Router clock</label>
+                <select id="gnssClockInput" class="setting-input">
+                    <option value="true">Set from GNSS when it has no internet time</option>
+                    <option value="false">Internet time only</option>
+                </select>
+            </div>
+
+        </div>
+
+        <p class="setting-hint">
+            Without an RTC battery the Pi starts with a wrong clock until it reaches the internet;
+            offline times and log times are wrong until then. With a position, GNSS sets it right away.
+        </p>
+
+        <div class="setting-row">
+            <button id="gnssSave" class="save-btn" type="button">Save</button>
+        </div>
+
+        <div id="gnssStatus" class="setting-status" role="status"></div>
+
+    </div>
+
 </section>

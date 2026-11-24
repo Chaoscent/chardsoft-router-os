@@ -320,7 +320,123 @@ async correctUsage(reset){
 
 },
 
+// ------------------------------------------------------------
+// GNSS
+// ------------------------------------------------------------
+
+GNSS_LEVELS:{
+    fix:["online","Position"],
+    searching:["warning","Searching"],
+    starting:["warning","Starting"],
+    off:["muted","Off"],
+    unsupported:["muted","Not available"],
+    no_modem:["muted","No modem"]
+},
+
+async loadGnss(first=false){
+
+    const res=await fetch("/api/gnss");
+
+    if(!res.ok)return;
+
+    const data=await res.json();
+
+    if(first){
+        gnssEnabledInput.value=String(data.enabled);
+        gnssClockInput.value=String(data.set_clock);
+        ["gnssEnabledInput","gnssClockInput"].forEach(id=>ChaosSelect.refresh(document.getElementById(id)));
+    }
+
+    this.renderGnss(data);
+
+},
+
+renderGnss(data){
+
+    const [badge,label]=this.GNSS_LEVELS[data.level]||["muted",data.level];
+
+    gnssPill.className=`status ${badge}`;
+    gnssPill.textContent=label;
+    gnssMessage.textContent=data.message;
+
+    const p=data.position;
+
+    gnssPosition.textContent=p?`${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}`:"—";
+    gnssMapRow.classList.toggle("hidden",!p);
+
+    if(p){
+        gnssMap.href=`https://www.openstreetmap.org/?mlat=${p.latitude}&mlon=${p.longitude}#map=16/${p.latitude}/${p.longitude}`;
+        gnssCopy.onclick=async()=>{
+            try{
+                await navigator.clipboard.writeText(`${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}`);
+                gnssStatus.textContent="Position copied.";
+            }catch{
+                gnssStatus.textContent=`${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}`;
+            }
+        };
+    }
+
+    gnssAccuracy.textContent=p?.accuracy_m?`about ${p.accuracy_m} m (${p.fix_type})`:p?p.fix_type:"—";
+    gnssAltitude.textContent=p?.altitude!=null?`${Math.round(p.altitude)} m`:"—";
+    gnssSpeed.textContent=p?.speed_kmh!=null
+        ?`${p.speed_kmh < 1 ? "standing" : `${Math.round(p.speed_kmh)} km/h`}${p.course!=null&&p.speed_kmh>=1?`, heading ${Math.round(p.course)}°`:""}`
+        :"—";
+
+    if(data.constellations.length){
+        const parts=data.constellations.map(c=>`${c.name} ${c.heard}/${c.in_view}`);
+        gnssSatellites.textContent=`${data.used!=null?`${data.used} used · `:""}heard/in view: ${parts.join(", ")}`;
+    }else{
+        gnssSatellites.textContent="—";
+    }
+
+    const cell=data.cell;
+
+    gnssCell.textContent=cell&&cell.mcc
+        ?`${cell.mcc}-${cell.mnc}${cell.tac?` · area ${cell.tac}`:cell.lac?` · area ${cell.lac}`:""}${cell.cid?` · cell ${cell.cid}`:""}`
+        :"—";
+
+    gnssClock.textContent=data.clock_synchronized===true
+        ?"Synchronised over the internet"
+        :data.clock_synchronized===false
+            ?"Not synchronised yet: GNSS sets it with the next position"
+            :data.set_clock?"—":"Internet time only";
+
+},
+
+async saveGnss(){
+
+    gnssSave.disabled=true;
+    gnssStatus.textContent="Saving...";
+
+    const res=await fetch("/api/gnss/settings",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            enabled:gnssEnabledInput.value==="true",
+            set_clock:gnssClockInput.value==="true"
+        })
+    });
+
+    const data=await res.json().catch(()=>({message:"Unexpected server response."}));
+
+    gnssSave.disabled=false;
+    gnssStatus.textContent=data.success?`✓ ${data.message}`:data.message||"Failed to save.";
+
+    if(data.status)this.renderGnss(data.status);
+
+},
+
 init(){
+
+    ["gnssEnabledInput","gnssClockInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+
+    gnssSave.onclick=()=>this.saveGnss();
+
+    this.loadGnss(true).then(()=>{
+        if(window.routeParam?.("show")==="gnss")gnssCard.scrollIntoView({block:"start",behavior:"smooth"});
+    });
+
+    this.gnssTimer=Poll.every(5000,()=>this.loadGnss());
 
     ["mobileEnabledInput","mobileRoamingInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
 
@@ -367,6 +483,7 @@ destroy(){
 
     Poll.stop(this.timer);
     Poll.stop(this.usageTimer);
+    Poll.stop(this.gnssTimer);
 
 }
 

@@ -781,6 +781,15 @@ def cmd_hostname(args):
     return [find_tool("hostname"), *args]
 
 
+def cmd_date(args):
+
+    # The clock from the modem's GNSS (services/gnss.py): UTC seconds only.
+    if len(args) == 3 and args[:2] == ["-u", "-s"] and re.fullmatch(r"@[0-9]{10}", args[2]):
+        return [find_tool("date"), *args]
+
+    refuse("date: only -u -s @<seconds>.")
+
+
 SYSCTL_KEY = re.compile(r"net\.[A-Za-z0-9_./-]+")
 
 
@@ -964,6 +973,7 @@ def plan(argv):
         "qmicli": lambda: cmd_qmicli(args),
         "hostnamectl": lambda: cmd_hostnamectl(args),
         "hostname": lambda: cmd_hostname(args),
+        "date": lambda: cmd_date(args),
         "sysctl": lambda: cmd_sysctl(args),
         "ip": lambda: cmd_ip(args),
         "iptables": lambda: cmd_iptables("iptables", args),

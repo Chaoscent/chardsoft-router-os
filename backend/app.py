@@ -339,6 +339,7 @@ from services import net_tools
 from services import device_usage
 from services import notifications
 from services import guest as guest_wifi
+from services import gnss
 from services import internet_check
 from services import qr
 from services import routes as static_routes
@@ -1803,6 +1804,36 @@ def notifications_read_api():
         ok = notifications.mark_read(data.get("until"))
 
         return jsonify({"success": ok}), 200 if ok else 400
+
+
+
+
+
+@app.route("/api/gnss")
+
+@login_required
+
+def gnss_api():
+
+        return jsonify(gnss.get_status())
+
+
+
+
+
+@app.route("/api/gnss/settings", methods=["POST"])
+
+@login_required
+
+def gnss_settings_api():
+
+        data = request.get_json(silent=True) or {}
+
+        outcome = gnss.save_settings({k: data[k] for k in ("enabled", "set_clock") if k in data})
+
+        outcome["status"] = gnss.get_status(refresh=True)
+
+        return safe_apply_response(outcome)
 
 
 
@@ -3958,6 +3989,9 @@ def watch_interfaces():
 
         # Guests stay off the LAN even after a firewall reload.
         guest_wifi.watch()
+
+        # The modem's GNSS: back on after a reboot or a modem restart.
+        gnss.watch()
 
 
 def start_setup_wifi():

@@ -16,6 +16,7 @@ from services import (
     routes,
     clients,
     internet_time,
+    gnss,
     dhcp,
     dns,
     wifi,
@@ -183,6 +184,13 @@ AREAS = {area.name: area for area in (
         apply=vpn_profiles.apply_profiles,
         baseline=lambda: {"profiles": vpn_profiles.load_profiles()},
         secret=True
+    ),
+
+    # The modem's satellite receiver; after "modem" so the modem is set up.
+    Area(
+        "gnss", "GNSS",
+        apply=gnss.apply,
+        baseline=lambda: dict(gnss.DEFAULT_SETTINGS)
     ),
 
     # Read only by the app: verified by validation, committed at once.

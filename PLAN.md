@@ -83,6 +83,14 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   until it ends" lets it back in. The Logs say when a device goes offline
   and online. After a reboot without internet (clock not set) the page says
   that offline times wait for the clock.
+- [ ] **GNSS** (Modem page): with an antenna on the RM520N's GNSS port and
+  the Pi near a window, "Receiver: On" shows satellites heard within a
+  minute and a position within a few minutes (`mmcli -m 0 --location-get`);
+  "Open map" shows the right place. After "Restart modem" the receiver comes
+  back on by itself. Clock: boot without mobile data and without network
+  (`timedatectl` says not synchronised): with a position the Logs say
+  "Clock set from GNSS" and `date` is right; with internet time GNSS never
+  touches it. The dashboard's "Location" widget (Edit dashboard) matches.
 - [ ] **Guest Wi-Fi:** first check what the radios allow (`iw phy` "valid
   interface combinations": the page says when a radio sends only one
   network; the Pi's own Wi-Fi may be such a radio, a USB adapter usually is
@@ -191,6 +199,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - Clients page: pause a device's internet (30 minutes to "until I resume
   it") and weekly offline times (e.g. school nights 21:00-07:00); the
   device keeps reaching the router.
+- GNSS from the modem (Modem page, optional dashboard widget): position,
+  satellites per constellation, the mobile cell, and the clock from GNSS
+  while there is no internet time.
 - Guest Wi-Fi: a second network on a radio (where the radio allows two),
   internet only, with a generated password and its own QR code.
 - Notification bell in the header: warnings, errors and notable events
