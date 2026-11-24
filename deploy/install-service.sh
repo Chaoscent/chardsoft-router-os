@@ -143,7 +143,7 @@ lan_address() {
     candidates=$(
         ip -4 -o addr show scope global 2>/dev/null \
             | awk '{print $2, $4}' \
-            | grep -Ev '^(docker|br-|veth|wg|ovpn|tun|tap|virbr|wwan|lo)' \
+            | grep -Ev '^(docker|br-|veth|wg|ovpn|tun|tap|virbr|wwan|clat|lo)' \
             | awk '{ split($2, a, "/"); p = ($1 == "br0") ? 0 : ($1 ~ /^(eth|en)/) ? 1 : 2; print p, $1, a[1] }' \
             | sort -k1,1n -k2,2
     )
