@@ -85,7 +85,11 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   that offline times wait for the clock.
 - [ ] **GNSS** (Modem page): with an antenna on the RM520N's GNSS port and
   the Pi near a window, "Receiver: On" shows satellites heard within a
-  minute and a position within a few minutes (`mmcli -m 0 --location-get`);
+  minute and a position within a few minutes. The RM520N refuses NMEA over
+  QMI, so `mmcli -m 0 --location-status` shows `gps-unmanaged` and the
+  sentences come from `/dev/ttyUSB1` (tested 2026-11-24 without antenna:
+  receiver on, the port sends GGA/RMC/VTG/GSA, no fix; check that GSV
+  satellite lists appear once satellites are heard);
   "Open map" shows the right place. After "Restart modem" the receiver comes
   back on by itself. Clock: boot without mobile data and without network
   (`timedatectl` says not synchronised): with a position the Logs say
