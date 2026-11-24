@@ -118,8 +118,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   the bell says so; pull it out: the bell says it is off, `wlan1` is gone
   from `/etc/dnsmasq.d`; plug it back: on again. A never-seen adapter is
   announced once with its bands and shows on the Wi-Fi page. Note: the AXML
-  needs one of the Pi's own USB ports (on the 5G HAT's USB 2.0 hub it
-  disconnected during start, too little current).
+  runs on the 5G HAT's USB hub and on the Pi's own ports; the disconnects
+  on 2026-11-24 came from a USB-C power injector in between, not the HAT.
+  Check that it stays connected under load (a phone downloading on 6 GHz).
 - [ ] **Notifications:** a wrong password at the login, a new phone joining
   the Wi-Fi, pulling the cable behind a static route ("stopped working",
   then "works again") and a watchdog modem restart each show under the
