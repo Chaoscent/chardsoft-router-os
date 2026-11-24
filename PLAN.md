@@ -83,6 +83,10 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   until it ends" lets it back in. The Logs say when a device goes offline
   and online. After a reboot without internet (clock not set) the page says
   that offline times wait for the clock.
+- [ ] **Tools page:** after the reinstall `traceroute` is there; a
+  traceroute to 1.1.1.1 over the modem shows the carrier's hops; "Send
+  from" a VPN client interface pings through the tunnel; "Which way" for an
+  address of a static route names that route (Routes page, "Test").
 - [ ] **Wi-Fi QR code** (Wi-Fi page, "Show QR code"): an iPhone and an Android
   phone join by scanning it, also with WPA3 and a hidden network.
 - [ ] **IPv6 for the LAN** (Firewall page, Routing & NAT): with the modem
@@ -167,6 +171,8 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - Clients page: pause a device's internet (30 minutes to "until I resume
   it") and weekly offline times (e.g. school nights 21:00-07:00); the
   device keeps reaching the router.
+- Tools page: ping, traceroute, name lookup (with the DNS blocklist),
+  port check and "which way" (`ip route get`), each with a plain verdict.
 - Routes page: the routing tables (router, "Your devices", VPN tables) and
   rules in plain words, and static routes of your own through Safe Apply.
 - The dashboard stays responsive while the modem is slow (polls wait for

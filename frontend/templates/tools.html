@@ -1,0 +1,94 @@
+<section class="page">
+
+    <div class="page-header">
+        <h1>Tools</h1>
+    </div>
+
+    <!-- One test at a time, run by the router (services/net_tools.py) -->
+
+    <div class="card">
+
+        <span>Test from the router</span>
+
+        <div class="tool-tabs" role="group" aria-label="Tool">
+            <button class="secondary-btn" type="button" data-tool="ping" aria-pressed="true">Ping</button>
+            <button class="secondary-btn" type="button" data-tool="traceroute" aria-pressed="false">Traceroute</button>
+            <button class="secondary-btn" type="button" data-tool="lookup" aria-pressed="false">Name lookup</button>
+            <button class="secondary-btn" type="button" data-tool="port" aria-pressed="false">Port check</button>
+            <button class="secondary-btn" type="button" data-tool="route" aria-pressed="false">Which way</button>
+        </div>
+
+        <p id="toolHint" class="setting-hint"></p>
+
+        <div class="settings-grid">
+
+            <div class="setting-field">
+                <label for="toolTarget">Address or name</label>
+                <input
+                    id="toolTarget"
+                    class="setting-input"
+                    type="text"
+                    placeholder="e.g. 1.1.1.1 or example.com"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    spellcheck="false">
+            </div>
+
+            <div class="setting-field" id="toolPortField">
+                <label for="toolPort">Port</label>
+                <input
+                    id="toolPort"
+                    class="setting-input"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value="443"
+                    inputmode="numeric">
+            </div>
+
+            <div class="setting-field">
+                <label for="toolFamily">IP version</label>
+                <select id="toolFamily" class="setting-input">
+                    <option value="auto">Automatic</option>
+                    <option value="4">IPv4</option>
+                    <option value="6">IPv6</option>
+                </select>
+            </div>
+
+            <div class="setting-field" id="toolInterfaceField">
+                <label for="toolInterface">Send from</label>
+                <select id="toolInterface" class="setting-input">
+                    <option value="">Automatic (normal route)</option>
+                </select>
+            </div>
+
+        </div>
+
+        <div class="tool-quick" id="toolQuick"></div>
+
+        <div class="setting-row">
+            <button id="toolRun" class="save-btn" type="button">Run</button>
+        </div>
+
+    </div>
+
+
+    <div class="card hidden" id="toolResultCard">
+
+        <span id="toolResultTitle">Result</span>
+
+        <div class="tool-verdict">
+            <span id="toolPill" class="status"></span>
+            <p id="toolSummary"></p>
+        </div>
+
+        <div id="toolDetail"></div>
+
+        <details class="tool-raw">
+            <summary>Raw output</summary>
+            <pre id="toolRaw"></pre>
+        </details>
+
+    </div>
+
+</section>

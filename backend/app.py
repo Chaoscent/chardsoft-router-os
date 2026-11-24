@@ -335,6 +335,7 @@ from services import modem_watchdog
 from services import wan_routing
 from services import data_usage
 from services import internet_time
+from services import net_tools
 from services import internet_check
 from services import qr
 from services import routes as static_routes
@@ -990,6 +991,8 @@ VALID_PAGES = {
         "modem",
 
         "logs",
+
+        "tools",
 
         "system",
 
@@ -1762,6 +1765,32 @@ def safe_apply_response(outcome):
         # 400 when nothing changed (invalid input or a failed apply that
         # was rolled back), 200 when applied (possibly awaiting confirm).
         return jsonify(outcome), 200 if outcome["success"] else 400
+
+
+
+
+@app.route("/api/tools")
+
+@login_required
+
+def tools_api():
+
+        return jsonify(net_tools.get_info())
+
+
+
+
+
+@app.route("/api/tools/run", methods=["POST"])
+
+@login_required
+
+def tools_run_api():
+
+        outcome = net_tools.run_tool(request.get_json(silent=True))
+
+        return jsonify(outcome), 400 if "error" in outcome else 200
+
 
 
 

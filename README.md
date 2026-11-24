@@ -64,6 +64,7 @@ Networking-first installation.
 * VPN (WireGuard and OpenVPN, servers and clients)
 * Logs
 * System
+* Tools (ping, traceroute, name lookup, port check and "which way" from the router, explained)
 * Shell (web terminal; off by default, password per session, desktop only)
 * Safe Apply (bad settings never brick the router)
 * Setup Wizard (first-time setup at `/setup`)

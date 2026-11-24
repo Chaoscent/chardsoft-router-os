@@ -77,6 +77,8 @@ window.Page.routes = {
                     ${route.detail ? `<br><small>${this.escape(route.detail)}</small>` : ""}
                 </td>
                 <td class="table-action">
+                    <a class="table-btn" href="#/tools?tool=route&target=${encodeURIComponent(route.destination.split("/")[0])}"
+                       title="Which way the router sends this traffic">Test</a>
                     <button class="table-btn route-edit" type="button">Edit</button>
                     <button class="table-btn danger route-delete" type="button">Delete</button>
                 </td>
