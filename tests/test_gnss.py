@@ -94,17 +94,29 @@ class NmeaTests(unittest.TestCase):
 class FakeModem:
     """mmcli with JSON output, the receiver on or off."""
 
-    def __init__(self, sentences, capable=True):
+    def __init__(self, sentences, capable=True, nmea_refused=False, port=None):
         self.sentences = sentences
         self.capable = capable
+        # The RM520N over QMI: gps-nmea refused, gps-unmanaged works.
+        self.nmea_refused = nmea_refused
+        self.port = port
         self.enabled = []
         self.calls = []
 
     def run_command(self, command):
         self.calls.append(command)
         if "--location-status" in command:
-            caps = ["3gpp-lac-ci", "gps-raw", "gps-nmea"] if self.capable else ["3gpp-lac-ci"]
+            caps = ["3gpp-lac-ci", "gps-raw", "gps-nmea", "gps-unmanaged"] if self.capable else ["3gpp-lac-ci"]
             return True, json.dumps({"modem": {"location": {"capabilities": caps, "enabled": self.enabled}}})
+        if command[-1:] == ["-J"] and len(command) == 4:
+            ports = ["cdc-wdm0 (qmi)", "ttyUSB0 (ignored)", f"{self.port} (gps)", "ttyUSB2 (at)"]
+            return True, json.dumps({"modem": {"generic": {"ports": ports}}})
+        if "--location-enable-gps-nmea" in command and self.nmea_refused:
+            return False, "error: couldn't setup location gathering: QMI protocol error (48): 'InvalidArgument'"
+        if "--location-enable-gps-unmanaged" in command:
+            self.enabled = ["3gpp-lac-ci", "gps-unmanaged"]
+        if "--location-disable-gps-unmanaged" in command:
+            self.enabled = []
         if "--location-get" in command:
             gps = {"nmea": self.sentences if "gps-nmea" in self.enabled else [], "latitude": "--"}
             return True, json.dumps({"modem": {"location": {
@@ -181,6 +193,67 @@ class ReceiverTests(unittest.TestCase):
     def test_off(self):
         config.save_running(gnss.SETTINGS, {"enabled": False, "set_clock": True})
         self.assertEqual(gnss.get_status(refresh=True)["level"], "off")
+
+
+class UnmanagedTests(unittest.TestCase):
+    """No NMEA through ModemManager: the sentences come from the modem's port."""
+
+    def setUp(self):
+        config.save_running(gnss.SETTINGS, {"enabled": True, "set_clock": True})
+        gnss._last.update(reading=None, fix_key=None, fix_seen=0.0, clock_set=0.0)
+        self.master, slave = os.openpty()
+        self.slave = os.ttyname(slave)
+        self.addCleanup(os.close, self.master)
+        self.addCleanup(os.close, slave)
+        self.modem = FakeModem(FIX, nmea_refused=True, port=os.path.basename(self.slave))
+        for p in (mock.patch.object(gnss, "_modem", lambda: self.modem),
+                  mock.patch.object(gnss, "start_watch"),
+                  mock.patch.object(gnss, "maybe_set_clock"),
+                  mock.patch.object(gnss, "gps_port", lambda index: self.slave),
+                  mock.patch.object(gnss, "log_event")):
+            p.start()
+            self.addCleanup(p.stop)
+        self.addCleanup(gnss.stop_port)
+
+    def test_falls_back_and_reads_the_port(self):
+        self.assertTrue(gnss.apply()[0])
+        self.assertEqual(self.modem.enabled, ["3gpp-lac-ci", "gps-unmanaged"])
+        gnss.sample()
+        time.sleep(0.3)
+        os.write(self.master, ("\r\n".join(FIX) + "\r\n").encode())
+        for _ in range(40):
+            status = gnss.get_status(refresh=True)
+            if status["level"] == "fix":
+                break
+            time.sleep(0.05)
+        self.assertEqual(status["level"], "fix", status)
+        self.assertAlmostEqual(status["position"]["latitude"], 52.51735, places=4)
+
+    def test_old_sentences_do_not_count(self):
+        gnss._port["lines"].clear()
+        gnss._port["lines"].append((time.time() - 10, FIX[4]))
+        self.assertEqual(gnss.port_sentences(), [])
+
+    def test_off_stops_the_reader(self):
+        gnss.apply()
+        gnss.sample()
+        self.assertTrue(gnss._port["thread"].is_alive())
+        config.save_running(gnss.SETTINGS, {"enabled": False, "set_clock": True})
+        gnss.apply()
+        self.assertIsNone(gnss._port["thread"])
+        self.assertEqual(self.modem.enabled, [])
+
+    def test_port_from_mmcli(self):
+        self.modem.port = "ttyUSB1"
+        self.assertEqual(GPS_PORT(self.modem), "/dev/ttyUSB1")
+
+
+def GPS_PORT(modem):
+    with mock.patch.object(gnss, "_modem", lambda: modem):
+        return ORIGINAL_GPS_PORT("0")
+
+
+ORIGINAL_GPS_PORT = gnss.gps_port
 
 
 class ClockTests(unittest.TestCase):

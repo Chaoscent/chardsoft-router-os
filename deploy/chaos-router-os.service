@@ -15,6 +15,8 @@ Wants=network-online.target
 Type=simple
 User=@USER@
 Group=@GROUP@
+# The modem's NMEA port (/dev/ttyUSB*, group dialout) for GNSS.
+SupplementaryGroups=dialout
 WorkingDirectory=@APP_DIR@/backend
 
 Environment=PYTHONUNBUFFERED=1

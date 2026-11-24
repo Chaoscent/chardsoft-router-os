@@ -4,8 +4,8 @@ read through ModemManager, and the router's clock from it.
 
 Settings (the "gnss" area, part of backups):
 
-    enabled     the receiver is on (ModemManager's gps-nmea and
-                gps-raw location sources, plus 3gpp: the cell)
+    enabled     the receiver is on (ModemManager's gps-nmea location
+                source, or gps-unmanaged, plus 3gpp: the cell)
     set_clock   while the clock has not been synchronised over the
                 internet (no RTC battery, no mobile data yet), a fresh
                 fix sets it
@@ -15,7 +15,12 @@ Settings (the "gnss" area, part of backups):
 
 ModemManager hands over the receiver's latest NMEA sentences
 (`mmcli --location-get`); they are parsed here, so the page can say
-how many satellites are heard and used, not only the position. No
+how many satellites are heard and used, not only the position. Some
+modems refuse that over QMI (the RM520N: "couldn't setup required NMEA
+traces"); then ModemManager only starts the receiver (gps-unmanaged)
+and the sentences are read from the modem's own NMEA port (the one
+mmcli lists as "(gps)", e.g. ttyUSB1; the service has the dialout
+group for it). No
 assistance data is downloaded (that would ask a third party): the
 first fix can take a few minutes, faster with open sky.
 
@@ -26,9 +31,13 @@ the watcher (every 5 s while on) switches it on again.
 """
 
 import atexit
+import collections
 import datetime
 import json
 import math
+import os
+import re
+import termios
 import threading
 import time
 
@@ -58,8 +67,14 @@ CLOCK_SET_AFTER = 1735689600
 CLOCK_MIN_GAP = 600
 CLOCK_TOLERANCE = 5
 
-SOURCES = ("--location-enable-3gpp", "--location-enable-gps-nmea", "--location-enable-gps-raw")
-OFF = ("--location-disable-3gpp", "--location-disable-gps-nmea", "--location-disable-gps-raw")
+SOURCES = ("--location-enable-3gpp", "--location-enable-gps-nmea")
+# The receiver only; its sentences come from the NMEA port.
+UNMANAGED = ("--location-enable-3gpp", "--location-enable-gps-unmanaged")
+OFF = ("--location-disable-3gpp", "--location-disable-gps-nmea", "--location-disable-gps-raw",
+       "--location-disable-gps-unmanaged")
+
+# Sentences from the NMEA port younger than this make one reading.
+PORT_WINDOW = 3
 
 CONSTELLATIONS = {
     "GP": "GPS",
@@ -360,17 +375,150 @@ def read_location(index):
     }
 
 
-def switch(index, on):
+def can_receive(location):
+
+    caps = (location or {}).get("capabilities") or []
+
+    return "gps-nmea" in caps or "gps-unmanaged" in caps
+
+
+def receiving(location):
+
+    enabled = (location or {}).get("enabled") or []
+
+    return "gps-nmea" in enabled or "gps-unmanaged" in enabled
+
+
+def switch(index, on, location=None):
 
     modem = _modem()
 
-    ok, out = modem.run_command(modem.privileged(["mmcli", "-m", index, *(SOURCES if on else OFF)]))
+    if not on:
+        stop_port()
+        # Each source on its own: one that is not on must not stop the rest.
+        results = [modem.run_command(modem.privileged(["mmcli", "-m", index, flag])) for flag in OFF]
+        return all(ok for ok, _ in results), "\n".join(out or "" for _, out in results)
 
-    if ok and on:
+    caps = (location or {}).get("capabilities") or []
+
+    ok, out = False, ""
+
+    if "gps-nmea" in caps or not caps:
+        ok, out = modem.run_command(modem.privileged(["mmcli", "-m", index, *SOURCES]))
+
+    # ModemManager could not get the sentences: the receiver alone.
+    if not ok and "gps-unmanaged" in caps:
+        ok, out = modem.run_command(modem.privileged(["mmcli", "-m", index, *UNMANAGED]))
+
+    if ok:
         # Every 5 s instead of ModemManager's default 30 s.
         modem.run_command(modem.privileged(["mmcli", "-m", index, "--location-set-gps-refresh-rate=5"]))
 
     return ok, out
+
+
+# ------------------------------------------------------------------
+# The NMEA port (gps-unmanaged)
+# ------------------------------------------------------------------
+
+_port = {"path": None, "lines": collections.deque(maxlen=200), "thread": None, "stop": None, "error": None}
+
+
+def gps_port(index):
+    """The modem's NMEA port, e.g. /dev/ttyUSB1, from mmcli's port list."""
+
+    modem = _modem()
+
+    ok, output = modem.run_command(modem.privileged(["mmcli", "-m", index, "-J"]))
+
+    if not ok:
+        return None
+
+    try:
+        ports = json.loads(output)["modem"]["generic"]["ports"] or []
+    except (ValueError, KeyError, TypeError):
+        return None
+
+    for port in ports:
+        match = re.fullmatch(r"(tty[A-Za-z0-9]+) \(gps\)", str(port).strip())
+        if match:
+            return f"/dev/{match.group(1)}"
+
+    return None
+
+
+def _read_port(path, stop):
+
+    while not stop.is_set():
+
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOCTTY)
+        except OSError as e:
+            _port["error"] = f"{path}: {e.strerror}"
+            stop.wait(5)
+            continue
+
+        try:
+            # Raw lines, no echo; the speed does not matter on USB.
+            attrs = termios.tcgetattr(fd)
+            attrs[3] &= ~(termios.ICANON | termios.ECHO)
+            attrs[6][termios.VMIN], attrs[6][termios.VTIME] = 0, 10
+            termios.tcsetattr(fd, termios.TCSANOW, attrs)
+        except termios.error:
+            pass
+
+        _port["error"] = None
+        buffer = b""
+
+        try:
+            while not stop.is_set():
+                chunk = os.read(fd, 1024)
+                if not chunk:
+                    continue
+                buffer += chunk
+                *lines, buffer = buffer.split(b"\n")
+                buffer = buffer[-512:]
+                now = time.time()
+                for line in lines:
+                    text = line.decode("ascii", "replace").strip()
+                    if text.startswith("$"):
+                        _port["lines"].append((now, text))
+        except OSError as e:
+            # The modem restarted: the port comes back.
+            _port["error"] = f"{path}: {e.strerror}"
+        finally:
+            os.close(fd)
+
+        stop.wait(2)
+
+
+def start_port(path):
+
+    if _port["path"] == path and _port["thread"] and _port["thread"].is_alive():
+        return
+
+    stop_port()
+
+    stop = threading.Event()
+    thread = threading.Thread(target=_read_port, args=(path, stop), daemon=True, name="gnss-port")
+    _port.update(path=path, stop=stop, thread=thread, error=None)
+    _port["lines"].clear()
+    thread.start()
+
+
+def stop_port():
+
+    if _port["stop"]:
+        _port["stop"].set()
+
+    _port.update(path=None, stop=None, thread=None)
+
+
+def port_sentences(now=None):
+
+    now = time.time() if now is None else now
+
+    return [line for stamp, line in list(_port["lines"]) if now - stamp <= PORT_WINDOW]
 
 
 def apply():
@@ -385,10 +533,10 @@ def apply():
 
     location = read_location(index)
 
-    if on and location is not None and "gps-nmea" not in location["capabilities"]:
+    if on and location is not None and not can_receive(location):
         return False, "This modem has no GNSS receiver that ModemManager can use."
 
-    ok, out = switch(index, on)
+    ok, out = switch(index, on, location)
 
     if not ok:
         return False, f"ModemManager refused: {(out or '').strip().splitlines()[-1] if out else 'no answer'}"
@@ -551,14 +699,17 @@ def describe(state, settings, location, has_modem, now):
     if not has_modem:
         return {**view, "level": "no_modem", "message": "No modem found."}
 
-    if location is not None and location["capabilities"] and "gps-nmea" not in location["capabilities"]:
+    if location is not None and location["capabilities"] and not can_receive(location):
         return {**view, "level": "unsupported", "message": "This modem has no GNSS receiver that ModemManager can use."}
 
     if not settings["enabled"]:
         return view
 
-    if location is None or "gps-nmea" not in location["enabled"]:
+    if location is None or not receiving(location):
         return {**view, "level": "starting", "message": "Switching the receiver on..."}
+
+    if state is None and location.get("port_error"):
+        return {**view, "level": "starting", "message": f"Waiting for the receiver's NMEA port ({location['port_error']})."}
 
     if state is None:
         return {**view, "level": "starting", "message": "Starting the receiver. The first sentences take a few seconds."}
@@ -625,16 +776,30 @@ def sample():
     location = read_location(index)
 
     # A modem restart switched it off.
-    if settings["enabled"] and location is not None and "gps-nmea" in location["capabilities"] \
-            and "gps-nmea" not in location["enabled"]:
-        switch(index, True)
+    if settings["enabled"] and location is not None and can_receive(location) and not receiving(location):
+        switch(index, True, location)
         location = read_location(index)
 
     state = None
 
+    unmanaged = location is not None and settings["enabled"] \
+        and "gps-unmanaged" in location["enabled"] and "gps-nmea" not in location["enabled"]
+
+    if unmanaged:
+        # Looked up again when it broke: a modem restart can rename it.
+        alive = _port["thread"] and _port["thread"].is_alive() and not _port["error"]
+        path = _port["path"] if alive else gps_port(index)
+        if path:
+            start_port(path)
+            location["port_error"] = _port["error"]
+        else:
+            location["port_error"] = "mmcli lists no NMEA port"
+    else:
+        stop_port()
+
     if location is not None and settings["enabled"]:
 
-        nmea = location["gps"].get("nmea") or []
+        nmea = port_sentences() if unmanaged else (location["gps"].get("nmea") or [])
 
         if isinstance(nmea, str):
             nmea = nmea.splitlines()
