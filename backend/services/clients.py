@@ -204,6 +204,10 @@ def get_client_list(viewer_ip=None):
 
     times = internet_time.states()
 
+    from services import device_usage
+
+    usage = device_usage.usage_by_mac()
+
     clients = []
     seen = set()
 
@@ -263,6 +267,7 @@ def get_client_list(viewer_ip=None):
         client["is_you"] = bool(viewer_ip) and client["ip"] == viewer_ip
 
         client["internet_time"] = times.get(mac) or internet_time.device_state({})
+        client["usage"] = usage.get(mac, 0)
 
         if client["blocked"]:
             client["state"] = "Blocked"

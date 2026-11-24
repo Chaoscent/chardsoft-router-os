@@ -13,6 +13,16 @@ window.Page.clients = {
 
     },
 
+    formatBytes(bytes) {
+
+        if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(bytes >= 1e11 ? 0 : 2)} GB`;
+        if (bytes >= 1e6) return `${Math.round(bytes / 1e6)} MB`;
+        if (bytes >= 1e3) return `${Math.round(bytes / 1e3)} kB`;
+
+        return `${bytes} B`;
+
+    },
+
     async request(url, body) {
 
         const res = await fetch(url, {
@@ -83,6 +93,7 @@ window.Page.clients = {
 
                 <td>${this.escape(client.ip) || "—"}</td>
                 <td>${this.escape(client.interface) || "—"}</td>
+                <td class="num">${client.usage ? this.formatBytes(client.usage) : "—"}</td>
 
                 <td>
                     <span class="status ${badge}">${this.escape(client.state)}</span>
@@ -132,6 +143,8 @@ window.Page.clients = {
         inspectorAccess.textContent = client.blocked ? "Blocked" : "Allowed";
 
         inspectorYou.classList.toggle("hidden", !client.is_you);
+
+        inspectorUsage.textContent = client.usage ? this.formatBytes(client.usage) : "Nothing yet";
 
         const time = client.internet_time || {};
 

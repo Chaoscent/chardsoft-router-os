@@ -336,6 +336,7 @@ from services import wan_routing
 from services import data_usage
 from services import internet_time
 from services import net_tools
+from services import device_usage
 from services import internet_check
 from services import qr
 from services import routes as static_routes
@@ -1188,7 +1189,11 @@ def internet_fix_api():
 
 def data_usage_api():
 
-        return jsonify(data_usage.get_status())
+        status = data_usage.get_status()
+
+        status["by_device"] = device_usage.get_status(total=status["used"], limit=3)
+
+        return jsonify(status)
 
 
 
@@ -3911,6 +3916,9 @@ def watch_interfaces():
 
         # Device pauses and offline times follow the clock.
         internet_time.watch()
+
+        # Data used per device this billing period.
+        device_usage.watch()
 
 
 def start_setup_wifi():

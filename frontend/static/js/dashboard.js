@@ -719,10 +719,70 @@ window.Page.dashboard = {
 
         widget.querySelector(".usage-detail").textContent = parts.join(" ");
 
+        this.renderUsageDevices(widget.querySelector(".usage-devices"), data);
+
         widget.querySelector(".usage-action").classList.toggle("hidden", data.level !== "blocked");
 
         widget.querySelector(".usage-resume").onclick = event =>
             this.runFix({ fix: "resume" }, event.currentTarget, widget.querySelector(".usage-result"));
+
+    },
+
+
+    /** The devices that used the most, and the router's own share. */
+    renderUsageDevices(list, data) {
+
+        const by = data.by_device;
+
+        if (!by || !by.devices.length) {
+            list.classList.add("hidden");
+            return;
+        }
+
+        const top = Math.max(...by.devices.map(d => d.bytes), by.other || 0, 1);
+
+        const row = (name, bytes, href, muted) => {
+
+            const item = document.createElement("li");
+
+            if (muted) item.className = "muted";
+
+            item.innerHTML = `
+                <span class="usage-device-name"></span>
+                <span class="usage-device-bytes">${this.formatBytes(bytes)}</span>
+                <span class="usage-device-bar"><span style="width:${Math.max(2, bytes / top * 100)}%"></span></span>
+            `;
+
+            const label = item.querySelector(".usage-device-name");
+
+            if (href) {
+                const link = document.createElement("a");
+                link.href = href;
+                link.textContent = name;
+                label.appendChild(link);
+            } else {
+                label.textContent = name;
+            }
+
+            return item;
+
+        };
+
+        const rows = by.devices.map(d => row(d.name, d.bytes, "#/clients"));
+
+        if (by.more) {
+            const rest = document.createElement("li");
+            rest.className = "muted usage-device-more";
+            rest.innerHTML = `<a href="#/clients">${by.more} more device${by.more === 1 ? "" : "s"}</a>`;
+            rows.push(rest);
+        }
+
+        if (by.other > 0 && data.used) {
+            rows.push(row("The router itself and overhead", by.other, null, true));
+        }
+
+        list.replaceChildren(...rows);
+        list.classList.remove("hidden");
 
     },
 
