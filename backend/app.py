@@ -341,6 +341,7 @@ from services import net_tools
 from services import device_usage
 from services import notifications
 from services import guest as guest_wifi
+from services import wifi_hotplug
 from services import gnss
 from services import maps as offline_maps
 from services import internet_check
@@ -4114,6 +4115,10 @@ def watch_interfaces():
 
         # Guests stay off the LAN even after a firewall reload.
         guest_wifi.watch()
+
+        # USB Wi-Fi adapters plugged in or pulled out: their networks
+        # start and stop by themselves.
+        wifi_hotplug.watch()
 
         # The modem's GNSS: back on after a reboot or a modem restart.
         gnss.watch()

@@ -112,6 +112,14 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   DHCP serves `wlan0-guest`; the main network keeps working while guests
   are on; switching the guest network off removes `wlan0-guest`; the rules
   come back within 30 s after `sudo ufw reload`.
+- [ ] **USB Wi-Fi hotplug:** with "Chaos Router 6G" saved for the AXML
+  (wlan1), plug it in while the router runs: within about 10 s the network
+  is on (`systemctl status chaos-hostapd@wlan1`), DHCP serves 10.43.0.x and
+  the bell says so; pull it out: the bell says it is off, `wlan1` is gone
+  from `/etc/dnsmasq.d`; plug it back: on again. A never-seen adapter is
+  announced once with its bands and shows on the Wi-Fi page. Note: the AXML
+  needs one of the Pi's own USB ports (on the 5G HAT's USB 2.0 hub it
+  disconnected during start, too little current).
 - [ ] **Notifications:** a wrong password at the login, a new phone joining
   the Wi-Fi, pulling the cable behind a static route ("stopped working",
   then "works again") and a watchdog modem restart each show under the
@@ -216,6 +224,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - GNSS from the modem (Modem page, optional dashboard widget): position,
   satellites per constellation, the mobile cell, and the clock from GNSS
   while there is no internet time.
+- USB Wi-Fi hotplug: adapters plugged in or out while running; saved
+  networks start and stop by themselves, new adapters are announced, each
+  network remembers its adapter.
 - Guest Wi-Fi: a second network on a radio (where the radio allows two),
   internet only, with a generated password and its own QR code.
 - Notification bell in the header: warnings, errors and notable events

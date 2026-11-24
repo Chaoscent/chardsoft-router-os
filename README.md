@@ -40,7 +40,7 @@ Only hardware that can be tested is officially supported.
 
 **Wi-Fi 6E (6 GHz)** needs an extra adapter whose driver can run a 6 GHz access point. The Raspberry Pi 5's built-in Wi-Fi has no 6 GHz radio; the WiFi page detects this and only offers the bands the radio supports.
 
-**One network per radio.** Every Wi-Fi radio (the built-in one, USB adapters) runs its own access point with its own name, band and subnet. A radio sends on one band at a time, so 2.4 and 5 GHz at once need two radios.
+**One network per radio.** Every Wi-Fi radio (the built-in one, USB adapters) runs its own access point with its own name, band and subnet. A radio sends on one band at a time, so 2.4 and 5 GHz at once need two radios. USB adapters can be plugged in and out while the router runs: a new one is announced in the notifications and listed on the Wi-Fi page, and a network saved for an adapter starts by itself when it is plugged in (and stops when it is pulled out). Each network remembers its adapter, so when another adapter takes its name (wlan1, wlan2 follow the plug order) the network stays off until it is saved for that one.
 
 ---
 

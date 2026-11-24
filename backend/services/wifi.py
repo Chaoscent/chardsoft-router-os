@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import time
 
-from services.config import load_defaults, load_running, save_running
+from services.config import load_defaults, load_running, save_running, load_persistent, save_persistent
 
 from services import transaction
 
@@ -246,6 +246,60 @@ def guest_bssid(interface):
     parts[0] = f"{first ^ 0x02:02x}"
 
     return ":".join(parts)
+
+
+# {interface: radio MAC}: the adapter each network last ran on. Names
+# follow the plug order, so another adapter can show up as wlan1 (see
+# services/wifi_hotplug.py).
+RADIOS = "wifi_radios"
+
+
+def radio_mac(interface):
+    """The radio's own MAC (the phy's; an access point may use others)."""
+
+    for path in (f"/sys/class/net/{interface}/phy80211/macaddress", f"/sys/class/net/{interface}/address"):
+        try:
+            with open(path) as f:
+                mac = f.read().strip().lower()
+        except OSError:
+            continue
+        if mac:
+            return mac
+
+    return None
+
+
+def remembered_radios():
+
+    data = load_persistent(RADIOS, {})
+
+    return data if isinstance(data, dict) else {}
+
+
+def remember_radio(interface):
+
+    mac = radio_mac(interface)
+    known = remembered_radios()
+
+    if mac and known.get(interface) != mac:
+        save_persistent(RADIOS, {**known, interface: mac})
+
+
+def forget_radio(interface):
+
+    known = remembered_radios()
+
+    if known.pop(interface, None):
+        save_persistent(RADIOS, known)
+
+
+def other_adapter(interface):
+    """Whether the radio now called this is not the one its network ran on."""
+
+    known = remembered_radios().get(interface)
+    mac = radio_mac(interface)
+
+    return bool(known and mac and known != mac)
 
 
 def has_hostapd():
@@ -1174,6 +1228,9 @@ def save_wifi_settings(data):
     if not ok:
         return transaction.result(False, result)
 
+    # Saved for the adapter plugged in now (see other_adapter).
+    forget_radio(result["interface"])
+
     outcome = transaction.change(WIFI_SETTINGS, with_network(settings, result))
 
     if outcome["success"] and result["enabled"] and not bridges_interface(result["interface"]):
@@ -1278,7 +1335,12 @@ def apply_wifi_settings():
     stop_legacy()
 
     present = set(get_wireless_interfaces())
-    on = {net["interface"] for net in wanted if net["interface"] in present}
+
+    # Another adapter under a network's name: not its network (it is
+    # saved for this adapter on the Wi-Fi page).
+    foreign = {net["interface"] for net in wanted if net["interface"] in present and other_adapter(net["interface"])}
+
+    on = {net["interface"] for net in wanted if net["interface"] in present} - foreign
 
     # Off first: a radio's subnet may move to another one.
     for name in sorted(set(running_instances()) | set(applied_addresses()) | set(settings["networks"])):
@@ -1301,10 +1363,16 @@ def apply_wifi_settings():
             messages.append(f"{net['interface']} is not plugged in.")
             continue
 
+        if net["interface"] in foreign:
+            messages.append(f"{net['interface']} is a different adapter now; save its network on the Wi-Fi page.")
+            continue
+
         ok, result = start_access_point(net)
 
         if not ok:
             return False, f"{net['interface']}: {result}"
+
+        remember_radio(net["interface"])
 
         if not result.endswith("unchanged."):
             messages.append(result)
@@ -1473,7 +1541,7 @@ def verify_wifi_settings():
 
     wanted = [
         net for net in enabled_networks()
-        if net["interface"] in get_wireless_interfaces()
+        if net["interface"] in get_wireless_interfaces() and not other_adapter(net["interface"])
     ]
 
     if not wanted:
