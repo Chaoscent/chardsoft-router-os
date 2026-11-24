@@ -69,6 +69,9 @@ window.Header = {
                 data.user;
 
 
+            Notifications.setCount(data.unread);
+
+
             pulseDown.textContent =
                 `↓ ${this.formatRate(data.rx)}`;
 

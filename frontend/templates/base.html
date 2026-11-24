@@ -42,6 +42,28 @@
             <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/user.svg') }})" aria-hidden="true"></span><span id="headerUser">admin</span>
         </span>
 
+        <!-- Notifications (notifications.js, services/notifications.py) -->
+        <div class="notify-wrap">
+
+            <button id="notifyToggle" class="menubar-button menubar-icon notify-toggle" type="button"
+                    aria-label="Notifications" title="Notifications" aria-expanded="false" aria-controls="notifyPanel">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/bell.svg') }})" aria-hidden="true"></span>
+                <span id="notifyCount" class="notify-count hidden" aria-hidden="true"></span>
+            </button>
+
+            <div id="notifyPanel" class="notify-panel hidden" role="dialog" aria-label="Notifications">
+
+                <div class="notify-head">
+                    <strong>Notifications</strong>
+                    <a href="#/logs" class="notify-all">All events</a>
+                </div>
+
+                <ol id="notifyList" class="notify-list"></ol>
+
+            </div>
+
+        </div>
+
         <!-- Light / dark (header.js); shared with chardsoft.com. -->
         <button id="themeToggle" class="menubar-button menubar-icon theme-toggle" type="button"
                 aria-label="Switch to light mode" title="Switch to light mode">
@@ -199,6 +221,7 @@
 <script src="{{ asset('js/csrf.js') }}"></script>
 <script src="{{ asset('js/poll.js') }}"></script>
 <script src="{{ asset('js/header.js') }}"></script>
+<script src="{{ asset('js/notifications.js') }}"></script>
 <script src="{{ asset('js/select.js') }}"></script>
 <script src="{{ asset('js/modal.js') }}"></script>
 <script src="{{ asset('js/apply.js') }}"></script>

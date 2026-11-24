@@ -62,7 +62,7 @@ Networking-first installation.
 * Clients (block, pause the internet, weekly offline times such as a bedtime)
 * Firewall (ufw)
 * VPN (WireGuard and OpenVPN, servers and clients)
-* Logs
+* Logs (and a notification bell for warnings and notable events)
 * System
 * Tools (ping, traceroute, name lookup, port check and "which way" from the router, explained)
 * Shell (web terminal; off by default, password per session, desktop only)

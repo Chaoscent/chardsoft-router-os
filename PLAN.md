@@ -83,6 +83,10 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   until it ends" lets it back in. The Logs say when a device goes offline
   and online. After a reboot without internet (clock not set) the page says
   that offline times wait for the clock.
+- [ ] **Notifications:** a wrong password at the login, a new phone joining
+  the Wi-Fi, pulling the cable behind a static route ("stopped working",
+  then "works again") and a watchdog modem restart each show under the
+  bell with its count; opening the list clears the count.
 - [ ] **Data per device:** stream a video on one phone for a few minutes:
   the dashboard's "Mobile data" lists that phone on top within a minute,
   close to what the phone's own data counter says (Wi-Fi usage); the
@@ -177,6 +181,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - Clients page: pause a device's internet (30 minutes to "until I resume
   it") and weekly offline times (e.g. school nights 21:00-07:00); the
   device keeps reaching the router.
+- Notification bell in the header: warnings, errors and notable events
+  (new device, modem restarted by the watchdog, new billing period, a
+  static route that stops or works again) with links to their pages.
 - Data per device this billing period (dashboard "Mobile data", Clients
   page), with the router's own share as the rest.
 - Tools page: ping, traceroute, name lookup (with the DNS blocklist),

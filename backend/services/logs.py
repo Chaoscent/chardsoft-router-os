@@ -73,10 +73,11 @@ def level_at_least(level, minimum):
 # Router events
 # -------------------------------------------------------------------
 
-def log_event(category, message, level="info", **details):
+def log_event(category, message, level="info", notify=False, **details):
     """
     Records a router event. Never raises: logging must not break
-    the action being logged.
+    the action being logged. Warnings and errors show in the header's
+    notifications; notify=True puts an info event there too.
     """
 
     entry = {
@@ -85,6 +86,9 @@ def log_event(category, message, level="info", **details):
         "source": category,
         "message": message
     }
+
+    if notify:
+        entry["notify"] = True
 
     if details:
         entry["details"] = details

@@ -26,6 +26,7 @@ import time
 from shutil import which
 
 from services.config import load_persistent, save_persistent
+from services.logs import log_event
 from services.network import run_command, privileged
 
 COUNTER = "device_usage_counter"
@@ -127,12 +128,12 @@ def roll_period(state, start):
 def assign_slots(state, macs, names):
     """
     Gives new devices a free slot. Devices already known keep theirs.
-    True if any device was added.
+    Returns the MACs that were added.
     """
 
     devices = state["devices"]
     used = {d["slot"] for d in devices.values()}
-    added = False
+    added = []
 
     for mac in macs:
 
@@ -150,7 +151,7 @@ def assign_slots(state, macs, names):
 
         devices[mac] = {"slot": free, "bytes": 0, "last": 0, "name": names.get(mac, "")}
         used.add(free)
-        added = True
+        added.append(mac)
 
     return added
 
@@ -339,7 +340,13 @@ def sample():
                 add_counters(state, counters)
 
         macs, names = known_devices()
+        first = not state["devices"]
         added = assign_slots(state, sorted(macs), names)
+
+        # The very first look finds every device "new": not worth a word.
+        if not first:
+            for mac in added:
+                log_event("clients", f"New device on your network: {names.get(mac) or mac}.", notify=True)
 
         slots = {mac: d["slot"] for mac, d in state["devices"].items()}
 
@@ -348,7 +355,7 @@ def sample():
             for device in state["devices"].values():
                 device["last"] = 0
 
-        _save(force=rolled or added)
+        _save(force=rolled or bool(added))
 
 
 def flush():

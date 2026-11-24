@@ -101,7 +101,7 @@ def reset_modem(reason, automatic=True):
     if ok and not automatic:
         log_event("modem", f"Modem restarted: {reason}. It reconnects within a minute.")
     elif ok:
-        log_event("modem", f"Modem restarted automatically: {reason}. It reconnects within a minute.")
+        log_event("modem", f"Modem restarted automatically: {reason}. It reconnects within a minute.", notify=True)
     else:
         log_event("modem", f"The modem's data link is stuck ({reason}), but restarting it failed: {output}", level="warning")
 

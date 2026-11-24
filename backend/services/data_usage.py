@@ -226,7 +226,7 @@ def _roll_period(state, today, settings):
 
     state.update(empty_state(start), history=history[:HISTORY_PERIODS], last=state["last"])
 
-    log_event("data", f"New billing period from {start.isoformat()}: the mobile data count starts at zero.")
+    log_event("data", f"New billing period from {start.isoformat()}: the mobile data count starts at zero.", notify=True)
 
     return True
 

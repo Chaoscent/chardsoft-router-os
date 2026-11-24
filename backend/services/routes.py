@@ -21,6 +21,7 @@ import re
 import threading
 
 from services.config import load_settings
+from services.logs import log_event
 
 from services.network import run, run_command, privileged
 
@@ -54,6 +55,11 @@ _lock = threading.Lock()
 
 # Why a route could not be added: {(destination, metric): message}.
 _waiting = {}
+
+# Routes that were in the kernel at the last sync (to tell when one
+# stops), and the ones that stopped (to tell when one works again).
+_working = set()
+_lost = set()
 
 
 # ------------------------------------------------------------------
@@ -333,6 +339,21 @@ def sync():
 
         _waiting.clear()
         _waiting.update(waiting)
+
+        working = {key_of(r) for r in wanted} - set(waiting)
+
+        for key in sorted(_working & set(waiting)):
+            log_event("routes", f"Your route to {key[0]} stopped working: {waiting[key]}", "warning")
+            _lost.add(key)
+
+        for key in sorted(_lost & working):
+            log_event("routes", f"Your route to {key[0]} works again.", notify=True)
+
+        # Deleted or switched-off routes are not "lost" any more.
+        _lost.intersection_update(set(waiting))
+
+        _working.clear()
+        _working.update(working)
 
     if waiting:
         return True, f"Saved. {len(waiting)} route{'s' if len(waiting) > 1 else ''} waiting for {'their' if len(waiting) > 1 else 'its'} gateway or interface."

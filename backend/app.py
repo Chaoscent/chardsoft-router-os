@@ -337,6 +337,7 @@ from services import data_usage
 from services import internet_time
 from services import net_tools
 from services import device_usage
+from services import notifications
 from services import internet_check
 from services import qr
 from services import routes as static_routes
@@ -1774,6 +1775,34 @@ def safe_apply_response(outcome):
 
 
 
+@app.route("/api/notifications")
+
+@login_required
+
+def notifications_api():
+
+        return jsonify(notifications.get_notifications())
+
+
+
+
+
+@app.route("/api/notifications/read", methods=["POST"])
+
+@login_required
+
+def notifications_read_api():
+
+        data = request.get_json(silent=True) or {}
+
+        ok = notifications.mark_read(data.get("until"))
+
+        return jsonify({"success": ok}), 200 if ok else 400
+
+
+
+
+
 @app.route("/api/tools")
 
 @login_required
@@ -2829,7 +2858,9 @@ def header_api():
 
                 "tx": traffic["tx"],
 
-                "interface": traffic["interface"]
+                "interface": traffic["interface"],
+
+                "unread": notifications.unread_count()
 
         })
 

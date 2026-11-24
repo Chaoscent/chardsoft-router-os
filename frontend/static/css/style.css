@@ -3269,3 +3269,136 @@ a.setup-open{
 .usage-devices li.muted .usage-device-bar > span{
     background:var(--color-text-disabled);
 }
+
+
+/* ========================================================= */
+/* Header: notifications                                     */
+/* ========================================================= */
+
+.notify-wrap{
+    position:relative;
+}
+
+.notify-toggle{
+    position:relative;
+}
+
+.notify-count{
+    position:absolute;
+    top:4px;
+    right:3px;
+    min-width:16px;
+    height:16px;
+    padding:0 4px;
+    font-size:10.5px;
+    font-weight:700;
+    line-height:16px;
+    text-align:center;
+    color:#fff;
+    background:var(--color-danger);
+    border-radius:8px;
+}
+
+.notify-panel{
+    position:absolute;
+    top:calc(100% + 6px);
+    right:0;
+    z-index:400;
+    display:flex;
+    flex-direction:column;
+    width:min(380px, calc(100vw - 32px));
+    max-height:min(480px, calc(100vh - 120px));
+    background:var(--color-panel);
+    border:var(--hairline) solid var(--color-border-strong);
+    box-shadow:var(--shadow-popup);
+}
+
+.notify-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:var(--space-2) var(--space-3);
+    font-family:var(--font-heading);
+    border-bottom:var(--hairline) solid var(--color-border);
+}
+
+.notify-all{
+    font-family:var(--font-sans);
+    font-size:var(--text-sm);
+}
+
+.notify-list{
+    margin:0;
+    padding:0;
+    overflow-y:auto;
+    list-style:none;
+}
+
+.notify-empty{
+    padding:var(--space-4) var(--space-3);
+    font-size:var(--text-sm);
+    color:var(--color-text-muted);
+}
+
+.notify-item a{
+    display:grid;
+    grid-template-columns:auto 1fr;
+    gap:2px var(--space-2);
+    padding:var(--space-2) var(--space-3);
+    color:var(--color-text);
+    text-decoration:none;
+    border-bottom:var(--hairline) solid var(--color-border);
+    border-left:3px solid transparent;
+}
+
+.notify-item a:hover{
+    background:var(--color-hover);
+}
+
+.notify-item.unread a{
+    border-left-color:var(--color-accent);
+    background:var(--color-accent-subtle);
+}
+
+.notify-level{
+    font-size:var(--text-sm);
+    font-weight:var(--weight-semibold);
+    color:var(--color-text-muted);
+}
+
+.notify-item.warning .notify-level{
+    color:var(--color-warning);
+}
+
+.notify-item.error .notify-level{
+    color:var(--color-danger);
+}
+
+.notify-time{
+    font-size:var(--text-sm);
+    color:var(--color-text-muted);
+    text-align:right;
+}
+
+.notify-message{
+    grid-column:1 / -1;
+    font-size:var(--text-sm);
+    overflow-wrap:anywhere;
+}
+
+/* Phones: the list spans the screen below the header. */
+@media (max-width:640px){
+
+    .notify-wrap{
+        position:static;
+    }
+
+    .notify-panel{
+        position:fixed;
+        top:var(--menubar-height);
+        left:16px;
+        right:16px;
+        width:auto;
+    }
+
+}
