@@ -163,6 +163,106 @@
         </div>
 
 
+        <!-- Guest network: a second network on the same radio -->
+
+        <div class="card" id="wifiGuestCard">
+
+            <span>Guest network</span>
+
+            <p class="setting-hint">
+                A separate Wi-Fi for visitors on the same radio. Guests get the internet, nothing else:
+                they cannot see your devices, each other, or open this dashboard. Give them the QR code.
+            </p>
+
+            <p id="wifiGuestUnsupported" class="inspector-warning hidden"></p>
+
+            <div class="settings-grid">
+
+                <div class="setting-field">
+                    <label for="wifiGuestEnabledInput">Guest network</label>
+                    <select id="wifiGuestEnabledInput" class="setting-input">
+                        <option value="false">Off</option>
+                        <option value="true">On</option>
+                    </select>
+                </div>
+
+                <div class="setting-field">
+                    <label for="wifiGuestSsidInput">Name</label>
+                    <input
+                        id="wifiGuestSsidInput"
+                        class="setting-input"
+                        type="text"
+                        maxlength="32"
+                        placeholder="e.g. Chaos Router Guest"
+                        autocomplete="off"
+                        spellcheck="false">
+                </div>
+
+                <div class="setting-field">
+                    <label for="wifiGuestSecurityInput">Security</label>
+                    <select id="wifiGuestSecurityInput" class="setting-input">
+                        <option value="wpa2">WPA2 Personal</option>
+                        <option value="wpa2-wpa3">WPA2/WPA3 Personal</option>
+                        <option value="wpa3">WPA3 Personal</option>
+                        <option value="open">Open (no password)</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <div class="settings-grid">
+
+                <div class="setting-field">
+                    <label for="wifiGuestPasswordInput">Password</label>
+                    <div class="password-field">
+                        <input
+                            id="wifiGuestPasswordInput"
+                            class="setting-input"
+                            type="text"
+                            placeholder="8-63 characters"
+                            maxlength="63"
+                            autocomplete="off"
+                            spellcheck="false">
+                        <button id="wifiGuestPasswordNew" type="button" class="password-toggle" title="Make up a new password">
+                            New
+                        </button>
+                    </div>
+                </div>
+
+                <div class="setting-field">
+                    <label for="wifiGuestAddressInput">Router address (guests)</label>
+                    <input
+                        id="wifiGuestAddressInput"
+                        class="setting-input"
+                        type="text"
+                        placeholder="e.g. 10.43.0.1"
+                        autocomplete="off"
+                        spellcheck="false">
+                </div>
+
+                <div class="setting-field">
+                    <label for="wifiGuestPrefixInput">Prefix (CIDR)</label>
+                    <input
+                        id="wifiGuestPrefixInput"
+                        class="setting-input"
+                        type="number"
+                        min="8"
+                        max="30"
+                        step="1"
+                        placeholder="24">
+                </div>
+
+            </div>
+
+            <div class="setting-row">
+                <button id="wifiGuestQr" class="secondary-btn" type="button">Show guest QR code</button>
+            </div>
+
+            <p class="setting-hint">Saved together with the main network (Save &amp; apply below).</p>
+
+        </div>
+
+
         <!-- Radio -->
 
         <div class="card">

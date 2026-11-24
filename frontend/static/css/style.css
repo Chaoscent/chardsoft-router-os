@@ -3402,3 +3402,10 @@ a.setup-open{
     }
 
 }
+
+
+/* Wi-Fi page: the guest network card */
+#wifiGuestCard > .setting-hint:first-of-type,
+#wifiGuestUnsupported{
+    margin-bottom:var(--space-3);
+}

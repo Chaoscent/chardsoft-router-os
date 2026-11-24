@@ -180,7 +180,7 @@ def remove_chains():
 
     from shutil import which
 
-    from services import routing, clients, setup_network, vpn_profiles, ipv6, wan_routing, clat, data_usage, routes, internet_time, device_usage
+    from services import routing, clients, setup_network, vpn_profiles, ipv6, wan_routing, clat, data_usage, routes, internet_time, device_usage, guest
 
     for tool in filter(None, (which("iptables"), which("ip6tables"))):
         remove_chain(tool, "filter", clients.CHAIN, ("INPUT", "FORWARD"))
@@ -202,6 +202,9 @@ def remove_chains():
 
     # Data per device: the mark chain (mangle) and the counting chain.
     device_usage.remove()
+
+    # The guest network's isolation (INPUT and FORWARD).
+    guest.remove()
 
     # The user's static routes (Routes page, proto 77).
     routes.remove()
@@ -345,7 +348,7 @@ def main():
         step(f"{AREAS[name].label} off", area_off, name, data)
 
     step("Firewall rules", remove_ufw_rules)
-    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS, CHAOS-LOOP, CHAOS-QUOTA, CHAOS-PAUSE, CHAOS-ACCT, CHAOS-CLAT, LAN routing table, static routes)", remove_chains)
+    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS, CHAOS-LOOP, CHAOS-QUOTA, CHAOS-PAUSE, CHAOS-ACCT, CHAOS-GUEST, CHAOS-CLAT, LAN routing table, static routes)", remove_chains)
     step("Config files (dnsmasq, hostapd, VPN, Caddy routes)", remove_files)
     step("dnsmasq restarted", restart_dnsmasq)
     step("Routing properties of Ethernet connections", reset_route_properties)

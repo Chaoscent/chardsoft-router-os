@@ -338,6 +338,7 @@ from services import internet_time
 from services import net_tools
 from services import device_usage
 from services import notifications
+from services import guest as guest_wifi
 from services import internet_check
 from services import qr
 from services import routes as static_routes
@@ -1513,6 +1514,10 @@ def wifi_qr_api():
 
         # The saved network, so the code always matches what runs.
         network = get_wifi_networks().get(request.args.get("interface", ""))
+
+        # ?guest=1: the radio's guest network.
+        if network and request.args.get("guest") == "1":
+                network = network.get("guest") or None
 
         if not network or not network.get("ssid"):
                 return jsonify({"success": False, "message": "No such Wi-Fi network."}), 404
@@ -3950,6 +3955,9 @@ def watch_interfaces():
 
         # Data used per device this billing period.
         device_usage.watch()
+
+        # Guests stay off the LAN even after a firewall reload.
+        guest_wifi.watch()
 
 
 def start_setup_wifi():

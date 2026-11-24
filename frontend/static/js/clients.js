@@ -81,6 +81,7 @@ window.Page.clients = {
                 : client.state === "Online" ? "online" : "";
 
             const tags = [
+                client.guest ? "Guest" : "",
                 client.reservation ? "Reserved IP" : "",
                 client.is_you ? "This device" : ""
             ].filter(Boolean).join(" · ");

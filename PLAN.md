@@ -83,6 +83,16 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   until it ends" lets it back in. The Logs say when a device goes offline
   and online. After a reboot without internet (clock not set) the page says
   that offline times wait for the clock.
+- [ ] **Guest Wi-Fi:** first check what the radios allow (`iw phy` "valid
+  interface combinations": the page says when a radio sends only one
+  network; the Pi's own Wi-Fi may be such a radio, a USB adapter usually is
+  not). Then on a radio that can: a phone joins the guest network by its
+  QR code and has internet; it cannot open the dashboard (also not by the
+  LAN address), cannot ping a LAN device or another guest, and a LAN device
+  cannot reach it (`sudo iptables -S CHAOS-GUEST-IN`, `CHAOS-GUEST-FWD`).
+  DHCP serves `wlan0-guest`; the main network keeps working while guests
+  are on; switching the guest network off removes `wlan0-guest`; the rules
+  come back within 30 s after `sudo ufw reload`.
 - [ ] **Notifications:** a wrong password at the login, a new phone joining
   the Wi-Fi, pulling the cable behind a static route ("stopped working",
   then "works again") and a watchdog modem restart each show under the
@@ -181,6 +191,8 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - Clients page: pause a device's internet (30 minutes to "until I resume
   it") and weekly offline times (e.g. school nights 21:00-07:00); the
   device keeps reaching the router.
+- Guest Wi-Fi: a second network on a radio (where the radio allows two),
+  internet only, with a generated password and its own QR code.
 - Notification bell in the header: warnings, errors and notable events
   (new device, modem restarted by the watchdog, new billing period, a
   static route that stops or works again) with links to their pages.

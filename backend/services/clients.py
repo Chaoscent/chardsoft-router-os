@@ -268,6 +268,7 @@ def get_client_list(viewer_ip=None):
 
         client["internet_time"] = times.get(mac) or internet_time.device_state({})
         client["usage"] = usage.get(mac, 0)
+        client["guest"] = str(client.get("interface") or "").endswith("-guest")
 
         if client["blocked"]:
             client["state"] = "Blocked"

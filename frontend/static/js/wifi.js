@@ -17,7 +17,9 @@ window.Page.wifi = {
         "wifiBandInput",
         "wifiChannelInput",
         "wifiWidthInput",
-        "wifiIsolateInput"
+        "wifiIsolateInput",
+        "wifiGuestEnabledInput",
+        "wifiGuestSecurityInput"
     ],
 
 
@@ -101,13 +103,15 @@ window.Page.wifi = {
      * The saved network as a QR code: phones join by scanning it with
      * the camera (or Wi-Fi settings > QR icon).
      */
-    async showQr() {
+    async showQr(guest = false) {
 
-        const network = this.network();
+        const radio = this.network();
 
-        if (!network) return;
+        if (!radio) return;
 
-        if (!network.enabled) {
+        const network = guest ? { ...radio.guest, interface: radio.interface } : radio;
+
+        if (!network.enabled || (guest && !radio.enabled)) {
             ChaosModal.notice({
                 title: "This Wi-Fi is off",
                 subtitle: "Switch it on and save first; the QR code shows the saved network."
@@ -119,7 +123,7 @@ window.Page.wifi = {
 
         try {
 
-            const res = await fetch(`/api/wifi/qr?interface=${encodeURIComponent(network.interface)}`);
+            const res = await fetch(`/api/wifi/qr?interface=${encodeURIComponent(network.interface)}${guest ? "&guest=1" : ""}`);
 
             if (!res.ok) throw new Error();
 
@@ -158,14 +162,20 @@ window.Page.wifi = {
 
         body.append(code, list);
 
-        const changed = wifiSsidInput.value !== network.ssid
-            || (network.security !== "open" && wifiPasswordInput.value !== (network.password || ""));
+        const [ssidInput, passwordInput] = guest
+            ? [wifiGuestSsidInput, wifiGuestPasswordInput]
+            : [wifiSsidInput, wifiPasswordInput];
+
+        const changed = ssidInput.value !== network.ssid
+            || (network.security !== "open" && passwordInput.value !== (network.password || ""));
 
         ChaosModal.notice({
             title: `Join ${network.ssid}`,
             subtitle: changed
                 ? "Shows the saved network. Save & apply to use the name and password you just typed."
-                : "Point a phone's camera at the code to join. Anyone who can see it can join this Wi-Fi.",
+                : guest
+                    ? "Point a phone's camera at the code to join. Guests get the internet only. Print it or keep it on a screen for visitors."
+                    : "Point a phone's camera at the code to join. Anyone who can see it can join this Wi-Fi.",
             body,
             confirmText: "Done"
         });
@@ -249,6 +259,8 @@ window.Page.wifi = {
 
         this.updateAddressState();
 
+        this.renderGuest(settings);
+
         this.renderBands();
         this.renderChannels(settings.channel);
         this.renderWidths(settings.width);
@@ -258,6 +270,73 @@ window.Page.wifi = {
         this.selects.forEach(id => {
             ChaosSelect.refresh(document.getElementById(id));
         });
+
+    },
+
+
+    renderGuest(settings) {
+
+        const guest = settings.guest || {};
+
+        wifiGuestEnabledInput.value = String(Boolean(guest.enabled));
+        wifiGuestSsidInput.value = guest.ssid || "";
+        wifiGuestSecurityInput.value = guest.security || "wpa2";
+        wifiGuestPasswordInput.value = guest.password || "";
+        wifiGuestAddressInput.value = guest.address || "";
+        wifiGuestPrefixInput.value = guest.prefix ?? 24;
+
+        // Radios that send one network only (often the Pi's own).
+        const max = this.data.options.max_aps?.[this.selected];
+        const unsupported = max !== null && max !== undefined && max < 2;
+
+        wifiGuestUnsupported.textContent = unsupported
+            ? `${this.selected} can send only one network at a time, so it has no room for a guest network. A USB Wi-Fi adapter can run one on its own radio.`
+            : "";
+        wifiGuestUnsupported.classList.toggle("hidden", !unsupported);
+
+        wifiGuestEnabledInput.querySelector('option[value="true"]').disabled = unsupported && !guest.enabled;
+
+        this.updateGuestState();
+
+    },
+
+
+    updateGuestState() {
+
+        const on = wifiGuestEnabledInput.value === "true";
+        const open = wifiGuestSecurityInput.value === "open";
+
+        [wifiGuestSsidInput, wifiGuestSecurityInput, wifiGuestAddressInput, wifiGuestPrefixInput]
+            .forEach(input => { input.disabled = !on; });
+
+        wifiGuestPasswordInput.disabled = !on || open;
+        wifiGuestPasswordNew.disabled = !on || open;
+        wifiGuestQr.disabled = !this.network()?.guest?.enabled;
+
+        wifiGuestPasswordInput.placeholder = open ? "Not used for open networks" : "8-63 characters";
+
+        // A guest network needs a password to start with.
+        if (on && !open && !wifiGuestPasswordInput.value) this.newGuestPassword();
+
+        ChaosSelect.refresh(wifiGuestSecurityInput);
+
+    },
+
+
+    /** Easy to read out and type: "kite-2847-moss". */
+    newGuestPassword() {
+
+        const words = ["amber", "brook", "cedar", "delta", "ember", "fjord", "gecko", "harbor", "iris", "jade",
+                       "kite", "lunar", "maple", "nova", "otter", "pebble", "quartz", "river", "sable", "tulip",
+                       "umber", "violet", "willow", "yarrow", "zephyr", "moss", "comet", "falcon", "lotus", "orbit"];
+
+        const random = new Uint32Array(3);
+        crypto.getRandomValues(random);
+
+        const number = String(1000 + random[1] % 9000);
+
+        wifiGuestPasswordInput.value =
+            `${words[random[0] % words.length]}-${number}-${words[random[2] % words.length]}`;
 
     },
 
@@ -563,7 +642,16 @@ window.Page.wifi = {
 
             address: wifiAddressInput.value.trim(),
 
-            prefix: Number(wifiPrefixInput.value)
+            prefix: Number(wifiPrefixInput.value),
+
+            guest: {
+                enabled: wifiGuestEnabledInput.value === "true",
+                ssid: wifiGuestSsidInput.value,
+                security: wifiGuestSecurityInput.value,
+                password: wifiGuestPasswordInput.value,
+                address: wifiGuestAddressInput.value.trim(),
+                prefix: Number(wifiGuestPrefixInput.value) || 24
+            }
 
         };
 
@@ -677,6 +765,11 @@ window.Page.wifi = {
         wifiPreview.onclick = () => this.preview();
 
         wifiQr.onclick = () => this.showQr();
+        wifiGuestQr.onclick = () => this.showQr(true);
+
+        wifiGuestEnabledInput.onchange = () => this.updateGuestState();
+        wifiGuestSecurityInput.onchange = () => this.updateGuestState();
+        wifiGuestPasswordNew.onclick = () => this.newGuestPassword();
 
         this.load();
 

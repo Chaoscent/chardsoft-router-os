@@ -118,10 +118,27 @@ DEFAULT_NETWORK = {
     # DHCP and reach the router. Not used while the radio is a port of
     # the LAN bridge (it joins br0 instead).
     "address": "10.42.0.1",
-    "prefix": 24
+    "prefix": 24,
+    # A second network on the same radio for visitors (see GUEST below).
+    "guest": None
 }
 
 NETWORK_FIELDS = tuple(DEFAULT_NETWORK)
+
+# The guest network: a second access point (BSS) on the radio, with its
+# own interface (wlan0-guest), subnet and DHCP. Guests reach only the
+# internet: services/guest.py keeps them away from the router and the
+# LAN, and ap_isolate keeps them away from each other.
+DEFAULT_GUEST = {
+    "enabled": False,
+    "ssid": "",
+    "password": "",
+    "security": "wpa2",
+    "address": "",
+    "prefix": 24
+}
+
+GUEST_SUFFIX = "-guest"
 
 # /tmp/chaos-router-os/wifi_configs.json: {"wlan0": "<sha256>"}, the
 # config each access point runs, so saving one radio does not restart
@@ -150,6 +167,87 @@ def which(name):
     return shutil.which(name, path=SBIN_PATH)
 
 
+def guest_interface(interface):
+    """The guest network's interface: wlan0 -> wlan0-guest (max 15 characters)."""
+
+    return interface[:15 - len(GUEST_SUFFIX)] + GUEST_SUFFIX
+
+
+def is_guest_interface(name):
+
+    return str(name).endswith(GUEST_SUFFIX)
+
+
+def guest_enabled(net):
+
+    return bool(net.get("enabled") and net.get("guest") and net["guest"].get("enabled"))
+
+
+def guest_interfaces(settings=None):
+    """{guest interface: (radio, guest settings)} for guest networks that are on."""
+
+    settings = settings or get_wifi_settings()
+
+    return {
+        guest_interface(name): (name, net["guest"])
+        for name, net in settings["networks"].items() if guest_enabled(net)
+    }
+
+
+def max_access_points(interface):
+    """
+    How many networks (access points) the radio can send at once, from
+    `iw phy`'s "valid interface combinations"; None when unknown.
+    """
+
+    iw = which("iw")
+
+    try:
+        with open(f"/sys/class/net/{interface}/phy80211/name") as f:
+            phy = f.read().strip()
+    except Exception:
+        return None
+
+    if not iw or not phy:
+        return None
+
+    output = run([iw, "phy", phy, "info"]) or ""
+
+    if "valid interface combinations" not in output:
+        return None
+
+    best = 0
+
+    # e.g. "* #{ managed } <= 1, #{ AP, mesh point } <= 4, ..."
+    for match in re.finditer(r"#\{([^}]*)\}\s*<=\s*(\d+)", output):
+        kinds = [k.strip() for k in match.group(1).split(",")]
+        if "AP" in kinds:
+            best = max(best, int(match.group(2)))
+
+    return best
+
+
+def guest_bssid(interface):
+    """
+    The guest network's own MAC: the radio's with the "locally
+    administered" bit flipped, so no driver has to derive one.
+    """
+
+    try:
+        with open(f"/sys/class/net/{interface}/address") as f:
+            parts = f.read().strip().split(":")
+        first = int(parts[0], 16)
+    except (OSError, ValueError, IndexError):
+        return None
+
+    if len(parts) != 6:
+        return None
+
+    parts[0] = f"{first ^ 0x02:02x}"
+
+    return ":".join(parts)
+
+
 def has_hostapd():
 
     return which("hostapd") is not None
@@ -175,7 +273,8 @@ def get_wireless_interfaces():
 
     for name in names:
 
-        if os.path.exists(f"/sys/class/net/{name}/wireless"):
+        # A guest network's interface is not a radio of its own.
+        if os.path.exists(f"/sys/class/net/{name}/wireless") and not is_guest_interface(name):
             interfaces.append(name)
 
     return interfaces
@@ -250,7 +349,7 @@ def normalize(data):
         networks = {
             name: {**DEFAULT_NETWORK, **{k: v for k, v in net.items() if k in NETWORK_FIELDS}}
             for name, net in networks.items()
-            if isinstance(net, dict) and INTERFACE_RE.fullmatch(str(name))
+            if isinstance(net, dict) and INTERFACE_RE.fullmatch(str(name)) and not is_guest_interface(name)
         }
     elif data.get("interface"):
         # Old format: one network, flat.
@@ -262,6 +361,12 @@ def normalize(data):
         }
     else:
         networks = {}
+
+    # Each network its own copy of the guest settings.
+    for net in networks.values():
+        guest = net.get("guest")
+        net["guest"] = {**DEFAULT_GUEST, **{k: v for k, v in guest.items() if k in DEFAULT_GUEST}} \
+            if isinstance(guest, dict) else None
 
     return {
         "country": str(data.get("country") or "").upper(),
@@ -304,13 +409,26 @@ def suggest_address(interface, settings):
 
     for name, net in settings["networks"].items():
 
-        if name == interface:
-            continue
+        subnets = []
 
-        try:
-            used.add(ipaddress.IPv4Interface(f"{net['address']}/{net['prefix']}").network)
-        except ValueError:
-            pass
+        if name != interface:
+            subnets.append((net.get("address"), net.get("prefix")))
+
+        guest = net.get("guest") or {}
+
+        if guest_interface(name) != interface and guest.get("address"):
+            subnets.append((guest["address"], guest.get("prefix")))
+
+        for address, prefix in subnets:
+            try:
+                used.add(ipaddress.IPv4Interface(f"{address}/{prefix}").network)
+            except ValueError:
+                pass
+
+    # The other interfaces' networks too (the LAN, a guest network that
+    # is not saved yet).
+    for _name, other in get_other_networks(interface, settings):
+        used.add(other)
 
     for second in range(42, 255):
 
@@ -337,7 +455,18 @@ def get_network(interface, settings=None):
         address, prefix = suggest_address(interface, settings)
         net = {**DEFAULT_NETWORK, "address": address, "prefix": prefix}
 
-    return {**net, "interface": interface, "country": settings["country"]}
+    guest = dict(net.get("guest") or DEFAULT_GUEST)
+
+    # A guest network that was never set up: a name and a free subnet ready.
+    if not guest["address"]:
+        # Counting this radio's own network, which may not be saved yet.
+        with_this = {**settings, "networks": {**settings["networks"], interface: {**net, "guest": None}}}
+        guest["address"], guest["prefix"] = suggest_address(guest_interface(interface), with_this)
+
+    if not guest["ssid"]:
+        guest["ssid"] = f"{net['ssid'][:26]} Guest"
+
+    return {**net, "guest": guest, "interface": interface, "country": settings["country"]}
 
 
 def get_networks(settings=None):
@@ -479,7 +608,13 @@ def validate_network(data, settings=None):
 
     address, prefix = result
 
+    ok, guest = validate_guest(net, interface, enabled, band, ssid, settings)
+
+    if not ok:
+        return False, guest
+
     return True, {
+        "guest": guest,
         "interface": interface,
         "country": country,
         "enabled": enabled,
@@ -494,6 +629,98 @@ def validate_network(data, settings=None):
         "address": address,
         "prefix": prefix
     }
+
+
+def validate_guest(net, interface, enabled, band, main_ssid, settings):
+    """
+    The guest network of a radio: (True, settings or None) or (False,
+    message). Off guest networks keep what was typed, unchecked but
+    for the basics, so they can be switched on later.
+    """
+
+    guest = net.get("guest")
+
+    if guest in (None, {}):
+        return True, None
+
+    if not isinstance(guest, dict):
+        return False, "Invalid guest network."
+
+    guest = {**DEFAULT_GUEST, **{k: v for k, v in guest.items() if k in DEFAULT_GUEST}}
+
+    on = guest["enabled"] is True
+
+    ssid = str(guest["ssid"] or "")
+    security = guest["security"]
+    password = str(guest["password"] or "")
+
+    if security not in SECURITY_MODES:
+        return False, "Guest network: invalid security mode."
+
+    if len(ssid.encode("utf-8")) > 32 or any(ord(c) < 0x20 or ord(c) == 0x7f for c in ssid):
+        return False, "Guest network: the name is too long (max 32 bytes) or has invalid characters."
+
+    if password and not PASSPHRASE_RE.fullmatch(password):
+        return False, "Guest network: the password must be 8-63 characters (letters, numbers, symbols and spaces)."
+
+    clean = {
+        "enabled": on,
+        "ssid": ssid,
+        "password": password if security != "open" else "",
+        "security": security,
+        "address": str(guest["address"] or ""),
+        "prefix": guest["prefix"]
+    }
+
+    if not on:
+        try:
+            clean["prefix"] = int(clean["prefix"])
+        except (TypeError, ValueError):
+            clean["prefix"] = 24
+        return True, clean
+
+    if not enabled:
+        return False, "Turn on the main network of this radio first: the guest network runs next to it."
+
+    if not ssid.strip():
+        return False, "Guest network: the name cannot be empty."
+
+    if ssid == main_ssid:
+        return False, "The guest network needs a name of its own."
+
+    if security != "open" and not password:
+        return False, "Guest network: enter a password, or choose Open."
+
+    if band == "6" and security != "wpa3":
+        return False, "Guest network: 6 GHz requires WPA3 Personal."
+
+    limit = max_access_points(interface)
+
+    if limit is not None and limit < 2:
+        return False, (
+            f"{interface} can only send one network at a time, so there is no room for a guest network. "
+            "A USB Wi-Fi adapter can run it on its own radio."
+        )
+
+    ok, result = validate_address(clean["address"], clean["prefix"], guest_interface(interface),
+                                  check_overlap=True, settings=settings)
+
+    if not ok:
+        return False, f"Guest network: {result}"
+
+    # The main network of this radio, being saved now, is not in the
+    # settings yet: compare with it directly.
+    try:
+        main = ipaddress.IPv4Interface(f"{net.get('address')}/{net.get('prefix')}").network
+        mine = ipaddress.IPv4Interface(f"{result[0]}/{result[1]}").network
+        if not bridges_interface(interface) and main.overlaps(mine):
+            return False, f"Guest network: {mine} overlaps the main network {main}. Choose another subnet."
+    except ValueError:
+        pass
+
+    clean["address"], clean["prefix"] = result
+
+    return True, clean
 
 
 def with_network(settings, network):
@@ -582,6 +809,16 @@ def get_other_networks(interface, settings=None):
 
         try:
             networks.append((name, ipaddress.IPv4Interface(f"{net['address']}/{net['prefix']}").network))
+        except ValueError:
+            pass
+
+    for guest_name, (_radio, guest) in guest_interfaces(settings).items():
+
+        if guest_name == interface or guest_name in applied:
+            continue
+
+        try:
+            networks.append((guest_name, ipaddress.IPv4Interface(f"{guest['address']}/{guest['prefix']}").network))
         except ValueError:
             pass
 
@@ -795,7 +1032,59 @@ def render_hostapd_config(settings):
         if settings["band"] == "6":
             lines.append("sae_pwe=1")
 
+    if guest_enabled(settings):
+        lines += render_guest_bss(settings)
+
     return "\n".join(lines) + "\n"
+
+
+def security_lines(security, password, band):
+
+    if security == "open":
+        return []
+
+    lines = [
+        "auth_algs=1",
+        "wpa=2",
+        "wpa_key_mgmt=" + {"wpa2": "WPA-PSK", "wpa2-wpa3": "WPA-PSK SAE", "wpa3": "SAE"}[security],
+        "rsn_pairwise=CCMP",
+        f"wpa_passphrase={password}"
+    ]
+
+    if security == "wpa3":
+        lines.append("ieee80211w=2")
+    elif security == "wpa2-wpa3":
+        lines.append("ieee80211w=1")
+
+    if security != "wpa2":
+        lines.append(f"sae_password={password}")
+
+    if band == "6":
+        lines.append("sae_pwe=1")
+
+    return lines
+
+
+def render_guest_bss(settings):
+    """The guest network: a second BSS on the same radio and channel."""
+
+    guest = settings["guest"]
+    interface = guest_interface(settings["interface"])
+    bssid = guest_bssid(settings["interface"])
+
+    return [
+        "",
+        f"# Guest network ({interface}): internet only, guests cannot see each other.",
+        f"bss={interface}",
+        *([f"bssid={bssid}"] if bssid else []),
+        "ctrl_interface=/var/run/hostapd",
+        f"ssid2={guest['ssid'].encode('utf-8').hex()}",
+        "utf8_ssid=1",
+        "ignore_broadcast_ssid=0",
+        "wmm_enabled=1",
+        "ap_isolate=1",
+        *security_lines(guest["security"], guest["password"], settings["band"])
+    ]
 
 
 def install_hostapd_config(content, path):
@@ -899,6 +1188,21 @@ def save_wifi_settings(data):
             outcome["message"] += f" DHCP on {result['interface']}: {follow['message']}"
         elif follow:
             outcome["message"] += f" DHCP now serves {result['interface']}."
+            outcome["pending"] = follow.get("pending") or outcome.get("pending")
+
+    if outcome["success"] and guest_enabled(result):
+
+        from services import dhcp
+
+        name = guest_interface(result["interface"])
+        guest = result["guest"]
+
+        follow = dhcp.follow_wifi(name, guest["address"], guest["prefix"])
+
+        if follow and not follow["success"]:
+            outcome["message"] += f" DHCP on {name}: {follow['message']}"
+        elif follow:
+            outcome["message"] += f" DHCP now serves the guest network."
             outcome["pending"] = follow.get("pending") or outcome.get("pending")
 
     outcome["networks"] = get_networks()
@@ -1005,6 +1309,14 @@ def apply_wifi_settings():
         if not result.endswith("unchanged."):
             messages.append(result)
 
+    # Guests: internet only (services/guest.py).
+    from services import guest as guest_firewall
+
+    ok, result = guest_firewall.sync()
+
+    if not ok:
+        return False, result
+
     if messages:
         return True, " ".join(messages)
 
@@ -1027,6 +1339,7 @@ def stop_access_point(interface):
                 return False, f"The access point on {interface} could not be stopped: {result}"
 
     clear_address(interface)
+    clear_address(guest_interface(interface))
 
     applied = load_running(APPLIED_CONFIGS, None) or {}
 
@@ -1056,11 +1369,14 @@ def start_access_point(settings):
 
     applied = load_running(APPLIED_CONFIGS, None) or {}
 
+    guest = settings["guest"] if guest_enabled(settings) else None
+    guest_name = guest_interface(interface)
+
     # Unchanged and running: its devices stay connected.
     if applied.get(interface) == digest and is_hostapd_running(interface) and (
         bridges_interface(interface)
         or has_address(interface, settings["address"], settings["prefix"])
-    ):
+    ) and (not guest or has_address(guest_name, guest["address"], guest["prefix"])):
         return True, f"Access point on {interface} unchanged."
 
     ok, result = install_hostapd_config(config, config_path(interface))
@@ -1102,19 +1418,55 @@ def start_access_point(settings):
     applied[interface] = digest
     save_running(APPLIED_CONFIGS, applied)
 
+    # The guest network's interface comes and goes with hostapd.
+    if guest:
+        ok, result = start_guest(interface, guest)
+        if not ok:
+            return False, result
+    else:
+        clear_address(guest_name)
+
+    extra = f" Guest network on {guest_name}, {guest['address']}/{guest['prefix']}." if guest else ""
+
     # Bridged: the access point is a port of br0 and has no address.
     if bridges_interface(interface):
 
         clear_address(interface)
 
-        return True, f"Access point on {interface} applied (LAN bridge)."
+        return True, f"Access point on {interface} applied (LAN bridge).{extra}"
 
     ok, result = set_address(interface, settings["address"], settings["prefix"])
 
     if not ok:
         return False, f"The address could not be set on {interface}: {result}"
 
-    return True, f"Access point on {interface} applied, {settings['address']}/{settings['prefix']}."
+    return True, f"Access point on {interface} applied, {settings['address']}/{settings['prefix']}.{extra}"
+
+
+def start_guest(interface, guest):
+    """Gives the guest network's interface (made by hostapd) its address."""
+
+    name = guest_interface(interface)
+
+    # hostapd creates it while it starts.
+    for _ in range(20):
+        if os.path.exists(f"/sys/class/net/{name}"):
+            break
+        time.sleep(0.25)
+    else:
+        return False, (
+            f"The guest network did not start: {name} was not created. "
+            f"{get_hostapd_error(interface)}"
+        )
+
+    set_networkmanager_managed(name, False)
+
+    ok, result = set_address(name, guest["address"], guest["prefix"])
+
+    if not ok:
+        return False, f"The address could not be set on {name}: {result}"
+
+    return True, "OK"
 
 
 def verify_wifi_settings():
@@ -1139,6 +1491,13 @@ def verify_wifi_settings():
 
         if not bridges_interface(interface) and not has_address(interface, net["address"], net["prefix"]):
             return False, f"{net['address']}/{net['prefix']} is not set on {interface}."
+
+        if guest_enabled(net):
+
+            guest, name = net["guest"], guest_interface(interface)
+
+            if not has_address(name, guest["address"], guest["prefix"]):
+                return False, f"The guest network is not running: {guest['address']}/{guest['prefix']} is not set on {name}."
 
     return True, "OK"
 
@@ -1335,6 +1694,12 @@ def get_wifi_options():
         # Per interface: channels per band, or null when unknown.
         "support": {
             interface: get_band_support(interface)
+            for interface in get_wireless_interfaces()
+        },
+        # Per interface: networks it can send at once (guest network
+        # needs 2), or null when unknown.
+        "max_aps": {
+            interface: max_access_points(interface)
             for interface in get_wireless_interfaces()
         }
     }
