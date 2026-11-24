@@ -100,6 +100,8 @@ class FakeModem:
         # The RM520N over QMI: gps-nmea refused, gps-unmanaged works.
         self.nmea_refused = nmea_refused
         self.port = port
+        # Unmanaged tries that time out (just after a stop).
+        self.busy = 0
         self.enabled = []
         self.calls = []
 
@@ -114,6 +116,9 @@ class FakeModem:
         if "--location-enable-gps-nmea" in command and self.nmea_refused:
             return False, "error: couldn't setup location gathering: QMI protocol error (48): 'InvalidArgument'"
         if "--location-enable-gps-unmanaged" in command:
+            if self.busy:
+                self.busy -= 1
+                return False, "error: Serial command timed out"
             self.enabled = ["3gpp-lac-ci", "gps-unmanaged"]
         if "--location-disable-gps-unmanaged" in command:
             self.enabled = []
@@ -228,6 +233,12 @@ class UnmanagedTests(unittest.TestCase):
             time.sleep(0.05)
         self.assertEqual(status["level"], "fix", status)
         self.assertAlmostEqual(status["position"]["latitude"], 52.51735, places=4)
+
+    def test_tries_again_while_the_modem_is_busy(self):
+        self.modem.busy = 2
+        with mock.patch.object(gnss, "UNMANAGED_PAUSE", 0):
+            self.assertTrue(gnss.apply()[0])
+        self.assertEqual(self.modem.enabled, ["3gpp-lac-ci", "gps-unmanaged"])
 
     def test_old_sentences_do_not_count(self):
         gnss._port["lines"].clear()

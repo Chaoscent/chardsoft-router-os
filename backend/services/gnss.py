@@ -73,6 +73,9 @@ UNMANAGED = ("--location-enable-3gpp", "--location-enable-gps-unmanaged")
 OFF = ("--location-disable-3gpp", "--location-disable-gps-nmea", "--location-disable-gps-raw",
        "--location-disable-gps-unmanaged")
 
+UNMANAGED_TRIES = 4
+UNMANAGED_PAUSE = 3
+
 # Sentences from the NMEA port younger than this make one reading.
 PORT_WINDOW = 3
 
@@ -406,9 +409,16 @@ def switch(index, on, location=None):
     if "gps-nmea" in caps or not caps:
         ok, out = modem.run_command(modem.privileged(["mmcli", "-m", index, *SOURCES]))
 
-    # ModemManager could not get the sentences: the receiver alone.
+    # ModemManager could not get the sentences: the receiver alone. Just
+    # after it was stopped the modem does not answer yet (the RM520N:
+    # "Serial command timed out"), so a few tries.
     if not ok and "gps-unmanaged" in caps:
-        ok, out = modem.run_command(modem.privileged(["mmcli", "-m", index, *UNMANAGED]))
+        for attempt in range(UNMANAGED_TRIES):
+            if attempt:
+                time.sleep(UNMANAGED_PAUSE)
+            ok, out = modem.run_command(modem.privileged(["mmcli", "-m", index, *UNMANAGED]))
+            if ok:
+                break
 
     if ok:
         # Every 5 s instead of ModemManager's default 30 s.
