@@ -540,6 +540,7 @@ def get_validators():
     from services.modem import validate_stored_settings as validate_modem
     from services.data_usage import validate_settings as validate_data_usage
     from services.routes import validate_settings as validate_routes
+    from services.internet_time import validate_settings as validate_internet_time
 
     return {
         "network": _validate_network,
@@ -548,6 +549,7 @@ def get_validators():
         "routing": _validate_with(validate_routing_settings),
         "static_routes": _validate_with(validate_routes),
         "blocked_devices": _validate_blocked,
+        "internet_time": _validate_with(validate_internet_time),
         "dhcp": _validate_with(validate_dhcp_settings),
         "dns": _validate_with(validate_dns_settings),
         "wifi": _validate_with(validate_wifi_settings),

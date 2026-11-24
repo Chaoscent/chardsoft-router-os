@@ -75,6 +75,14 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   back after unplugging and replugging the cable; a gateway outside every
   network shows "Waiting" with the reason; the tables match `ip route show
   table all`.
+- [ ] **Internet time** (Clients page): "Pause internet" for 30 minutes stops
+  a phone's internet at once (`sudo iptables -S CHAOS-PAUSE`) while it keeps
+  its Wi-Fi and reaches the dashboard; it comes back by itself after the
+  time and with "Resume internet". An offline time that starts in two
+  minutes takes the phone offline within 15 seconds of its start; "Allow
+  until it ends" lets it back in. The Logs say when a device goes offline
+  and online. After a reboot without internet (clock not set) the page says
+  that offline times wait for the clock.
 - [ ] **Wi-Fi QR code** (Wi-Fi page, "Show QR code"): an iPhone and an Android
   phone join by scanning it, also with WPA3 and a hidden network.
 - [ ] **IPv6 for the LAN** (Firewall page, Routing & NAT): with the modem
@@ -156,6 +164,9 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   warning in the Logs, optional stop of the LAN's internet at the limit,
   "Resume anyway", correction to the carrier's count (Modem page).
 - Wi-Fi page: "Show QR code" for the saved network (drawn on the router).
+- Clients page: pause a device's internet (30 minutes to "until I resume
+  it") and weekly offline times (e.g. school nights 21:00-07:00); the
+  device keeps reaching the router.
 - Routes page: the routing tables (router, "Your devices", VPN tables) and
   rules in plain words, and static routes of your own through Safe Apply.
 - The dashboard stays responsive while the modem is slow (polls wait for

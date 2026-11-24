@@ -59,7 +59,7 @@ Networking-first installation.
 * DHCP (dnsmasq, one range per interface)
 * DNS (dnsmasq)
 * Routes (routing tables and rules in plain words, your own static routes)
-* Clients
+* Clients (block, pause the internet, weekly offline times such as a bedtime)
 * Firewall (ufw)
 * VPN (WireGuard and OpenVPN, servers and clients)
 * Logs

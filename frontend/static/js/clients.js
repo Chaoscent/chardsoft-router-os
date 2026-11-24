@@ -67,6 +67,7 @@ window.Page.clients = {
 
             const badge = client.blocked
                 ? "blocked"
+                : client.state === "Paused" ? "warning"
                 : client.state === "Online" ? "online" : "";
 
             const tags = [
@@ -131,6 +132,23 @@ window.Page.clients = {
         inspectorAccess.textContent = client.blocked ? "Blocked" : "Allowed";
 
         inspectorYou.classList.toggle("hidden", !client.is_you);
+
+        const time = client.internet_time || {};
+
+        inspectorInternet.textContent = client.blocked ? "Blocked" : time.label || "Allowed";
+        inspectorInternetNext.textContent = time.next_label || "";
+        inspectorInternetNext.classList.toggle("hidden", !time.next_label || client.blocked);
+
+        pauseDevice.textContent = time.paused
+            ? time.kind === "schedule" ? "Allow until it ends" : "Resume internet"
+            : "Pause internet";
+
+        pauseDevice.disabled = client.blocked;
+        scheduleDevice.disabled = client.blocked;
+
+        const count = (time.schedules || []).length;
+
+        scheduleDevice.textContent = count ? `Offline times (${count})` : "Offline times";
 
         reserveDevice.textContent = client.reservation
             ? `Edit Reservation (${client.reservation.ip})`
@@ -444,7 +462,204 @@ window.Page.clients = {
 
     },
 
+    // ------------------------------------------------------------
+    // Internet time: pause and offline times
+    // ------------------------------------------------------------
+
+    PAUSES: [
+        [30, "30 minutes"],
+        [60, "1 hour"],
+        [120, "2 hours"],
+        ["morning", "Until 07:00"],
+        ["resume", "Until I resume it"]
+    ],
+
+    DAYS: ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+
+    deviceName(client) {
+
+        return client.hostname === "Unknown" ? "" : client.hostname;
+
+    },
+
+    async togglePause() {
+
+        const client = this.currentClient;
+        const time = client.internet_time || {};
+
+        if (time.paused) {
+
+            const data = await this.request("/api/clients/resume", { mac: client.mac });
+
+            if (data) this.showResult(data.message, data.success);
+
+            this.update();
+
+            return;
+        }
+
+        const body = document.createElement("div");
+
+        body.className = "pause-choices";
+
+        body.innerHTML = this.PAUSES.map(([value, label], i) => `
+            <label class="pause-choice">
+                <input type="radio" name="pauseFor" value="${value}" ${i === 1 ? "checked" : ""}>
+                <span>${label}</span>
+            </label>
+        `).join("") + `
+            <p class="modal-note">
+                ${client.is_you
+                    ? "This is your device: it loses the internet, but this page keeps working."
+                    : "It keeps its address and can still reach the router."}
+            </p>`;
+
+        const confirmed = await ChaosModal.confirm({
+            title: `Pause the internet for ${client.hostname}?`,
+            subtitle: client.mac,
+            body,
+            confirmText: "Pause"
+        });
+
+        if (!confirmed) return;
+
+        const value = body.querySelector("input:checked").value;
+        const until = /^\d+$/.test(value) ? Number(value) : value;
+
+        const data = await this.request("/api/clients/pause", {
+            mac: client.mac,
+            until,
+            name: this.deviceName(client)
+        });
+
+        if (data) this.showResult(data.message, data.success);
+
+        this.update();
+
+    },
+
+    scheduleRow(rule = { days: [0, 1, 2, 3, 4], start: "22:00", end: "07:00" }) {
+
+        const row = document.createElement("div");
+
+        row.className = "schedule-row";
+
+        row.innerHTML = `
+            <div class="schedule-top">
+                <div class="schedule-days" role="group" aria-label="Days">
+                    ${this.DAYS.map((day, i) => `
+                        <button type="button" class="day-chip" data-day="${i}"
+                            aria-pressed="${rule.days.includes(i)}">${day}</button>`).join("")}
+                </div>
+                <button type="button" class="icon-btn schedule-remove" aria-label="Remove this offline time" title="Remove">×</button>
+            </div>
+            <div class="schedule-times">
+                <input class="setting-input" type="time" value="${rule.start}" aria-label="From">
+                <span>to</span>
+                <input class="setting-input" type="time" value="${rule.end}" aria-label="To">
+            </div>
+        `;
+
+        row.querySelectorAll(".day-chip").forEach(chip => {
+            chip.onclick = () => chip.setAttribute("aria-pressed", String(chip.getAttribute("aria-pressed") !== "true"));
+        });
+
+        row.querySelector(".schedule-remove").onclick = () => {
+            row.remove();
+            this.scheduleEmpty();
+        };
+
+        scheduleList.appendChild(row);
+        this.scheduleEmpty();
+
+    },
+
+    scheduleEmpty() {
+
+        const empty = scheduleList.querySelector(".schedule-empty");
+        const rows = scheduleList.querySelectorAll(".schedule-row").length;
+
+        if (!rows && !empty) {
+            scheduleList.insertAdjacentHTML("afterbegin", `<p class="schedule-empty">No offline times: the internet is always on.</p>`);
+        } else if (rows && empty) {
+            empty.remove();
+        }
+
+    },
+
+    openScheduleModal() {
+
+        const client = this.currentClient;
+
+        scheduleTitle.textContent = `Offline times for ${client.hostname}`;
+        scheduleList.replaceChildren();
+        scheduleStatus.textContent = "";
+
+        (client.internet_time?.schedules || []).forEach(rule => this.scheduleRow(rule));
+
+        this.scheduleEmpty();
+
+        scheduleModal.classList.remove("hidden");
+
+    },
+
+    closeScheduleModal() {
+
+        scheduleModal.classList.add("hidden");
+
+    },
+
+    async saveSchedule() {
+
+        const schedules = [...scheduleList.querySelectorAll(".schedule-row")].map(row => {
+
+            const [start, end] = row.querySelectorAll("input[type=time]");
+
+            return {
+                days: [...row.querySelectorAll('.day-chip[aria-pressed="true"]')].map(c => Number(c.dataset.day)),
+                start: start.value,
+                end: end.value
+            };
+
+        });
+
+        saveScheduleBtn.disabled = true;
+        scheduleStatus.textContent = "Saving...";
+
+        const data = await this.request("/api/clients/schedule", {
+            mac: this.currentClient.mac,
+            schedules,
+            name: this.deviceName(this.currentClient)
+        });
+
+        saveScheduleBtn.disabled = false;
+
+        if (!data) return;
+
+        if (!data.success) {
+            scheduleStatus.textContent = data.message;
+            return;
+        }
+
+        this.closeScheduleModal();
+        this.showResult(schedules.length ? "Offline times saved." : "Offline times removed.");
+        this.update();
+
+    },
+
     init() {
+
+        pauseDevice.onclick = () => this.togglePause();
+        scheduleDevice.onclick = () => this.openScheduleModal();
+        closeScheduleModal.onclick = () => this.closeScheduleModal();
+        cancelScheduleBtn.onclick = () => this.closeScheduleModal();
+        saveScheduleBtn.onclick = () => this.saveSchedule();
+        scheduleAdd.onclick = () => this.scheduleRow();
+        scheduleBedtime.onclick = () => this.scheduleRow({ days: [6, 0, 1, 2, 3], start: "21:00", end: "07:00" });
+
+        scheduleModal.onclick = e => {
+            if (e.target === scheduleModal) this.closeScheduleModal();
+        };
 
         closeInspector.onclick = () => this.close();
 

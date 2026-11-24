@@ -15,6 +15,7 @@ from services import (
     routing,
     routes,
     clients,
+    internet_time,
     dhcp,
     dns,
     wifi,
@@ -119,6 +120,14 @@ AREAS = {area.name: area for area in (
         verify=clients.verify_blocked,
         baseline=lambda: {"devices": []},
         confirm=True
+    ),
+
+    # Pauses and offline times only stop a device's forwarded traffic,
+    # never the dashboard: no confirmation. The watcher follows the clock.
+    Area(
+        "internet_time", "Internet time",
+        apply=internet_time.apply,
+        baseline=lambda: {"devices": []}
     ),
 
     # The DNS config answers the local domain set here, so DNS is

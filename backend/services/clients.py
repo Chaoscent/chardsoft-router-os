@@ -200,6 +200,10 @@ def get_client_list(viewer_ip=None):
     leases = {l["mac"]: l for l in get_dhcp_leases()}
     blocked = {d["mac"]: d for d in get_blocked()}
 
+    from services import internet_time
+
+    times = internet_time.states()
+
     clients = []
     seen = set()
 
@@ -229,6 +233,22 @@ def get_client_list(viewer_ip=None):
             "traffic": "--"
         })
 
+    # Devices with internet times stay listed too, to change them.
+    for mac, state in times.items():
+
+        if mac in seen or mac in blocked:
+            continue
+
+        clients.append({
+            "hostname": state["name"] or "Unknown",
+            "ip": "",
+            "interface": "",
+            "mac": mac,
+            "state": "Offline",
+            "vendor": "Unknown",
+            "traffic": "--"
+        })
+
     for client in clients:
 
         mac = normalize_mac(client["mac"])
@@ -242,8 +262,12 @@ def get_client_list(viewer_ip=None):
         client["dhcp"] = bool(lease or reservation)
         client["is_you"] = bool(viewer_ip) and client["ip"] == viewer_ip
 
+        client["internet_time"] = times.get(mac) or internet_time.device_state({})
+
         if client["blocked"]:
             client["state"] = "Blocked"
+        elif client["internet_time"]["paused"]:
+            client["state"] = "Paused"
 
     return {
         "clients": clients,

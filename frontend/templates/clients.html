@@ -75,6 +75,13 @@
                     <strong id="inspectorAccess">—</strong>
                 </div>
 
+                <div class="info-row">
+                    <span>Internet</span>
+                    <strong id="inspectorInternet">—</strong>
+                </div>
+
+                <p id="inspectorInternetNext" class="inspector-next hidden"></p>
+
             </div>
 
             <div id="inspectorYou" class="inspector-warning hidden">
@@ -113,6 +120,18 @@
                     Reserve DHCP IP
                 </button>
 
+                <div class="inspector-pair">
+
+                    <button id="pauseDevice" class="action-btn">
+                        Pause internet
+                    </button>
+
+                    <button id="scheduleDevice" class="action-btn">
+                        Offline times
+                    </button>
+
+                </div>
+
                 <button id="blockDevice" class="action-btn danger">
                     Block device
                 </button>
@@ -124,6 +143,54 @@
     </div>
 
 </section>
+
+<!-- Offline times (services/internet_time.py) -->
+
+<div id="scheduleModal" class="modal-overlay hidden">
+
+    <div class="modal schedule-modal">
+
+        <div class="modal-header">
+
+            <h2 id="scheduleTitle">Offline times</h2>
+
+            <button id="closeScheduleModal" class="icon-btn" type="button">×</button>
+
+        </div>
+
+        <p class="modal-subtitle">
+            The device has no internet during these times, every week. It can still reach
+            the router. Times that end before they start run past midnight.
+        </p>
+
+        <div class="modal-body">
+
+            <div id="scheduleList" class="schedule-list"></div>
+
+            <div class="schedule-add">
+                <button id="scheduleAdd" class="secondary-btn" type="button">Add offline time</button>
+                <button id="scheduleBedtime" class="secondary-btn" type="button">Add school nights (21:00–07:00)</button>
+            </div>
+
+            <div id="scheduleStatus" class="setting-status" role="status"></div>
+
+        </div>
+
+        <div class="modal-actions">
+
+            <button id="cancelScheduleBtn" class="secondary-btn" type="button">
+                Cancel
+            </button>
+
+            <button id="saveScheduleBtn" class="save-btn" type="button">
+                Save
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
 
 <!-- Rename Device Modal -->
 

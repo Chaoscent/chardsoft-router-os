@@ -334,6 +334,7 @@ from services import ipv6
 from services import modem_watchdog
 from services import wan_routing
 from services import data_usage
+from services import internet_time
 from services import internet_check
 from services import qr
 from services import routes as static_routes
@@ -2921,6 +2922,52 @@ def client_unblock_api():
 
 
 
+@app.route("/api/clients/pause", methods=["POST"])
+
+@login_required
+
+def client_pause_api():
+
+        data = request.get_json(silent=True) or {}
+
+        return safe_apply_response(
+                internet_time.pause(data.get("mac"), data.get("until"), data.get("name"))
+        )
+
+
+
+
+
+@app.route("/api/clients/resume", methods=["POST"])
+
+@login_required
+
+def client_resume_api():
+
+        data = request.get_json(silent=True) or {}
+
+        return safe_apply_response(internet_time.resume(data.get("mac")))
+
+
+
+
+
+@app.route("/api/clients/schedule", methods=["POST"])
+
+@login_required
+
+def client_schedule_api():
+
+        data = request.get_json(silent=True) or {}
+
+        return safe_apply_response(
+                internet_time.set_schedules(data.get("mac"), data.get("schedules"), data.get("name"))
+        )
+
+
+
+
+
 @app.route("/api/clients/ping", methods=["POST"])
 
 @login_required
@@ -3832,6 +3879,9 @@ def watch_interfaces():
 
         # Mobile data used this billing period, and the data limit.
         data_usage.watch()
+
+        # Device pauses and offline times follow the clock.
+        internet_time.watch()
 
 
 def start_setup_wifi():
