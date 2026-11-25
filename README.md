@@ -4,7 +4,9 @@
 
 > **Disclaimer:** This project relies heavily on AI-assisted development (Vibecoding). Every feature is tested on real hardware before it's considered done.
 
-A networking-first operating system for Raspberry Pi 5.
+Networking-first router software for the Raspberry Pi 5.
+
+Despite the name, Chardsoft Router OS is not an operating system of its own: it is installed on top of an existing Linux system (Raspberry Pi OS / Debian) and turns it into a router. Linux keeps doing the work underneath (the kernel, NetworkManager, ModemManager, hostapd, dnsmasq); Chardsoft Router OS sets them up and manages them from one web dashboard. You can remove it again, and the Linux system stays.
 
 Built specifically for the Raspberry Pi 5, the Waveshare PCIe TO 4G/5G M.2 USB3.2 HAT+, and the Quectel RM520N-GL.
 
