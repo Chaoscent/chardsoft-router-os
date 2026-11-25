@@ -212,6 +212,8 @@ class IperfTests(unittest.TestCase):
         self.assertIn("-4", command)
         self.assertEqual(command[command.index("-p") + 1], "5202")
         self.assertEqual(r["level"], "good")
+        # Any "error" key makes the API answer 400.
+        self.assertNotIn("error", r)
         self.assertIn("Download from 127.0.0.1", r["summary"])
         # Over the modem: the data it used is said.
         self.assertTrue(r["mobile"])
@@ -276,7 +278,7 @@ class IperfServerTests(unittest.TestCase):
             self.history.append((owner, len(rules)))
             return True, "OK"
 
-        nt._server.update(process=None, until=None, stopped=False, last=None)
+        nt._server.update(process=None, thread=None, until=None, stopped=False, last=None)
         for p in (
             mock.patch("services.firewall.sync_rules", side_effect=sync),
             mock.patch("services.firewall.get_lan_interfaces", return_value=["eth0", "wlan0", "wlan1"]),
@@ -302,6 +304,7 @@ class IperfServerTests(unittest.TestCase):
         self.assertEqual(self.history, [(nt.SPEEDTEST_OWNER, 3), (nt.SPEEDTEST_OWNER, 0)])
         last = nt.server_status()["last"]
         self.assertEqual(last["level"], "good")
+        self.assertNotIn("error", last)
         self.assertIn("device's upload", last["summary"])
 
     def test_rules_only_on_the_lan(self):
@@ -319,7 +322,10 @@ class IperfServerTests(unittest.TestCase):
             self.assertTrue(self.rules[nt.SPEEDTEST_OWNER])
             # A second start keeps the one server.
             self.assertTrue(nt.server_action({"action": "start"})["running"])
-            nt.server_action({"action": "stop"})
+            stopped = nt.server_action({"action": "stop"})
+        # Closed by the time Stop answers.
+        self.assertIsNone(stopped["until"])
+        self.assertEqual(self.rules[nt.SPEEDTEST_OWNER], [])
         self.wait_done()
         self.assertTrue(server.terminated)
         self.assertEqual(self.rules[nt.SPEEDTEST_OWNER], [])

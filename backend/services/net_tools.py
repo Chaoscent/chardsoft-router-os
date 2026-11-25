@@ -619,6 +619,12 @@ def iperf_problem(text, port):
     return name_problem(text) or f"iperf3: {text}"
 
 
+def figures(data):
+    """A parsed test without its "error" key: the API reads any as a failure."""
+
+    return {key: value for key, value in data.items() if key != "error"}
+
+
 def speed(mbits):
 
     return f"{mbits:.0f} Mbit/s" if mbits >= 10 else f"{mbits:.1f} Mbit/s"
@@ -669,7 +675,7 @@ def run_iperf(target, family, port, direction):
     if mobile:
         summary += f" It used about {megabytes(data['bytes'])} of mobile data."
 
-    return result(True, summary, **data, direction=direction, mobile=mobile, raw=output)
+    return result(True, summary, **figures(data), direction=direction, mobile=mobile, raw=output)
 
 
 # The router as the server: one test from a device on the LAN, then it
@@ -677,7 +683,7 @@ def run_iperf(target, family, port, direction):
 
 _server_lock = threading.Lock()
 
-_server = {"process": None, "until": None, "stopped": False, "last": None}
+_server = {"process": None, "thread": None, "until": None, "stopped": False, "last": None}
 
 
 def server_rules():
@@ -743,7 +749,7 @@ def explain_server(output, timed_out):
     way = f"Router to {data['remote']} (the device's download)" if data["reverse"] \
         else f"{data['remote']} to the router (the device's upload)"
 
-    return result(True, f"{way}: {speed(data['mbits'])}.", **data, raw=output)
+    return result(True, f"{way}: {speed(data['mbits'])}.", **figures(data), raw=output)
 
 
 def _wait_server(process):
@@ -798,7 +804,9 @@ def start_server():
 
         _server.update(process=process, until=time.time() + SERVER_WAIT, stopped=False, last=None)
 
-        threading.Thread(target=_wait_server, args=(process,), daemon=True, name="iperf-server").start()
+        thread = threading.Thread(target=_wait_server, args=(process,), daemon=True, name="iperf-server")
+        _server["thread"] = thread
+        thread.start()
 
     return server_status()
 
@@ -813,12 +821,17 @@ def stop_server():
             _server["stopped"] = True
             process.terminate()
 
-    # The waiting thread closes the port.
     if process:
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill()
+
+    # The waiting thread closes the port: done before this answers.
+    thread = _server["thread"]
+
+    if thread and thread is not threading.current_thread():
+        thread.join(timeout=10)
 
     return server_status()
 
