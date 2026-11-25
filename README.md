@@ -299,7 +299,7 @@ A ready-made sudoers file will ship with the installer.
 | ✅ | SPA routing (`#/dashboard`) |
 | ✅ | Network page |
 | ✅ | Modem page (`mmcli`) |
-| 🧪 | Mobile data (NetworkManager connection: APN with fallbacks, roaming, SIM PIN unlock, Quectel QMI mode) |
+| 🧪 | Mobile data (NetworkManager connection: APN with fallbacks, roaming, SIM PIN (unlock, on/off, change, PUK), Quectel QMI mode) |
 | ✅ | System |
 | 🧪 | Safe Apply (verify, confirm or auto-revert, recover at boot) |
 | 🧪 | Config layout (`/etc` defaults, `/var/lib` persistent, `/tmp` running) |

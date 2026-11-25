@@ -8,6 +8,7 @@ from services.modem_detector import detect_modem
 from services.config import load_settings
 from services.network import pick_ipv6
 from services import transaction
+from services.logs import log_event
 
 SIGNAL_ENABLED = False
 
@@ -254,6 +255,18 @@ def format_access_tech(value):
 BLOCKING_LOCKS = ("sim-pin", "sim-puk", "ph-sim-pin", "ph-net-pin")
 
 
+def pin_enabled(locks):
+    """
+    True/False from mmcli's "enabled locks" ("sim, fixed-dialing",
+    "none"), None without the line.
+    """
+
+    if locks is None:
+        return None
+
+    return "sim" in [part.strip() for part in locks.split(",")]
+
+
 def sim_status(lock, state):
     """
     "Waiting for PIN", "Blocked (PUK)", "Ready" or None (unknown).
@@ -383,7 +396,11 @@ def read_modem_data():
         # "sim-pin" while the SIM waits for its PIN, "sim-puk" when it
         # is blocked; "none" or None when unlocked.
         "lock": field(r"\|\s+lock:\s+(\S+)"),
-        "pin_retries": field(r"unlock retries:.*?sim-pin \((\d+)\)"),
+        "pin_retries": field(r"unlock retries:.*?\bsim-pin \((\d+)\)"),
+        "puk_retries": field(r"unlock retries:.*?\bsim-puk \((\d+)\)"),
+        # Whether the SIM asks for its PIN at every start ("sim" among
+        # the enabled locks); None when ModemManager does not say.
+        "pin_enabled": pin_enabled(field(r"enabled locks:\s+(.+)")),
         "modem_state": field(r"\|\s+state:\s+'?([a-z-]+)"),
         "connection": get_connection_state(),
 
@@ -410,7 +427,8 @@ DEFAULT_SETTINGS = {
     "username": "",
     "password": "",
     "roaming": False,
-    # Only stored after it unlocked the SIM (see unlock_sim).
+    # Only stored after it worked on the SIM (see the SIM PIN section).
+    # The router sends it itself (auto_unlock), never NetworkManager.
     "pin": ""
 }
 
@@ -436,6 +454,8 @@ def public_settings():
     return {
         **{k: v for k, v in settings.items() if k not in ("pin", "password")},
         "pin_saved": bool(settings["pin"]),
+        # The saved PIN was wrong and forgotten (since the app started).
+        "pin_rejected": auto_unlock_state["rejected"],
         "password_saved": bool(settings["password"])
     }
 
@@ -581,8 +601,11 @@ def connection_properties(settings, apn_mode="auto", apn=None):
         "gsm.username", settings["username"],
         "gsm.password", settings["password"],
         "gsm.password-flags", "0",
-        "gsm.pin", settings["pin"],
-        "gsm.pin-flags", "0",
+        # Never the PIN: NetworkManager would send it at every attempt
+        # (one apply tries up to three APNs), and three wrong PINs block
+        # the SIM. The router unlocks the SIM itself (auto_unlock).
+        "gsm.pin", "",
+        "gsm.pin-flags", "4",
         "ipv4.method", "auto",
         "ipv6.method", "auto"
     ]
@@ -738,10 +761,111 @@ def get_sim_path(index):
     return value.rsplit("/", 1)[-1] if "/" in value else value
 
 
-def unlock_sim(pin, remember=True):
+# -------------------------------------------------------------------
+# SIM PIN and PUK
+#
+# Every wrong PIN costs one of three attempts, then the SIM wants its
+# PUK; every wrong PUK costs one of ten, then the SIM is unusable for
+# good. So:
+#   - each code is sent once per request, never retried,
+#   - the router sends a saved PIN by itself at most once, and never
+#     with the last attempt; a PIN the SIM rejects is forgotten,
+#   - the page has to confirm a request that uses the last PIN attempt
+#     or one of the last PUK attempts.
+# -------------------------------------------------------------------
+
+PUK_RE = re.compile(r"^\d{8}$")
+
+# From this many attempts left on, a request has to be confirmed.
+PIN_CONFIRM_AT = 1
+PUK_CONFIRM_AT = 3
+
+# One SIM command at a time (the page and auto_unlock).
+_sim_lock = threading.Lock()
+
+auto_unlock_state = {
+    # Wall-clock time the saved PIN was rejected and forgotten.
+    "rejected": None,
+    # The saved PIN is held back (too few attempts left); logged once.
+    "held": False
+}
+
+
+def retries_of(value):
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def sim_command(args):
     """
-    Sends the PIN once (never retried: three wrong PINs block the SIM).
-    Returns {"success", "message", "retries"}.
+    (ok, output) of `mmcli -i <SIM> <args>`, or (False, message) without
+    a modem or SIM.
+    """
+
+    index = get_modem_index()
+
+    if index is None:
+        return False, "No modem found."
+
+    sim = get_sim_path(index)
+
+    if sim is None:
+        return False, "No SIM found."
+
+    return run_command(privileged(["mmcli", "-i", sim, *args]))
+
+
+def code_was_wrong(output, before, after):
+    """
+    Whether a failed PIN/PUK command used up an attempt. Only a known,
+    unchanged count of attempts says it did not (e.g. the modem was
+    busy); anything else counts as wrong, to be safe.
+    """
+
+    if "IncorrectPassword" in (output or "") or "ncorrect" in (output or ""):
+        return True
+
+    return before is None or after is None or after < before
+
+
+def needs_confirmation(retries, threshold):
+
+    return retries is not None and retries <= threshold
+
+
+def remember_pin(pin):
+    """Saves (or with "" forgets) the PIN, already in effect on the SIM."""
+
+    settings = get_modem_settings()
+
+    if settings["pin"] == pin:
+        return True
+
+    settings["pin"] = pin
+
+    outcome = transaction.change(MODEM_SETTINGS, settings, apply=False)
+
+    return outcome["success"]
+
+
+def pin_failure(message, data_after, field="pin_retries"):
+
+    retries = retries_of(data_after.get(field))
+
+    return {
+        "success": False,
+        "message": message + (f" {retries} attempts left." if retries is not None else ""),
+        "retries": retries
+    }
+
+
+def unlock_sim(pin, remember=True, confirm=False):
+    """
+    Sends the PIN once. Returns {"success", "message", "retries"}, and
+    "confirm": True instead when it would use the last attempt.
     """
 
     pin = str(pin or "").strip()
@@ -749,49 +873,307 @@ def unlock_sim(pin, remember=True):
     if not PIN_RE.fullmatch(pin):
         return {"success": False, "message": "The PIN has 4 to 8 digits."}
 
-    index = get_modem_index()
+    with _sim_lock:
 
-    if index is None:
-        return {"success": False, "message": "No modem found."}
+        data = get_modem_data(max_age=0)
+
+        if data.get("lock") == "sim-puk":
+            return {"success": False, "message": "The SIM is blocked: it needs its PUK."}
+
+        if data.get("lock") != "sim-pin":
+            return {"success": False, "message": "The SIM does not ask for a PIN."}
+
+        before = retries_of(data.get("pin_retries"))
+
+        if needs_confirmation(before, PIN_CONFIRM_AT) and not confirm:
+            return {
+                "success": False, "confirm": True, "retries": before,
+                "message": "This is the last attempt: a wrong PIN blocks the SIM."
+            }
+
+        ok, output = sim_command([f"--pin={pin}"])
+
+        after_data = get_modem_data(max_age=0)
+
+        if not ok:
+
+            if not code_was_wrong(output, before, retries_of(after_data.get("pin_retries"))):
+                return {"success": False, "message": "The modem did not take the PIN now. Try again in a moment."}
+
+            return pin_failure("Wrong PIN.", after_data)
+
+        auto_unlock_state.update(rejected=None, held=False)
+
+        if remember:
+
+            remember_pin(pin)
+
+            if get_modem_settings()["enabled"]:
+                apply_modem_settings()
+
+    return {"success": True, "message": "SIM unlocked."}
+
+
+def auto_unlock():
+    """
+    Unlocks the SIM with the saved PIN when it asks for one (after a
+    boot, a modem restart or a SIM swap). Returns "no_pin", "not_locked",
+    "held", "unlocked", "rejected" or "failed" (try again later).
+    """
+
+    pin = get_modem_settings()["pin"]
+
+    if not pin:
+        return "no_pin"
+
+    if not _sim_lock.acquire(blocking=False):
+        return "failed"
+
+    try:
+
+        data = get_modem_data(max_age=0)
+
+        if data.get("lock") != "sim-pin":
+            auto_unlock_state["held"] = False
+            return "not_locked"
+
+        before = retries_of(data.get("pin_retries"))
+
+        # The last attempt is left to a person.
+        if before is not None and before <= PIN_CONFIRM_AT:
+
+            if not auto_unlock_state["held"]:
+                auto_unlock_state["held"] = True
+                log_event(
+                    "modem",
+                    "The SIM asks for its PIN with one attempt left: the saved PIN is not used. "
+                    "Enter it on the Modem page.",
+                    level="warning"
+                )
+
+            return "held"
+
+        ok, output = sim_command([f"--pin={pin}"])
+
+        if ok:
+            log_event("modem", "SIM unlocked with the saved PIN.")
+            return "unlocked"
+
+        after = retries_of(get_modem_data(max_age=0).get("pin_retries"))
+
+        if not code_was_wrong(output, before, after):
+            return "failed"
+
+        auto_unlock_state["rejected"] = time.time()
+
+        # Never sent again; a pending Modem change can keep it from
+        # being saved, the in-memory "rejected" holds it back meanwhile.
+        forgotten = remember_pin("")
+
+        log_event(
+            "modem",
+            "The SIM rejected the saved PIN" + (f" ({after} attempts left)" if after is not None else "")
+            + ("; it was forgotten." if forgotten else ".")
+            + " Enter the PIN on the Modem page.",
+            level="warning"
+        )
+
+        return "rejected"
+
+    finally:
+        _sim_lock.release()
+
+
+AUTO_UNLOCK_SECONDS = 10
+
+_auto_unlock_started = False
+
+
+def watch_sim():
+    """Starts the auto-unlock thread once."""
+
+    global _auto_unlock_started
+
+    if _auto_unlock_started:
+        return
+
+    _auto_unlock_started = True
+
+    def loop():
+
+        while True:
+
+            try:
+                if auto_unlock_state["rejected"] is None:
+                    auto_unlock()
+            except Exception as e:
+                print(f"[modem] SIM unlock: {e}")
+
+            time.sleep(AUTO_UNLOCK_SECONDS)
+
+    threading.Thread(target=loop, daemon=True, name="sim-unlock").start()
+
+
+def unlocked_sim_data():
+    """(data, error): the modem data while the SIM is unlocked."""
 
     data = get_modem_data(max_age=0)
 
-    if data.get("lock") == "sim-puk":
-        return {"success": False, "message": "The SIM is blocked (PUK required). Unblock it in a phone first."}
+    if data.get("state") != "ready":
+        return None, "No modem found."
 
-    if data.get("lock") != "sim-pin":
-        return {"success": False, "message": "The SIM does not ask for a PIN."}
+    if data.get("lock") in BLOCKING_LOCKS:
+        return None, "Unlock the SIM first."
 
-    sim = get_sim_path(index)
+    return data, None
 
-    if sim is None:
-        return {"success": False, "message": "No SIM found."}
 
-    ok, result = run_command(privileged(["mmcli", "-i", sim, f"--pin={pin}"]))
+def set_pin_lock(enabled, pin, remember=True, confirm=False):
+    """
+    Turns the SIM PIN on or off (the SIM wants its current PIN for
+    both). Turning it off forgets the saved PIN.
+    """
 
-    after = get_modem_data(max_age=0)
+    pin = str(pin or "").strip()
 
-    if not ok:
-        retries = after.get("pin_retries")
-        return {
-            "success": False,
-            "message": "Wrong PIN." + (f" {retries} attempts left." if retries else ""),
-            "retries": retries
-        }
+    if not isinstance(enabled, bool):
+        return {"success": False, "message": "Invalid value."}
 
-    if remember:
+    if not PIN_RE.fullmatch(pin):
+        return {"success": False, "message": "The PIN has 4 to 8 digits."}
 
-        settings = get_modem_settings()
-        settings["pin"] = pin
+    with _sim_lock:
 
-        # Recorded without re-applying: the SIM is unlocked already;
-        # the connection gets the PIN the next time it is applied.
-        transaction.change(MODEM_SETTINGS, settings, apply=False)
+        data, error = unlocked_sim_data()
 
-        if settings["enabled"]:
+        if error:
+            return {"success": False, "message": error}
+
+        if data.get("pin_enabled") is enabled:
+            return {"success": False, "message": "The PIN is on already." if enabled else "The PIN is off already."}
+
+        before = retries_of(data.get("pin_retries"))
+
+        if needs_confirmation(before, PIN_CONFIRM_AT) and not confirm:
+            return {
+                "success": False, "confirm": True, "retries": before,
+                "message": "This is the last attempt: a wrong PIN blocks the SIM."
+            }
+
+        ok, output = sim_command([f"--pin={pin}", "--enable-pin" if enabled else "--disable-pin"])
+
+        after_data = get_modem_data(max_age=0)
+
+        if not ok:
+
+            if not code_was_wrong(output, before, retries_of(after_data.get("pin_retries"))):
+                return {"success": False, "message": f"The SIM did not take it: {output}"}
+
+            return pin_failure("Wrong PIN.", after_data)
+
+        auto_unlock_state.update(rejected=None, held=False)
+
+        remember_pin(pin if enabled and remember else "")
+
+    if enabled:
+        return {"success": True, "message": "PIN on: the SIM asks for it at every start."}
+
+    return {"success": True, "message": "PIN off."}
+
+
+def change_pin(pin, new_pin, remember=True, confirm=False):
+    """Changes the SIM PIN; a saved PIN becomes the new one."""
+
+    pin, new_pin = str(pin or "").strip(), str(new_pin or "").strip()
+
+    if not PIN_RE.fullmatch(pin) or not PIN_RE.fullmatch(new_pin):
+        return {"success": False, "message": "The PIN has 4 to 8 digits."}
+
+    with _sim_lock:
+
+        data, error = unlocked_sim_data()
+
+        if error:
+            return {"success": False, "message": error}
+
+        if data.get("pin_enabled") is False:
+            return {"success": False, "message": "The PIN is off: turn it on first."}
+
+        before = retries_of(data.get("pin_retries"))
+
+        if needs_confirmation(before, PIN_CONFIRM_AT) and not confirm:
+            return {
+                "success": False, "confirm": True, "retries": before,
+                "message": "This is the last attempt: a wrong PIN blocks the SIM."
+            }
+
+        ok, output = sim_command([f"--pin={pin}", f"--change-pin={new_pin}"])
+
+        after_data = get_modem_data(max_age=0)
+
+        if not ok:
+
+            if not code_was_wrong(output, before, retries_of(after_data.get("pin_retries"))):
+                return {"success": False, "message": f"The SIM did not take it: {output}"}
+
+            return pin_failure("Wrong current PIN.", after_data)
+
+        auto_unlock_state.update(rejected=None, held=False)
+
+        if remember or get_modem_settings()["pin"]:
+            remember_pin(new_pin)
+
+    return {"success": True, "message": "PIN changed."}
+
+
+def unblock_sim(puk, new_pin, remember=True, confirm=False):
+    """
+    Unblocks a SIM with its PUK and sets a new PIN. Wrong PUKs are
+    counted down from ten; at zero the SIM is unusable for good.
+    """
+
+    puk, new_pin = str(puk or "").strip(), str(new_pin or "").strip()
+
+    if not PUK_RE.fullmatch(puk):
+        return {"success": False, "message": "The PUK has 8 digits."}
+
+    if not PIN_RE.fullmatch(new_pin):
+        return {"success": False, "message": "The new PIN has 4 to 8 digits."}
+
+    with _sim_lock:
+
+        data = get_modem_data(max_age=0)
+
+        if data.get("lock") != "sim-puk":
+            return {"success": False, "message": "The SIM is not blocked."}
+
+        before = retries_of(data.get("puk_retries"))
+
+        if needs_confirmation(before, PUK_CONFIRM_AT) and not confirm:
+            return {
+                "success": False, "confirm": True, "retries": before,
+                "message": f"Only {before} PUK attempts left: after the last wrong one the SIM is unusable for good."
+            }
+
+        ok, output = sim_command([f"--puk={puk}", f"--pin={new_pin}"])
+
+        after_data = get_modem_data(max_age=0)
+
+        if not ok:
+
+            if not code_was_wrong(output, before, retries_of(after_data.get("puk_retries"))):
+                return {"success": False, "message": "The modem did not take the PUK now. Try again in a moment."}
+
+            return pin_failure("Wrong PUK.", after_data, field="puk_retries")
+
+        auto_unlock_state.update(rejected=None, held=False)
+
+        remember_pin(new_pin if remember else "")
+
+        if remember and get_modem_settings()["enabled"]:
             apply_modem_settings()
 
-    return {"success": True, "message": "SIM unlocked."}
+    return {"success": True, "message": "SIM unblocked with the new PIN."}
 
 
 # -------------------------------------------------------------------

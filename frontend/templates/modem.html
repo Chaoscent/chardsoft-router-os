@@ -26,11 +26,11 @@
 
     <div id="simPinCard" class="card sim-pin-card hidden">
 
-        <span>SIM PIN</span>
+        <span id="simPinTitle">SIM PIN</span>
 
         <p id="simPinInfo" class="setting-hint"></p>
 
-        <div class="settings-grid">
+        <div id="simPinFields" class="settings-grid">
 
             <div class="setting-field">
                 <label for="simPinInput">PIN</label>
@@ -54,8 +54,59 @@
 
         </div>
 
+        <!-- Blocked SIM: PUK and a new PIN -->
+
+        <div id="simPukFields" class="settings-grid hidden">
+
+            <div class="setting-field">
+                <label for="simPukInput">PUK</label>
+                <input
+                    id="simPukInput"
+                    class="setting-input"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="8"
+                    autocomplete="off"
+                    placeholder="8 digits">
+            </div>
+
+            <div class="setting-field">
+                <label for="simPukNewPin">New PIN</label>
+                <input
+                    id="simPukNewPin"
+                    class="setting-input"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="8"
+                    autocomplete="off"
+                    placeholder="4-8 digits">
+            </div>
+
+            <div class="setting-field">
+                <label for="simPukRepeat">New PIN again</label>
+                <input
+                    id="simPukRepeat"
+                    class="setting-input"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="8"
+                    autocomplete="off"
+                    placeholder="4-8 digits">
+            </div>
+
+            <div class="setting-field">
+                <label>&nbsp;</label>
+                <label class="check-item">
+                    <input id="simPukRemember" type="checkbox" checked>
+                    <span>Unlock at every start</span>
+                </label>
+            </div>
+
+        </div>
+
         <div class="setting-row">
             <button id="simPinUnlock" class="save-btn">Unlock</button>
+            <button id="simPukUnblock" class="save-btn hidden">Unblock</button>
         </div>
 
         <div id="simPinStatus" class="setting-status"></div>
@@ -220,6 +271,59 @@
         </div>
 
         <div id="mobileStatus" class="setting-status"></div>
+
+    </div>
+
+    <!-- SIM PIN on/off and change: while the SIM is unlocked -->
+
+    <div id="simLockCard" class="card hidden">
+
+        <span>SIM PIN</span>
+
+        <p id="simLockInfo" class="setting-hint"></p>
+
+        <div class="settings-grid">
+
+            <div class="setting-field">
+                <label for="simLockPin">Current PIN</label>
+                <input
+                    id="simLockPin"
+                    class="setting-input"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="8"
+                    autocomplete="off"
+                    placeholder="4-8 digits">
+            </div>
+
+            <div id="simLockNewField" class="setting-field">
+                <label for="simLockNew">New PIN (to change it)</label>
+                <input
+                    id="simLockNew"
+                    class="setting-input"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="8"
+                    autocomplete="off"
+                    placeholder="4-8 digits">
+            </div>
+
+            <div class="setting-field">
+                <label>&nbsp;</label>
+                <label class="check-item">
+                    <input id="simLockRemember" type="checkbox" checked>
+                    <span>Unlock at every start</span>
+                </label>
+            </div>
+
+        </div>
+
+        <div class="setting-row">
+            <button id="simLockChange" class="secondary-btn">Change PIN</button>
+            <button id="simLockToggle" class="save-btn">Turn PIN on</button>
+        </div>
+
+        <div id="simLockStatus" class="setting-status"></div>
 
     </div>
 

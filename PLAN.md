@@ -41,6 +41,11 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   (signal per section, "lte, 5gnr" → "5G NSA", SIM state); the active band
   (`sudo qmicli -p -d /dev/cdc-wdm0 --nas-get-rf-band-info`, the Modem page
   shows e.g. "B3 + n78").
+- [ ] **SIM PIN on a real SIM** (when home, phone and PUK at hand): turn the
+  PIN on from the Modem page, reboot (the saved PIN unlocks the SIM, one
+  Logs entry), change it, enter a wrong one by hand (attempts count down),
+  check `nmcli -s -g gsm.pin connection show chardsoft-modem` is empty,
+  turn it off again. PUK only with a spare SIM.
 - [ ] **eth0 LAN/WAN switch:** default route, NAT and DHCP pause on eth0.
 - [ ] **Wi-Fi:** several radios at once, 6 GHz on wlan1, channel widths
   (40/80/160 MHz; a radio that can't do one fails to start and is rolled

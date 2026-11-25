@@ -43,6 +43,7 @@ async update(){
     imei.textContent=show(d.imei);
 
     this.renderSim(d);
+    this.renderSimLock(d);
     this.renderDataLink(d);
 
     const onlyV6=d.connection==="activated"&&d.ipv6&&!d.ipv4;
@@ -119,11 +120,91 @@ renderSim(d){
 
     const puk=d.lock==="sim-puk";
 
+    simPinTitle.textContent=puk?"SIM blocked":"SIM PIN";
+
     simPinInfo.textContent=puk
-        ?"The SIM is blocked after too many wrong PINs. Unblock it with its PUK in a phone, then put it back."
+        ?`The SIM is blocked after three wrong PINs. Enter its PUK (8 digits, in the SIM card's papers or from your carrier) and a new PIN.${d.puk_retries?` ${d.puk_retries} PUK attempts left;`:""} After ten wrong PUKs the SIM is unusable for good.`
         :`The SIM is locked. Enter its PIN to use mobile data${d.pin_retries?` (${d.pin_retries} attempts left)`:""}. It is sent once per click, never retried by itself.`;
 
-    simPinInput.disabled=simPinUnlock.disabled=puk;
+    simPinFields.classList.toggle("hidden",puk);
+    simPukFields.classList.toggle("hidden",!puk);
+    simPinUnlock.classList.toggle("hidden",puk);
+    simPukUnblock.classList.toggle("hidden",!puk);
+
+},
+
+renderSimLock(d){
+
+    const shown=d.state==="ready"&&typeof d.pin_enabled==="boolean"
+        &&!["sim-pin","sim-puk","ph-sim-pin","ph-net-pin"].includes(d.lock);
+
+    simLockCard.classList.toggle("hidden",!shown);
+
+    if(!shown)return;
+
+    const on=d.pin_enabled;
+
+    simLockInfo.textContent=(on
+        ?"The PIN is on: the SIM asks for it at every start. With \"Unlock at every start\" the router enters it by itself, once; a PIN the SIM rejects is forgotten, and the last attempt is always left to you."
+        :"The PIN is off: anyone with the SIM can use it in another device. Turning it on needs the SIM's current PIN (often 0000 or from the SIM card's papers).")
+        +(d.pin_retries?` ${d.pin_retries} attempts left.`:"");
+
+    simLockToggle.textContent=on?"Turn PIN off":"Turn PIN on";
+    simLockChange.classList.toggle("hidden",!on);
+    simLockNewField.classList.toggle("hidden",!on);
+
+    this.pinEnabled=on;
+
+},
+
+// Sends a PIN/PUK request; asks first when it uses a last attempt.
+async simRequest(url,body,status,buttons){
+
+    const send=async extra=>{
+        const res=await fetch(url,{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({...body,...extra})
+        });
+        return res.json().catch(()=>({success:false,message:"Unexpected server response."}));
+    };
+
+    buttons.forEach(b=>b.disabled=true);
+    status.textContent="Sending...";
+
+    try{
+
+        let data=await send({});
+
+        if(data.confirm){
+
+            const confirmed=await ChardsoftModal.confirm({
+                title:"Use the last attempt?",
+                subtitle:data.message,
+                confirmText:"Send it"
+            });
+
+            if(!confirmed){
+                status.textContent="Not sent.";
+                return data;
+            }
+
+            data=await send({confirm:true});
+
+        }
+
+        status.textContent=data.success?`✓ ${data.message}`:data.message;
+
+        return data;
+
+    }finally{
+
+        buttons.forEach(b=>b.disabled=false);
+
+        await this.loadMobile();
+        await this.update();
+
+    }
 
 },
 
@@ -136,23 +217,87 @@ async unlock(){
         return;
     }
 
-    simPinUnlock.disabled=true;
-    simPinStatus.textContent="Unlocking...";
-
-    const res=await fetch("/api/modem/unlock",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({pin,remember:simPinRemember.checked})
-    });
-
-    const data=await res.json().catch(()=>({message:"Unexpected server response."}));
-
-    simPinUnlock.disabled=false;
     simPinInput.value="";
-    simPinStatus.textContent=data.success?`✓ ${data.message}`:data.message;
 
-    await this.loadMobile();
-    await this.update();
+    await this.simRequest("/api/modem/unlock",{pin,remember:simPinRemember.checked},simPinStatus,[simPinUnlock]);
+
+},
+
+async unblock(){
+
+    const puk=simPukInput.value.trim();
+    const newPin=simPukNewPin.value.trim();
+
+    if(!/^\d{8}$/.test(puk)){
+        simPinStatus.textContent="The PUK has 8 digits.";
+        return;
+    }
+
+    if(!/^\d{4,8}$/.test(newPin)){
+        simPinStatus.textContent="The new PIN has 4 to 8 digits.";
+        return;
+    }
+
+    if(newPin!==simPukRepeat.value.trim()){
+        simPinStatus.textContent="The new PINs do not match.";
+        return;
+    }
+
+    const data=await this.simRequest("/api/modem/unblock",
+        {puk,new_pin:newPin,remember:simPukRemember.checked},simPinStatus,[simPukUnblock]);
+
+    simPukInput.value="";
+
+    if(data.success)simPukNewPin.value=simPukRepeat.value="";
+
+},
+
+async togglePinLock(){
+
+    const pin=simLockPin.value.trim();
+
+    if(!/^\d{4,8}$/.test(pin)){
+        simLockStatus.textContent="Enter the current PIN (4 to 8 digits).";
+        return;
+    }
+
+    const enable=!this.pinEnabled;
+
+    if(!enable){
+
+        const confirmed=await ChardsoftModal.confirm({
+            title:"Turn the SIM PIN off?",
+            subtitle:"Anyone who takes the SIM out can then use it in another device.",
+            confirmText:"Turn off"
+        });
+
+        if(!confirmed)return;
+
+    }
+
+    simLockPin.value="";
+
+    await this.simRequest("/api/modem/pin-lock",
+        {enabled:enable,pin,remember:simLockRemember.checked},simLockStatus,[simLockToggle,simLockChange]);
+
+},
+
+async changePin(){
+
+    const pin=simLockPin.value.trim();
+    const newPin=simLockNew.value.trim();
+
+    if(!/^\d{4,8}$/.test(pin)||!/^\d{4,8}$/.test(newPin)){
+        simLockStatus.textContent="Enter the current and the new PIN (4 to 8 digits each).";
+        return;
+    }
+
+    simLockPin.value="";
+
+    const data=await this.simRequest("/api/modem/change-pin",
+        {pin,new_pin:newPin,remember:simLockRemember.checked},simLockStatus,[simLockToggle,simLockChange]);
+
+    if(data.success)simLockNew.value="";
 
 },
 
@@ -172,7 +317,9 @@ async loadMobile(){
     mobilePasswordInput.placeholder=this.mobile.password_saved?"Saved (leave empty to keep)":"Usually not needed";
 
     mobilePinNote.textContent=this.mobile.pin_saved
-        ?"The SIM PIN is saved: the SIM is unlocked at every start."
+        ?"The SIM PIN is saved: the router unlocks the SIM at every start."
+        :this.mobile.pin_rejected
+        ?"The SIM rejected the saved PIN, so the router forgot it. Enter the PIN again."
         :"";
 
     mobileForgetPin.classList.toggle("hidden",!this.mobile.pin_saved);
@@ -696,6 +843,9 @@ init(){
 
     simPinUnlock.onclick=()=>this.unlock();
     simPinInput.onkeydown=event=>{ if(event.key==="Enter")this.unlock(); };
+    simPukUnblock.onclick=()=>this.unblock();
+    simLockToggle.onclick=()=>this.togglePinLock();
+    simLockChange.onclick=()=>this.changePin();
 
     mobileSave.onclick=()=>this.saveMobile();
     mobileForgetPin.onclick=()=>this.saveMobile({forget_pin:true});

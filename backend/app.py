@@ -319,6 +319,10 @@ from services.modem import (
         public_settings as modem_public_settings,
         save_modem_settings,
         unlock_sim,
+        set_pin_lock,
+        change_pin,
+        unblock_sim,
+        watch_sim,
         switch_usb_mode
 )
 
@@ -3005,7 +3009,71 @@ def modem_unlock_api():
 
         data = request.get_json(silent=True) or {}
 
-        outcome = unlock_sim(data.get("pin"), remember=data.get("remember") is not False)
+        outcome = unlock_sim(
+                data.get("pin"),
+                remember=data.get("remember") is not False,
+                confirm=data.get("confirm") is True
+        )
+
+        return jsonify(outcome), 200 if outcome["success"] else 400
+
+
+
+
+@app.route("/api/modem/pin-lock", methods=["POST"])
+
+@login_required
+
+def modem_pin_lock_api():
+
+        data = request.get_json(silent=True) or {}
+
+        outcome = set_pin_lock(
+                data.get("enabled"),
+                data.get("pin"),
+                remember=data.get("remember") is not False,
+                confirm=data.get("confirm") is True
+        )
+
+        return jsonify(outcome), 200 if outcome["success"] else 400
+
+
+
+
+@app.route("/api/modem/change-pin", methods=["POST"])
+
+@login_required
+
+def modem_change_pin_api():
+
+        data = request.get_json(silent=True) or {}
+
+        outcome = change_pin(
+                data.get("pin"),
+                data.get("new_pin"),
+                remember=data.get("remember") is not False,
+                confirm=data.get("confirm") is True
+        )
+
+        return jsonify(outcome), 200 if outcome["success"] else 400
+
+
+
+
+@app.route("/api/modem/unblock", methods=["POST"])
+
+@login_required
+
+def modem_unblock_api():
+
+        data = request.get_json(silent=True) or {}
+
+        outcome = unblock_sim(
+                data.get("puk"),
+                data.get("new_pin"),
+                remember=data.get("remember") is not False,
+                confirm=data.get("confirm") is True
+        )
 
         return jsonify(outcome), 200 if outcome["success"] else 400
 
@@ -4136,6 +4204,9 @@ def watch_interfaces():
 
         # A modem that is "connected" but passes no data gets restarted.
         modem_watchdog.watch()
+
+        # A SIM that asks for its PIN gets the saved one (once).
+        watch_sim()
 
         # LAN traffic follows the WAN (its gateway changes with every
         # modem connection) and steps aside for a full-tunnel VPN.
