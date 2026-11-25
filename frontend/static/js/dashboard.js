@@ -1203,7 +1203,8 @@ window.Page.dashboard = {
             y: event.clientY,
             // Where it was: Escape puts it back.
             home: element.nextSibling,
-            last: null,
+            // The widget that caused the last move.
+            target: null,
             scroller: dashboardGrid.closest("main") || document.scrollingElement
         };
 
@@ -1258,52 +1259,50 @@ window.Page.dashboard = {
         drag.ghost.style.left = `${drag.x - drag.offsetX}px`;
         drag.ghost.style.top = `${drag.y - drag.offsetY}px`;
 
-        // After a move the widgets shift under the pointer: wait for a
-        // real movement before the next one, so they never flicker.
-        if (drag.last && Math.hypot(drag.x - drag.last.x, drag.y - drag.last.y) < 16) return;
-
         const element = drag.item.element;
-        const others = this.widgetElements().filter(el => el !== element);
+        const elements = this.widgetElements();
 
-        if (!others.length) return;
+        // Layout positions in the grid (offsetLeft/Top): the sliding
+        // animation moves the widgets on screen, not there.
+        const grid = dashboardGrid.getBoundingClientRect();
+        const x = drag.x - grid.left;
+        const y = drag.y - grid.top;
 
-        // The widget under the pointer, or the nearest one (in a gap).
-        let target = null;
-        let distance = Infinity;
+        const over = el => x >= el.offsetLeft && x < el.offsetLeft + el.offsetWidth
+            && y >= el.offsetTop && y < el.offsetTop + el.offsetHeight;
 
-        for (const other of others) {
-
-            const r = other.getBoundingClientRect();
-            const d = Math.hypot(
-                Math.max(r.left - drag.x, 0, drag.x - r.right),
-                Math.max(r.top - drag.y, 0, drag.y - r.bottom)
-            );
-
-            if (d < distance) {
-                distance = d;
-                target = other;
-            }
-
+        // Over its own place: it is where the pointer is.
+        if (over(element)) {
+            drag.target = null;
+            return;
         }
 
-        if (distance > 80) return;
+        let target = elements.find(el => el !== element && over(el));
 
-        const r = target.getBoundingClientRect();
-        const grid = dashboardGrid.getBoundingClientRect();
+        // Below every widget: to the end.
+        if (!target && y > Math.max(...elements.map(el => el.offsetTop + el.offsetHeight))) target = "end";
 
-        // A wide widget: above or below it; a narrow one: left or right.
-        const after = r.width > grid.width * 0.7 || drag.y < r.top || drag.y > r.bottom
-            ? drag.y > r.top + r.height / 2
-            : drag.x > r.left + r.width / 2;
+        // In a gap: nothing moves.
+        if (!target) {
+            drag.target = null;
+            return;
+        }
 
-        const reference = after ? target.nextSibling : target;
+        // Once per widget the pointer enters: after a move the grid
+        // wraps anew, and the same widget would send it back.
+        if (target === drag.target) return;
 
-        // Already there.
-        if (reference === element || reference === element.nextSibling) return;
+        drag.target = target;
 
-        this.reflow(() => dashboardGrid.insertBefore(element, reference));
+        if (target === "end") {
+            if (elements[elements.length - 1] !== element) this.reflow(() => dashboardGrid.appendChild(element));
+            return;
+        }
 
-        drag.last = { x: drag.x, y: drag.y };
+        // Dragged forwards it goes after the widget, backwards before it.
+        const forward = elements.indexOf(target) > elements.indexOf(element);
+
+        this.reflow(() => dashboardGrid.insertBefore(element, forward ? target.nextSibling : target));
 
     },
 
@@ -1315,7 +1314,9 @@ window.Page.dashboard = {
 
         if (!drag) return;
 
-        if (!drag.ghost) {
+        // Only once it is really carried: a widget picked up near the
+        // top or bottom does not start the page scrolling.
+        if (!drag.ghost || Math.hypot(drag.x - drag.startX, drag.y - drag.startY) < 40) {
             drag.frame = requestAnimationFrame(() => this.autoScroll());
             return;
         }
@@ -1323,7 +1324,7 @@ window.Page.dashboard = {
         const box = drag.scroller.getBoundingClientRect();
         const top = Math.max(box.top, 0);
         const bottom = Math.min(box.bottom, innerHeight);
-        const edge = 70;
+        const edge = 48;
 
         let step = 0;
 
@@ -1428,7 +1429,7 @@ window.Page.dashboard = {
 
         // Measured from where it starts: a widget that wraps to the next
         // row while it grows does not jump back and forth.
-        const left = item.element.getBoundingClientRect().left;
+        const left = grid.left + item.element.offsetLeft;
         const column = (grid.width - 11 * gap) / 12;
 
         handle.setPointerCapture(event.pointerId);

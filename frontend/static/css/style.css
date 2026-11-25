@@ -2341,6 +2341,11 @@ td.mono{
     display:none;
 }
 
+/* The widgets' offsetLeft/Top count from the grid (dashboard.js). */
+.is-editing .dashboard-grid{
+    position:relative;
+}
+
 .is-editing .dashboard-grid > .widget{
     position:relative;
     outline:var(--hairline) dashed var(--color-border-strong);
