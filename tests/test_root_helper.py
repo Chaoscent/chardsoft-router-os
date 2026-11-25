@@ -148,6 +148,8 @@ class Commands(unittest.TestCase):
         ("install", "-m", "4755", "/tmp/x", "/etc/hostapd/chardsoft-wlan0.conf"),
         ("find", helper.PKI_DIR, "-exec", "sh", ";"),
         ("/opt/x/deploy/modem-usb-mode.sh", "foo"),
+        ("/opt/x/deploy/remove-apps.sh", "--yes"),
+        ("/opt/x/deploy/remove-apps.sh", "--delete-data", "--purge"),
     ]
 
     def test_refused(self):

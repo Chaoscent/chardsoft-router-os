@@ -460,7 +460,7 @@ At v1, `VERSION` becomes `1.0.0`, the release branches are filled and the instal
 
 ## Optional
 
-Neither Core nor the Hardware Edition ships with the Apps Addon. The Apps page in the sidebar offers to install it with one click. Core never depends on it; the Apps Addon depends on Core.
+Neither Core nor the Hardware Edition ships with the Apps Addon. The Apps page in the sidebar offers to install it with one click, and once installed, to remove it again (`deploy/remove-apps.sh`, which runs the addon's own `install.sh --remove`): every app goes; app data stays unless chosen otherwise, and Docker only goes on request and only if the addon installed it. Core never depends on it; the Apps Addon depends on Core.
 
 ## What It Is
 

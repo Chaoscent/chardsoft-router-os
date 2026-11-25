@@ -4,7 +4,8 @@ Apps: the Apps page, and how installed apps plug into the router.
 The apps themselves come from the Apps Addon (Chardsoft Router Apps), a
 separate install with Docker and the App Manager
 (/usr/local/bin/chardsoft-apps). Core never needs it: without the addon
-the Apps page offers to install it (deploy/install-apps.sh).
+the Apps page offers to install it (deploy/install-apps.sh), and to
+remove it again (deploy/remove-apps.sh).
 
 Every installed app is reached by name, e.g. nextcloud.chardsoft-router.local
 (<app>.chardsoft-router.local); the router itself is chardsoft-router.local:
@@ -50,6 +51,11 @@ ADDON_INSTALLER = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "deploy", "install-apps.sh")
 )
 
+# Removes it (the addon's own installer with --remove).
+ADDON_REMOVER = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "deploy", "remove-apps.sh")
+)
+
 CADDY_APPS_DIR = "/etc/caddy/chardsoft-apps"
 
 # The router's name in the LAN; apps are <app>.ROUTER_DOMAIN.
@@ -74,7 +80,8 @@ ACTION_LABELS = {
     "restart": "Restarting",
     "update": "Updating",
     "remove": "Removing",
-    "addon": "Installing the Apps Addon"
+    "addon": "Installing the Apps Addon",
+    "addon_remove": "Removing the Apps Addon"
 }
 
 APP_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
@@ -345,11 +352,11 @@ def _run_job(job, cmd, after, cleanup=None):
         job["success"] = success
         job["finished"] = time.time()
 
-    target = job["name"] or "Apps Addon"
+    what = " ".join(filter(None, (ACTION_LABELS[job["action"]], job["name"])))
 
     log_event(
         "apps",
-        f"{ACTION_LABELS[job['action']]} {target}: {'done' if success else 'failed'}.",
+        f"{what}: {'done' if success else 'failed'}.",
         "info" if success else "error"
     )
 
@@ -379,7 +386,7 @@ def start_job(action, app_id, name, cmd, after=None, cleanup=None):
 
     threading.Thread(target=_run_job, args=(job, cmd, after, cleanup), daemon=True).start()
 
-    return True, f"{ACTION_LABELS[action]} {name or 'the Apps Addon'}..."
+    return True, " ".join(filter(None, (ACTION_LABELS[action], name))) + "..."
 
 
 def install_addon():
@@ -391,6 +398,30 @@ def install_addon():
         return False, "The addon installer is missing (deploy/install-apps.sh)."
 
     return start_job("addon", None, None, [ADDON_INSTALLER])
+
+
+def remove_addon(delete_data=False, purge=False):
+    """
+    Removes every app, the App Manager and its sudoers rule. App data
+    stays unless delete_data; purge also deletes the data and removes
+    Docker (only if the addon installed it).
+    """
+
+    if not addon_installed():
+        return False, "The Apps Addon is not installed."
+
+    if not os.path.isfile(ADDON_REMOVER):
+        return False, "The addon remover is missing (deploy/remove-apps.sh)."
+
+    cmd = [ADDON_REMOVER]
+
+    if purge:
+        cmd.append("--purge")
+    elif delete_data:
+        cmd.append("--delete-data")
+
+    # The apps' names and routes go with them, also after a partial run.
+    return start_job("addon_remove", None, None, cmd, cleanup=sync_integration_later)
 
 
 def run_action(action, app_id, delete_data=False):
@@ -804,10 +835,8 @@ def sync_integration():
 
         save_system(APPS_RECORD, {"apps": apps})
 
-        syncs = [("DNS names", sync_dns), ("mDNS names", sync_mdns)]
-
-        if addon_installed():
-            syncs.append(("Caddy routes", sync_caddy))
+        # Caddy also without the addon: a removed addon leaves no routes.
+        syncs = [("DNS names", sync_dns), ("mDNS names", sync_mdns), ("Caddy routes", sync_caddy)]
 
         for what, sync in syncs:
 

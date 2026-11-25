@@ -672,7 +672,7 @@ setup_sudo() {
     install -d -o root -g root -m 755 "$HELPER_DIR"
 
     local file
-    for file in root-helper update.sh install-apps.sh modem-usb-mode.sh; do
+    for file in root-helper update.sh install-apps.sh remove-apps.sh modem-usb-mode.sh; do
         install -o root -g root -m 755 "$INSTALL_DIR/deploy/$file" "$HELPER_DIR/$file"
     done
 

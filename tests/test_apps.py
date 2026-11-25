@@ -136,5 +136,39 @@ class CustomAppTests(unittest.TestCase):
             self.assertFalse(apps.add_custom({"name": "", "mode": "form"})[0])
 
 
+
+class AddonRemoveTests(unittest.TestCase):
+
+    def remove(self, **options):
+        started = {}
+
+        def start_job(action, app_id, name, cmd, after=None, cleanup=None):
+            started.update(action=action, cmd=cmd, cleanup=cleanup)
+            return True, "started"
+
+        with mock.patch.multiple(apps, addon_installed=lambda: True, start_job=start_job):
+            ok, _ = apps.remove_addon(**options)
+
+        self.assertTrue(ok)
+        return started
+
+    def test_options_become_one_flag(self):
+        self.assertEqual(self.remove()["cmd"][1:], [])
+        self.assertEqual(self.remove(delete_data=True)["cmd"][1:], ["--delete-data"])
+        self.assertEqual(self.remove(delete_data=True, purge=True)["cmd"][1:], ["--purge"])
+
+    def test_runs_the_remover_and_cleans_up_names(self):
+        started = self.remove()
+        self.assertEqual(started["action"], "addon_remove")
+        self.assertEqual(os.path.basename(started["cmd"][0]), "remove-apps.sh")
+        self.assertIs(started["cleanup"], apps.sync_integration_later)
+
+    def test_nothing_to_remove(self):
+        with mock.patch.object(apps, "addon_installed", lambda: False):
+            ok, message = apps.remove_addon()
+        self.assertFalse(ok)
+        self.assertIn("not installed", message)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -178,6 +178,27 @@
         </div>
 
 
+        <!-- Remove the addon (only while it is installed) -->
+
+        <div id="appsAddonRemove" class="card hidden">
+
+            <span>Remove Apps Addon</span>
+
+            <p class="setting-hint">
+                Removes every app and the App Manager. App data and Docker stay
+                unless you choose otherwise. The router itself keeps working;
+                you can install the addon again later.
+            </p>
+
+            <div class="setting-row">
+                <button id="appsAddonRemoveButton" class="save-btn danger-btn">Remove Apps Addon…</button>
+            </div>
+
+            <div id="appsAddonRemoveStatus" class="setting-status"></div>
+
+        </div>
+
+
         <!-- Install, remove, ... in progress (or just finished), below the apps -->
 
         <div id="appsJob" class="card hidden">

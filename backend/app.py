@@ -3402,6 +3402,22 @@ def apps_addon_install_api():
 
 
 
+@app.route("/api/apps/addon/remove", methods=["POST"])
+
+@login_required
+
+def apps_addon_remove_api():
+
+        data = request.get_json(silent=True) or {}
+
+        ok, message = router_apps.remove_addon(
+            delete_data=data.get("delete_data") is True,
+            purge=data.get("purge") is True
+        )
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
+
+
 @app.route("/api/apps/custom/check", methods=["POST"])
 
 @login_required

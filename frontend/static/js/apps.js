@@ -185,7 +185,8 @@ window.Page.apps = {
         return {
             add: "Adding", install: "Installing", start: "Starting", stop: "Stopping",
             restart: "Restarting", update: "Updating", remove: "Removing",
-            addon: "Installing the Apps Addon"
+            addon: "Installing the Apps Addon",
+            addon_remove: "Removing the Apps Addon"
         }[action] || action;
 
     },
@@ -198,6 +199,10 @@ window.Page.apps = {
         appsAddon.classList.toggle("hidden", addon.installed);
 
         appsAddonInstall.disabled = this.jobRunning() || !addon.can_install;
+
+        appsAddonRemove.classList.toggle("hidden", !addon.installed);
+
+        appsAddonRemoveButton.disabled = this.jobRunning();
 
         if (!addon.installed && !addon.can_install) {
             appsAddonStatus.textContent = "The addon installer (deploy/install-apps.sh) is missing.";
@@ -435,6 +440,56 @@ window.Page.apps = {
         if (!res) return;
 
         appsAddonStatus.textContent = res.data.success ? "" : res.data.message;
+
+        this.closedJob = null;
+
+        await this.refresh();
+
+    },
+
+
+    async removeAddon() {
+
+        const body = document.createElement("div");
+        body.innerHTML = `
+            <label class="check-item">
+                <input type="checkbox" data-option="delete">
+                <span>Also delete all app data (files, accounts, settings of every app)</span>
+            </label>
+            <label class="check-item">
+                <input type="checkbox" data-option="purge">
+                <span>Also remove Docker with all its images (only if the addon installed it)</span>
+            </label>
+        `;
+
+        const deleteBox = body.querySelector('[data-option="delete"]');
+        const purgeBox = body.querySelector('[data-option="purge"]');
+
+        // Removing Docker deletes the data anyway.
+        purgeBox.onchange = () => {
+            deleteBox.checked = deleteBox.checked || purgeBox.checked;
+            deleteBox.disabled = purgeBox.checked;
+        };
+
+        const confirmed = await ChardsoftModal.confirm({
+            title: "Remove Apps Addon",
+            subtitle: "Every app stops and is removed, and the App Manager is uninstalled.",
+            body,
+            confirmText: "Remove"
+        });
+
+        if (!confirmed) return;
+
+        appsAddonRemoveStatus.textContent = "Starting...";
+
+        const res = await this.post("/api/apps/addon/remove", {
+            delete_data: deleteBox.checked,
+            purge: purgeBox.checked
+        });
+
+        if (!res) return;
+
+        appsAddonRemoveStatus.textContent = res.data.success ? "" : res.data.message;
 
         this.closedJob = null;
 
@@ -716,6 +771,8 @@ window.Page.apps = {
         this.active = true;
 
         appsAddonInstall.onclick = () => this.installAddon();
+
+        appsAddonRemoveButton.onclick = () => this.removeAddon();
 
         document.querySelectorAll("[data-custom-mode]").forEach(button => {
             button.onclick = () => this.setCustomMode(button.dataset.customMode);
