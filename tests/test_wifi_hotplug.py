@@ -70,7 +70,11 @@ class HotplugTests(unittest.TestCase):
         config.save_persistent(wifi.RADIOS, {})
         config.save_persistent(wifi_hotplug.SEEN, [])
         wifi_hotplug._last = None
+        wifi_hotplug._lans = None
         self.events = []
+        # The LAN interfaces at each essentials sync; whether one fails.
+        self.synced = []
+        self.sync_fails = False
 
         settings = {"country": "DE", "networks": dict(NETWORKS)}
 
@@ -91,6 +95,9 @@ class HotplugTests(unittest.TestCase):
                               self.events.append((level, notify, message))),
             mock.patch("services.dhcp.apply_dhcp_settings", lambda: (True, "OK")),
             mock.patch("services.guest.sync", lambda: (True, "OK")),
+            # The firewall's LAN interfaces: eth0 plus the radios.
+            mock.patch("services.firewall.get_lan_interfaces", lambda: ["eth0"] + sorted(self.fake.radios)),
+            mock.patch("services.firewall.sync_essentials", self.sync_essentials),
         ]
         for p in patches:
             p.start()
@@ -98,6 +105,10 @@ class HotplugTests(unittest.TestCase):
 
         self.settings = settings
         wifi.remember_radio("wlan0")
+
+    def sync_essentials(self):
+        self.synced.append((["eth0"] + sorted(self.fake.radios), self.fake.applied))
+        return (False, "ufw failed") if self.sync_fails else (True, "OK")
 
     def plug(self, name, mac):
         self.fake.radios[name] = mac
@@ -184,6 +195,45 @@ class HotplugTests(unittest.TestCase):
         wifi_hotplug.check()
         self.plug("wlan1", AXML)
         self.assertEqual(self.fake.applied, 0)
+
+
+    # The firewall's essential rules (DHCP, DNS on each LAN interface).
+
+    def test_firewall_follows_a_plugged_in_adapter_before_its_network_starts(self):
+        wifi_hotplug.check()
+        self.assertEqual(self.synced, [(["eth0", "wlan0"], 0)])
+        self.plug("wlan1", AXML)
+        # Synced for wlan1 before the apply that started it.
+        self.assertEqual(self.synced[-1], (["eth0", "wlan0", "wlan1"], 0))
+        self.assertEqual(self.fake.applied, 1)
+        self.unplug("wlan1")
+        self.assertEqual(self.synced[-1][0], ["eth0", "wlan0"])
+
+    def test_firewall_not_synced_again_without_a_change(self):
+        wifi_hotplug.check()
+        wifi_hotplug.check()
+        wifi_hotplug.check()
+        self.assertEqual(len(self.synced), 1)
+
+    def test_firewall_follows_an_adapter_without_a_saved_network(self):
+        # Saved on the Wi-Fi page later: the rules are already there.
+        wifi_hotplug.check()
+        self.plug("wlan2", OTHER)
+        self.assertEqual(self.synced[-1][0], ["eth0", "wlan0", "wlan2"])
+
+    def test_firewall_waits_for_a_pending_change(self):
+        with mock.patch("services.transaction.load_pending", lambda: {"areas": [{"name": "firewall"}]}):
+            wifi_hotplug.check()
+        self.assertEqual(self.synced, [])
+        wifi_hotplug.check()
+        self.assertEqual(len(self.synced), 1)
+
+    def test_firewall_failure_warns_once(self):
+        self.sync_fails = True
+        wifi_hotplug.check()
+        wifi_hotplug.check()
+        warnings = [m for level, n, m in self.events if level == "warning" and "firewall rules" in m]
+        self.assertEqual(len(warnings), 1)
 
 
 class RadioMemoryTests(unittest.TestCase):

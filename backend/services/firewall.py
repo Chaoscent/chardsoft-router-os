@@ -703,9 +703,7 @@ def apply_firewall():
         return False, result
 
     # Rebuilt on every apply, so they follow the LAN/WAN setup.
-    ok, result = sync_rules("essentials", [
-        r["args"] for r in get_essential_rules()
-    ] if settings["essentials"] else [])
+    ok, result = sync_essentials(settings)
 
     if not ok:
         return False, result
@@ -749,6 +747,21 @@ def get_lan_interfaces():
     """
 
     return get_lan_interface_names()
+
+
+def sync_essentials(settings=None):
+    """
+    The essential rules for the LAN interfaces that exist now. Run on
+    every apply and when an adapter is plugged in or pulled out after
+    it (services/wifi_hotplug.py): without them a device on a USB
+    adapter's network gets no address (DHCP and DNS are dropped).
+    """
+
+    settings = settings or get_firewall_settings()
+
+    return sync_rules("essentials", [
+        r["args"] for r in get_essential_rules()
+    ] if settings["essentials"] else [])
 
 
 def get_essential_rules():

@@ -15,6 +15,12 @@ MAC). When another adapter shows up under that name its network stays
 off until it is saved for it on the Wi-Fi page: a 6 GHz network never
 lands on an adapter that cannot send it.
 
+The firewall's essential rules (DHCP, DNS, the dashboard on each LAN
+interface) follow the LAN interfaces too, USB Ethernet adapters
+included: they are built from the interfaces that exist when the
+firewall is applied, so an adapter plugged in later would otherwise
+get its network but no addresses.
+
 Nothing runs while a Safe Apply change waits for its confirmation; the
 adapter is picked up right after.
 """
@@ -41,6 +47,9 @@ _watching = False
 
 # {interface: radio MAC} at the last look; None before the first.
 _last = None
+
+# The LAN interfaces the essential firewall rules were synced for.
+_lans = None
 
 
 def present():
@@ -224,11 +233,47 @@ def removed(interface):
         log_event("wifi", f"Wi-Fi adapter {interface} unplugged.")
 
 
+def follow_firewall():
+    """
+    The essential rules for the LAN interfaces that exist now; synced
+    when they change (and at the first look, for adapters that came
+    after the firewall was applied at boot).
+    """
+
+    global _lans
+
+    from services import firewall
+
+    lans = sorted(firewall.get_lan_interfaces())
+
+    if lans == _lans:
+        return
+
+    with transaction._lock:
+
+        # The pending change (or its revert) applies the firewall
+        # itself; looked at again afterwards.
+        if transaction.load_pending():
+            return
+
+        ok, message = firewall.sync_essentials()
+
+    if not ok:
+        log_event("system", f"The firewall rules for {', '.join(lans)} could not be updated: {message}",
+                  "warning", notify=True)
+
+    # Also after a failure: one warning, not one every few seconds.
+    _lans = lans
+
+
 def check():
     """One look. At the first one, a saved network whose adapter came
     late (after the start-up apply) is started too."""
 
     global _last
+
+    # Before a network starts: its DHCP must get through.
+    follow_firewall()
 
     now = present()
 
