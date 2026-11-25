@@ -399,7 +399,7 @@ MODEM_SETTINGS = "modem"
 
 # NetworkManager connection for the modem; it brings the modem's
 # data connection (wwan0) up at every start.
-CONNECTION = "chaos-modem"
+CONNECTION = "chardsoft-modem"
 
 DEFAULT_SETTINGS = {
     # Off until switched on from the Modem page; an existing
@@ -545,7 +545,7 @@ def connection_exists():
 
 def get_connection_state():
     """
-    "activated", "activating", "deactivated"... of the chaos-modem
+    "activated", "activating", "deactivated"... of the chardsoft-modem
     connection, or None without one.
     """
 
@@ -566,7 +566,7 @@ def get_connection_state():
 
 def connection_properties(settings, apn_mode="auto", apn=None):
     """
-    nmcli properties of the chaos-modem connection. apn_mode: "auto"
+    nmcli properties of the chardsoft-modem connection. apn_mode: "auto"
     (the carrier's APN from NetworkManager's database), "given" (apn),
     or "legacy" (NetworkManager without gsm.auto-config).
     """
@@ -641,7 +641,7 @@ def short_error(message):
 
 def apply_modem_settings():
     """
-    Creates, updates or removes the chaos-modem connection. A missing
+    Creates, updates or removes the chardsoft-modem connection. A missing
     signal is not an error: the connection comes up when it can.
     """
 

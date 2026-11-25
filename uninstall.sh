@@ -3,7 +3,7 @@
 # Chardsoft Router OS uninstaller: removes Chardsoft Router OS and everything it
 # set up on this system.
 #
-#   sudo /opt/chaos-router-os/uninstall.sh [--yes] [--dry-run] [--keep-packages]
+#   sudo /opt/chardsoft-router-os/uninstall.sh [--yes] [--dry-run] [--keep-packages]
 #
 #   --yes            don't ask for confirmation
 #   --dry-run        only show what would be done
@@ -15,48 +15,51 @@
 # In order:
 #   1. Apps Addon: apps and their data, the App Manager, and Docker if
 #      the addon installed it.
-#   2. The services (chaos-router-os, chaos-router-mdns).
+#   2. The services (chardsoft-router-os, chardsoft-router-mdns).
 #   3. System changes (backend/uninstall.py): Wi-Fi, DHCP, DNS, VPNs,
 #      firewall rules, NAT, forwarding, LAN bridge, config files.
 #   4. Caddy: the previous Caddyfile comes back.
 #   5. The packages the installer installed (it records them).
-#   6. Every remaining file: /opt/chaos-router-os, /etc/chaos-router-os,
-#      /var/lib/chaos-router-os, /tmp/chaos-router-os, the sudoers file and
+#   6. Every remaining file: /opt/chardsoft-router-os, /etc/chardsoft-router-os,
+#      /var/lib/chardsoft-router-os, /tmp/chardsoft-router-os, the sudoers file and
 #      the root helper.
 #
 # Stays on purpose: eth0's address settings (so the router stays
 # reachable), the hostname, the Wi-Fi country and the system journal.
 #
 # After the confirmation it runs on as its own process (log in
-# /tmp/chaos-router-os-uninstall.log): a dropped SSH connection doesn't
+# /tmp/chardsoft-router-os-uninstall.log): a dropped SSH connection doesn't
 # stop it halfway.
 
 set -uo pipefail
 
-INSTALL_DIR_DEFAULT=/opt/chaos-router-os
+INSTALL_DIR_DEFAULT=/opt/chardsoft-router-os
 APP_DIR=${CHARDSOFT_UNINSTALL_APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
 
-SERVICE=chaos-router-os
-MDNS_SERVICE=chaos-router-mdns
-DEFAULTS_DIR=/etc/chaos-router-os
-STATE_DIR=/var/lib/chaos-router-os
-RUNTIME_DIR=/tmp/chaos-router-os
-SUDOERS_FILE=/etc/sudoers.d/chaos-router-os
+SERVICE=chardsoft-router-os
+MDNS_SERVICE=chardsoft-router-mdns
+DEFAULTS_DIR=/etc/chardsoft-router-os
+STATE_DIR=/var/lib/chardsoft-router-os
+RUNTIME_DIR=/tmp/chardsoft-router-os
+SUDOERS_FILE=/etc/sudoers.d/chardsoft-router-os
 HELPER_DIR=/usr/local/libexec/chardsoft-router-os
 PACKAGES_RECORD=$DEFAULTS_DIR/installed-packages
 
 CADDYFILE=/etc/caddy/Caddyfile
-CADDY_BACKUP=/etc/caddy/Caddyfile.before-chaos
+CADDY_BACKUP=/etc/caddy/Caddyfile.before-chardsoft
+# Its name before the rename (chaos -> chardsoft), on routers never updated since.
+CADDY_BACKUP_OLD=/etc/caddy/Caddyfile.before-chaos
+[[ -f $CADDY_BACKUP_OLD && ! -f $CADDY_BACKUP ]] && CADDY_BACKUP=$CADDY_BACKUP_OLD
 CADDY_MARKER="# Chardsoft Router OS: Caddy in front of the dashboard."
 # Before the product was renamed (Caddyfiles of older installs).
 CADDY_MARKER_OLD="# Chaos Router OS: Caddy in front of the dashboard."
 
-APPS_ADDON=/opt/chaos-router-apps/install.sh
+APPS_ADDON=/opt/chardsoft-router-apps/install.sh
 
-DNSMASQ_DROPIN=/etc/systemd/system/dnsmasq.service.d/chaos-router-os.conf
+DNSMASQ_DROPIN=/etc/systemd/system/dnsmasq.service.d/chardsoft-router-os.conf
 
-# The access points, one instance per radio (chaos-hostapd@wlan0, ...).
-AP_UNIT_FILE=/etc/systemd/system/chaos-hostapd@.service
+# The access points, one instance per radio (chardsoft-hostapd@wlan0, ...).
+AP_UNIT_FILE=/etc/systemd/system/chardsoft-hostapd@.service
 
 # The installer's package list (keep in sync with PACKAGES in install.sh).
 ALL_PACKAGES=(
@@ -71,7 +74,7 @@ ALL_PACKAGES=(
     avahi-daemon avahi-utils
 )
 
-LOG=/tmp/chaos-router-os-uninstall.log
+LOG=/tmp/chardsoft-router-os-uninstall.log
 
 YES=0
 DRY_RUN=0
@@ -195,7 +198,7 @@ detach() {
 
     # A copy outside the install folder (which is deleted at the end).
     local copy
-    copy=$(mktemp /tmp/chaos-router-os-uninstall.XXXXXX.sh)
+    copy=$(mktemp /tmp/chardsoft-router-os-uninstall.XXXXXX.sh)
     cp "${BASH_SOURCE[0]}" "$copy"
     chmod 700 "$copy"
 
@@ -351,7 +354,7 @@ remove_files() {
     local unit
     while read -r unit; do
         [[ -n $unit ]] && run systemctl disable --now "$unit" 2>/dev/null
-    done < <(systemctl list-units --all --plain --no-legend 'chaos-hostapd@*' 2>/dev/null | awk '{print $1}')
+    done < <(systemctl list-units --all --plain --no-legend 'chardsoft-hostapd@*' 2>/dev/null | awk '{print $1}')
 
     if [[ -f $AP_UNIT_FILE ]]; then
         run rm -f "$AP_UNIT_FILE"
@@ -363,13 +366,13 @@ remove_files() {
 
     run rm -f "$SUDOERS_FILE"
     run rm -rf "$HELPER_DIR"
-    run rm -rf "$DEFAULTS_DIR" "$STATE_DIR" "$RUNTIME_DIR" /etc/chaos-router
+    run rm -rf "$DEFAULTS_DIR" "$STATE_DIR" "$RUNTIME_DIR" /etc/chardsoft-router
 
     # Settings of very old versions.
     if [[ -n $app_user && $app_user != root ]]; then
         local home
         home=$(getent passwd "$app_user" | cut -d: -f6)
-        [[ -n $home ]] && run rm -rf "$home/.config/chaos-router"
+        [[ -n $home ]] && run rm -rf "$home/.config/chardsoft-router"
     fi
 
     # The installer's own copy. A copy installed from elsewhere (your
@@ -447,7 +450,7 @@ restore_name_resolution() {
     [[ -n $servers ]] || servers="1.1.1.1"
 
     if command -v resolvconf >/dev/null; then
-        printf 'nameserver %s\n' $servers | resolvconf -a chaos-uninstall
+        printf 'nameserver %s\n' $servers | resolvconf -a chardsoft-uninstall
     else
         rm -f /etc/resolv.conf
         printf 'nameserver %s\n' $servers > /etc/resolv.conf

@@ -8,7 +8,7 @@
 
     const token = document.querySelector('meta[name="csrf-token"]')?.content;
 
-    if (!token || window.fetch.chaosCsrf) return;
+    if (!token || window.fetch.chardsoftCsrf) return;
 
     const rawFetch = window.fetch.bind(window);
 
@@ -38,13 +38,13 @@
 
     };
 
-    window.fetch.chaosCsrf = true;
+    window.fetch.chardsoftCsrf = true;
 
 })();
 
 
 /** Logs out with a POST, so other sites cannot trigger it. */
-async function chaosLogout() {
+async function chardsoftLogout() {
 
     try {
         await fetch("/logout", { method: "POST" });

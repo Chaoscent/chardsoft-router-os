@@ -27,7 +27,7 @@ def main():
 
     if not pick_interface():
         print("This router has no Wi-Fi, so there is no setup Wi-Fi.")
-        print("Open http://chaos-router.local/setup from a computer on the LAN.")
+        print("Open http://chardsoft-router.local/setup from a computer on the LAN.")
         return 1
 
     credentials = load_system(SETUP_WIFI, None)

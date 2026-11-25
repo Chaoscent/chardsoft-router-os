@@ -602,13 +602,13 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 
 # Interface edits staged on the Network page before applying
-# (/tmp/chaos-router-os, gone after a reboot).
+# (/tmp/chardsoft-router-os, gone after a reboot).
 NETWORK_STAGED = "network_staged"
 
 
 
-# dashboard.json: defaults in /etc/chaos-router-os,
-# the user's settings in /var/lib/chaos-router-os.
+# dashboard.json: defaults in /etc/chardsoft-router-os,
+# the user's settings in /var/lib/chardsoft-router-os.
 DASHBOARD = "dashboard"
 
 BUILTIN_DASHBOARD = {
@@ -777,7 +777,7 @@ def router_ca():
         return Response(
                 pem,
                 mimetype="application/x-x509-ca-cert",
-                headers={"Content-Disposition": 'attachment; filename="chaos-router-ca.crt"'}
+                headers={"Content-Disposition": 'attachment; filename="chardsoft-router-ca.crt"'}
         )
 
 

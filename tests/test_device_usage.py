@@ -27,7 +27,7 @@ from services import device_usage as du  # noqa: E402
 
 A, B = "AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02"
 
-LISTING = f"""Chain CHAOS-ACCT (1 references)
+LISTING = f"""Chain CHARDSOFT-ACCT (1 references)
     pkts      bytes target     prot opt in     out     source               destination
       12      900 RETURN     all  --  br0    br0     0.0.0.0/0            0.0.0.0/0
      120    34567 RETURN     all  --  *      *       0.0.0.0/0            0.0.0.0/0            connmark match  0x10000/0xff0000 /* {A} */

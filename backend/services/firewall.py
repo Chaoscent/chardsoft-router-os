@@ -75,7 +75,7 @@ WEB_PORTS = ("80", "443") + (() if BEHIND_CADDY else (APP_PORT,))
 # switch and the user's rules.
 FIREWALL = "firewall"
 
-# Fallback when /etc/chaos-router-os has no firewall.json (and the
+# Fallback when /etc/chardsoft-router-os has no firewall.json (and the
 # base for importing an existing ufw setup).
 BUILTIN_FIREWALL = {
     "enabled": False,
@@ -89,7 +89,7 @@ BUILTIN_FIREWALL = {
     "rules": []
 }
 
-# Shipped to /etc/chaos-router-os/firewall.json by the installer: on,
+# Shipped to /etc/chardsoft-router-os/firewall.json by the installer: on,
 # nothing comes in from the internet, the LAN keeps working.
 DEFAULT_SETTINGS = {
     **BUILTIN_FIREWALL,

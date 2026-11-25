@@ -48,7 +48,7 @@ class Area:
     # Holds passwords or keys (files get mode 600).
     secret: bool = False
 
-    # Applied at boot from /etc/chaos-router-os even before the first
+    # Applied at boot from /etc/chardsoft-router-os even before the first
     # change, once the installer has written its defaults there.
     boot_defaults: bool = False
 

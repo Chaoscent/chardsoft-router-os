@@ -7,11 +7,11 @@ LAN interfaces for DHCP, DNS and the route out (their names start with
 first into INPUT and FORWARD for IPv4 and IPv6 (before ufw, whatever
 its policies), take the rest away:
 
-    CHAOS-GUEST-IN    from a guest to the router: DHCP, DHCPv6, DNS,
+    CHARDSOFT-GUEST-IN    from a guest to the router: DHCP, DHCPv6, DNS,
                       ping and IPv6 neighbour/router discovery pass on
                       to the firewall; everything else (the dashboard,
                       SSH, apps) is rejected.
-    CHAOS-GUEST-FWD   from a guest to any private address (the LAN,
+    CHARDSOFT-GUEST-FWD   from a guest to any private address (the LAN,
                       other guest networks, the network of an upstream
                       router, VPNs) is rejected; nothing can open a
                       connection into a guest network.
@@ -24,8 +24,8 @@ from shutil import which
 
 from services.network import run_command, privileged
 
-IN_CHAIN = "CHAOS-GUEST-IN"
-FWD_CHAIN = "CHAOS-GUEST-FWD"
+IN_CHAIN = "CHARDSOFT-GUEST-IN"
+FWD_CHAIN = "CHARDSOFT-GUEST-FWD"
 
 PRIVATE = {
     "iptables": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"],

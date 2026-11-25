@@ -1,7 +1,7 @@
 """
 First-time setup (/setup).
 
-The router is "not set up" while /var/lib/chaos-router-os holds no
+The router is "not set up" while /var/lib/chardsoft-router-os holds no
 admin account: right after installing, and again after a factory
 reset (which empties /var/lib). There is no default login. Until
 setup is complete, every page and API except /setup answers with

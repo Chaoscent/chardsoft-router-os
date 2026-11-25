@@ -151,7 +151,7 @@ def tls_allowed(name):
     if name in router_names():
         return True
 
-    # Installed apps (Apps Addon), e.g. nextcloud.chaos-router.lan
+    # Installed apps (Apps Addon), e.g. nextcloud.chardsoft-router.lan
     from services.apps import get_app_hosts
 
     return name in get_app_hosts().values()

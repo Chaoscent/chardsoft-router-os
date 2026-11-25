@@ -14,12 +14,12 @@ from services.config import (
 from services import transaction
 
 
-# users.json in /var/lib/chaos-router-os, created by /setup. There is
+# users.json in /var/lib/chardsoft-router-os, created by /setup. There is
 # no default login: without an account the router is in setup mode.
 USERS = "users"
 
-# security.json: default timeouts in /etc/chaos-router-os,
-# the user's custom timeouts in /var/lib/chaos-router-os.
+# security.json: default timeouts in /etc/chardsoft-router-os,
+# the user's custom timeouts in /var/lib/chardsoft-router-os.
 SECURITY = "security"
 
 BUILTIN_SECURITY = {

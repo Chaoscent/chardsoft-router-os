@@ -225,7 +225,7 @@ window.Page.logs = {
         const link = document.createElement("a");
 
         link.href = URL.createObjectURL(blob);
-        link.download = `chaos-router-${source}-logs-${stamp}.json`;
+        link.download = `chardsoft-router-${source}-logs-${stamp}.json`;
         link.click();
 
         URL.revokeObjectURL(link.href);

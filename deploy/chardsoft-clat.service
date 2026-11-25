@@ -1,6 +1,6 @@
 # Chardsoft Router OS: IPv4 for the LAN over an IPv6-only connection
 # (CLAT, 464XLAT). tayga translates between the clat interface and IPv6;
-# the config (/etc/tayga/chaos-clat.conf) and when it runs come from the
+# the config (/etc/tayga/chardsoft-clat.conf) and when it runs come from the
 # app (services/clat.py). Installed by deploy/install-service.sh; not
 # enabled at boot, the app starts it when the WAN needs it.
 
@@ -11,8 +11,8 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStartPre=-/usr/sbin/tayga --config /etc/tayga/chaos-clat.conf --mktun
-ExecStart=/usr/sbin/tayga --config /etc/tayga/chaos-clat.conf --nodetach
-ExecStopPost=-/usr/sbin/tayga --config /etc/tayga/chaos-clat.conf --rmtun
+ExecStartPre=-/usr/sbin/tayga --config /etc/tayga/chardsoft-clat.conf --mktun
+ExecStart=/usr/sbin/tayga --config /etc/tayga/chardsoft-clat.conf --nodetach
+ExecStopPost=-/usr/sbin/tayga --config /etc/tayga/chardsoft-clat.conf --rmtun
 Restart=on-failure
 RestartSec=5

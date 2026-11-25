@@ -23,12 +23,12 @@ from services.network import (
 # Configuration
 # -------------------------------------------------------------------
 
-# dhcp.json in /etc/chaos-router-os (defaults) and /var/lib/chaos-router-os.
+# dhcp.json in /etc/chardsoft-router-os (defaults) and /var/lib/chardsoft-router-os.
 DHCP_SETTINGS = "dhcp"
 
 # dnsmasq drop-in owned by Chardsoft Router OS.
 # Debian / Raspberry Pi OS load /etc/dnsmasq.d by default.
-DNSMASQ_CONF_FILE = "/etc/dnsmasq.d/chaos-router-dhcp.conf"
+DNSMASQ_CONF_FILE = "/etc/dnsmasq.d/chardsoft-router-dhcp.conf"
 
 DNSMASQ_LEASE_FILES = (
     "/var/lib/misc/dnsmasq.leases",
@@ -574,7 +574,7 @@ def render_dnsmasq_config(settings):
             continue
 
         # Each interface's options go to its own clients only.
-        tag = f"chaos-{interface}"
+        tag = f"chardsoft-{interface}"
 
         gateway = scope["gateway"] or str(network.ip)
 
@@ -635,7 +635,7 @@ def install_dnsmasq_config(content, path=DNSMASQ_CONF_FILE):
     """
 
     fd, tmp = tempfile.mkstemp(
-        prefix="chaos-dnsmasq-",
+        prefix="chardsoft-dnsmasq-",
         suffix=".conf"
     )
 

@@ -1,12 +1,12 @@
 """
 Where Chardsoft Router OS keeps its settings. Every file is JSON.
 
-    /etc/chaos-router-os/      Defaults. Shipped with the OS, never
+    /etc/chardsoft-router-os/      Defaults. Shipped with the OS, never
                                written by the app.
-    /var/lib/chaos-router-os/  Persistent config: only settings that
+    /var/lib/chardsoft-router-os/  Persistent config: only settings that
                                were applied and verified. Deleting a
                                file here restores its defaults.
-    /tmp/chaos-router-os/      Running config. Rebuilt from /var/lib
+    /tmp/chardsoft-router-os/      Running config. Rebuilt from /var/lib
                                on every boot, so an unverified change
                                never survives a reboot.
 
@@ -16,7 +16,7 @@ Running settings = built-in fallback < /etc default < /tmp.
 Changes go to /tmp first and are copied to /var/lib (commit) only
 after they were applied and verified; see services/transaction.py.
 
-/var/lib/chaos-router-os/system/ holds records of what is actually
+/var/lib/chardsoft-router-os/system/ holds records of what is actually
 applied to the system (e.g. firewall rules we added). They follow the
 system, not the config, so they are never committed or reverted.
 
@@ -35,9 +35,9 @@ from pathlib import Path
 # Locations
 # -------------------------------------------------------------------
 
-DEFAULTS_DIR = Path(os.getenv("CHARDSOFT_DEFAULTS_DIR", "/etc/chaos-router-os"))
-STATE_DIR = Path(os.getenv("CHARDSOFT_STATE_DIR", "/var/lib/chaos-router-os"))
-RUNTIME_DIR = Path(os.getenv("CHARDSOFT_RUNTIME_DIR", "/tmp/chaos-router-os"))
+DEFAULTS_DIR = Path(os.getenv("CHARDSOFT_DEFAULTS_DIR", "/etc/chardsoft-router-os"))
+STATE_DIR = Path(os.getenv("CHARDSOFT_STATE_DIR", "/var/lib/chardsoft-router-os"))
+RUNTIME_DIR = Path(os.getenv("CHARDSOFT_RUNTIME_DIR", "/tmp/chardsoft-router-os"))
 SYSTEM_DIR = STATE_DIR / "system"
 
 BOOT_ID_FILE = "/proc/sys/kernel/random/boot_id"
@@ -110,7 +110,7 @@ def system_path(name):
 def load_defaults(name, builtin=None):
     """
     Built-in fallback, overridden key by key by
-    /etc/chaos-router-os/<name>.json when it exists.
+    /etc/chardsoft-router-os/<name>.json when it exists.
     """
 
     defaults = dict(builtin or {})
@@ -235,7 +235,7 @@ def revert(name):
         delete_running(name)
 
 
-# System records (/var/lib/chaos-router-os/system) -------------------
+# System records (/var/lib/chardsoft-router-os/system) -------------------
 
 def load_system(name, default=_EMPTY):
 
@@ -275,7 +275,7 @@ LEGACY_FILES = [
 def migrate_legacy_files():
     """
     Copies settings from earlier versions' locations into
-    /var/lib/chaos-router-os once. Old files are left in place.
+    /var/lib/chardsoft-router-os once. Old files are left in place.
     """
 
     for old, name, secret in LEGACY_FILES:

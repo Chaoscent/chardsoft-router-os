@@ -7,7 +7,7 @@
 #
 # Installed root-owned next to the root helper, which is the only way the
 # app can start it (sudo root-helper update.sh start). It only works on
-# the installer's root-owned copy (/etc/chaos-router-os/install.json:
+# the installer's root-owned copy (/etc/chardsoft-router-os/install.json:
 # "managed"), never on someone's own clone.
 #
 # Steps: back up the settings, fetch the branch, run the new installer
@@ -20,8 +20,8 @@
 
 set -uo pipefail
 
-RECORD=/etc/chaos-router-os/install.json
-STATE_DIR=/var/lib/chaos-router-os
+RECORD=/etc/chardsoft-router-os/install.json
+STATE_DIR=/var/lib/chardsoft-router-os
 STATUS_DIR=/run/chardsoft-update
 STATUS=$STATUS_DIR/status.json
 LOG=$STATUS_DIR/update.log
@@ -111,7 +111,7 @@ app_answers() {
 
     while (( waited < HEALTH_SECONDS )); do
 
-        if systemctl is-active --quiet chaos-router-os \
+        if systemctl is-active --quiet chardsoft-router-os \
             && curl -fsS -o /dev/null --max-time 5 "$APP_URL"; then
             return 0
         fi
@@ -144,7 +144,7 @@ run() {
 
     install -d -o root -g root -m 700 "$BACKUP_DIR"
     tar -czf "$BACKUP_DIR/settings-$(date +%Y%m%d-%H%M%S)-${previous:0:7}.tar.gz" \
-        -C "$(dirname "$STATE_DIR")" "$(basename "$STATE_DIR")" /etc/chaos-router-os 2>/dev/null
+        -C "$(dirname "$STATE_DIR")" "$(basename "$STATE_DIR")" /etc/chardsoft-router-os 2>/dev/null
     chmod 600 "$BACKUP_DIR"/*.tar.gz
 
     # Keep the newest five.

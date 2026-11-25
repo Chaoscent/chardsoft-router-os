@@ -2,7 +2,7 @@
 Config backup and restore.
 
 A backup is one JSON file with every persistent setting
-(/var/lib/chaos-router-os) and the OpenVPN certificate authority.
+(/var/lib/chardsoft-router-os) and the OpenVPN certificate authority.
 It is uploaded again as-is: nothing to unpack or edit.
 
 Restoring never trusts the file: every area is validated again with

@@ -24,10 +24,10 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 
 - [ ] **Fresh install** on a fresh Raspberry Pi OS Lite (64-bit), over
   Ethernet and over Wi-Fi SSH: SSH and the dashboard stay reachable from eth0
-  and Wi-Fi; the service starts at boot; `/opt/chaos-router-os` belongs to
-  root; `/etc/sudoers.d/chaos-router-os` only allows the root helper.
+  and Wi-Fi; the service starts at boot; `/opt/chardsoft-router-os` belongs to
+  root; `/etc/sudoers.d/chardsoft-router-os` only allows the root helper.
 - [ ] **Update an existing install** by running the installer again: an
-  app-user-owned `/opt/chaos-router-os` is moved aside
+  app-user-owned `/opt/chardsoft-router-os` is moved aside
   (`.user-owned-<date>`) and cloned fresh.
 - [ ] **Updates from the System page:** check, update, and a forced failure
   (rollback to the previous commit). Settings backups land in
@@ -52,7 +52,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   through the modem (`ip rule`, `ip route show table 4242`,
   `ip route get 1.1.1.1 from <phone> iif wlan1`).
 - [ ] **CLAT** with the IPv6-only Telekom SIM: after the installer ran again
-  (it adds tayga and `chaos-clat.service`), the Firewall page shows "Active,
+  (it adds tayga and `chardsoft-clat.service`), the Firewall page shows "Active,
   NAT64 64:ff9b::/96" (or the carrier's prefix); a phone on the router's
   Wi-Fi opens IPv4-only sites (`http://ipv4.google.com`, `ping 1.1.1.1` from
   a laptop); `ip route get 1.1.1.1 from <phone> iif wlan1` says `dev clat`;
@@ -61,10 +61,10 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   received), it is reset within about a minute and the Logs say so.
 - [ ] **Mobile data counter:** the dashboard's "Mobile data" roughly matches
   the carrier's app after a day (correct it on the Modem page if not); the
-  count survives a reboot (`/var/lib/chaos-router-os/data_usage_counter.json`);
+  count survives a reboot (`/var/lib/chardsoft-router-os/data_usage_counter.json`);
   with a small test limit and "Stop internet for devices", a phone on the
   Wi-Fi loses the internet while the dashboard stays reachable
-  (`sudo iptables -S CHAOS-QUOTA`), and "Resume anyway" brings it back.
+  (`sudo iptables -S CHARDSOFT-QUOTA`), and "Resume anyway" brings it back.
 - [ ] **Internet check** on the dashboard: shows "Online" when all is well;
   mobile data off, a SIM PIN, a pulled antenna or a stopped CLAT give the
   matching message and button ("Switch on mobile data", "Restart modem",
@@ -76,7 +76,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   network shows "Waiting" with the reason; the tables match `ip route show
   table all`.
 - [ ] **Internet time** (Clients page): "Pause internet" for 30 minutes stops
-  a phone's internet at once (`sudo iptables -S CHAOS-PAUSE`) while it keeps
+  a phone's internet at once (`sudo iptables -S CHARDSOFT-PAUSE`) while it keeps
   its Wi-Fi and reaches the dashboard; it comes back by itself after the
   time and with "Resume internet". An offline time that starts in two
   minutes takes the phone offline within 15 seconds of its start; "Allow
@@ -108,13 +108,13 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   not). Then on a radio that can: a phone joins the guest network by its
   QR code and has internet; it cannot open the dashboard (also not by the
   LAN address), cannot ping a LAN device or another guest, and a LAN device
-  cannot reach it (`sudo iptables -S CHAOS-GUEST-IN`, `CHAOS-GUEST-FWD`).
+  cannot reach it (`sudo iptables -S CHARDSOFT-GUEST-IN`, `CHARDSOFT-GUEST-FWD`).
   DHCP serves `wlan0-guest`; the main network keeps working while guests
   are on; switching the guest network off removes `wlan0-guest`; the rules
   come back within 30 s after `sudo ufw reload`.
 - [ ] **USB Wi-Fi hotplug:** with the 6 GHz network saved for the AXML
   (wlan1), plug it in while the router runs: within about 10 s the network
-  is on (`systemctl status chaos-hostapd@wlan1`), DHCP serves 10.43.0.x and
+  is on (`systemctl status chardsoft-hostapd@wlan1`), DHCP serves 10.43.0.x and
   the bell says so; pull it out: the bell says it is off, `wlan1` is gone
   from `/etc/dnsmasq.d`; plug it back: on again. A never-seen adapter is
   announced once with its bands and shows on the Wi-Fi page. Note: the AXML
@@ -130,7 +130,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - [ ] **DNS for the devices:** found 2026-11-25: dnsmasq had no upstream
   servers (Debian's `/run/dnsmasq/resolv.conf` never exists with openresolv)
   and refused every lookup from the Wi-Fi. After the update:
-  `/etc/dnsmasq.d/chaos-router-upstream.conf` exists, a phone on each
+  `/etc/dnsmasq.d/chardsoft-router-upstream.conf` exists, a phone on each
   network opens websites, the internet check says "Everything works", and
   choosing Cloudflare on the DNS page still switches to it.
 - [ ] **Speed test (iperf3):** Tools, "Speed test from a device": start the
@@ -156,7 +156,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   the dashboard's "Mobile data" lists that phone on top within a minute,
   close to what the phone's own data counter says (Wi-Fi usage); the
   Clients page shows it in the "Data" column. Check IPv4 through the CLAT
-  counts too (`sudo iptables -L CHAOS-ACCT -v -x -n` grows while browsing
+  counts too (`sudo iptables -L CHARDSOFT-ACCT -v -x -n` grows while browsing
   an IPv4-only site), and that the numbers survive a reboot.
 - [ ] **Tools page:** after the reinstall `traceroute` is there; a
   traceroute to 1.1.1.1 over the modem shows the carrier's hops; "Send
@@ -182,7 +182,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
 - [ ] **Apps Addon** with real Docker: each catalog app, update, remove, a
   router rename, Vaultwarden over HTTPS.
 - [ ] **mDNS names** per client (Windows, macOS/iOS, Android, Linux with
-  nss-mdns); multi-label names (`app.chaos-router.local`) are the open question.
+  nss-mdns); multi-label names (`app.chardsoft-router.local`) are the open question.
 - [ ] **Uninstall** in a VM (snapshot before), then `dpkg -l`, `/etc`,
   `iptables-save`, `nmcli connection`, `ufw status`; then a fresh install.
 - [ ] **RAM** on a 1 GB board: `free -h`, `ps -eo rss,comm --sort=-rss | head`.
@@ -197,10 +197,21 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   root helper only limits the app on systems without that (the installer
   warns). A system user of its own would make the helper count everywhere,
   but changes the web shell: it would no longer be the admin's own shell.
-- [ ] **Names on the router:** decided 2026-11-25: no "chaos" anywhere (the
-  hardware is now "Chardsoft Router"). Defaults "Chardsoft Router" and
-  "Chardsoft-Setup-XXXX" are done; the installed names (paths, services,
-  `chardsoft-router.local`, firewall chains) follow with a migration.
+- [ ] **Rename chaos -> chardsoft on a router in use** (decided 2026-11-25:
+  no "chaos" anywhere; the hardware is now "Chardsoft Router"). Test the
+  migration on the Pi while someone is at it (`install.sh`'s
+  `migrate_names`, run by the System page update): afterwards
+  `/opt|/etc|/var/lib/chardsoft-router-os` exist and no `chaos-*` folder,
+  service (`systemctl list-units 'chaos-*' --all`), firewall chain
+  (`sudo iptables -S | grep CHAOS`) or NetworkManager connection is left;
+  both access points, DHCP, DNS and IPv4 for devices (CLAT) work again
+  within about a minute, mobile data stayed up, settings and the login are
+  the same, `https://chardsoft-router.local` opens. Not covered by the
+  updater's rollback (the old installer cannot undo it): if the new version
+  does not start, run `sudo /opt/chardsoft-router-os/install.sh` by hand.
+  Left: the Apps Addon (branch `dev/apps`: `/opt/chardsoft-router-apps`,
+  `chardsoft-apps`) and the demo project's own name; the system hostname
+  is the owner's (`sudo hostnamectl set-hostname ...`).
 
 ---
 
@@ -214,7 +225,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   the modem) also go into the tunnel and break. Needs policy routing for
   traffic that came in on the WAN.
 - [ ] **Media and files for apps** (Jellyfin's media folder is root-only in
-  `/var/lib/chaos-router-apps`): a shared folder (Samba/SFTP) or a USB drive.
+  `/var/lib/chardsoft-router-apps`): a shared folder (Samba/SFTP) or a USB drive.
 - [ ] **Hardware Edition** (OLED, buttons, RGB, GPS) and the Apps Addon (v2).
 
 ---
@@ -226,7 +237,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   VPS redirect (`/router-os/core`) and GitHub's default branch from `dev/core`
   to `release/core`. Same for `release/hardware-edition` and `release/apps`
   (`BRANCH` in `deploy/install-apps.sh`). Installed routers follow the branch
-  in `/etc/chaos-router-os/install.json`; switch it there (or reinstall) to
+  in `/etc/chardsoft-router-os/install.json`; switch it there (or reinstall) to
   move them to `release/core`.
 - [ ] Push `~/projects/apps` to the `dev/apps` branch (the one-click install
   clones it from there).

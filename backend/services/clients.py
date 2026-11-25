@@ -37,7 +37,7 @@ from services.dhcp import (
 
 BLOCKED = "blocked_devices"
 
-CHAIN = "CHAOS-BLOCK"
+CHAIN = "CHARDSOFT-BLOCK"
 
 MAC_RE = re.compile(r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
 

@@ -159,10 +159,10 @@ class ApplyTests(unittest.TestCase):
             first = list(fake.commands)
             fake.commands.clear()
             clat.sync()
-        self.assertIn(["systemctl", "restart", "chaos-clat"], first)
+        self.assertIn(["systemctl", "restart", "chardsoft-clat"], first)
         self.assertIn(["ip", "addr", "replace", "192.0.0.4/32", "dev", "clat"], first)
         self.assertIn(["ip", "-6", "route", "replace", "2a01:598:900e:7a75::c1a7/128", "dev", "clat"], first)
-        self.assertIn(["iptables", "-t", "nat", "-A", "CHAOS-CLAT", "-o", "clat", "-j", "MASQUERADE"], first)
+        self.assertIn(["iptables", "-t", "nat", "-A", "CHARDSOFT-CLAT", "-o", "clat", "-j", "MASQUERADE"], first)
         self.assertIn(["ip", "route", "replace", "default", "dev", "clat", "metric", "2000"], first)
         # The modem's link needs no proxy NDP.
         self.assertFalse(any("proxy" in c for c in first))
@@ -176,7 +176,7 @@ class ApplyTests(unittest.TestCase):
             fake.commands.clear()
             fake.addresses = "4: wwan0    inet6 2a01:598:9007:686b::5/64 scope global"
             clat.sync()
-        self.assertIn(["systemctl", "restart", "chaos-clat"], fake.commands)
+        self.assertIn(["systemctl", "restart", "chardsoft-clat"], fake.commands)
         self.assertIn("map 192.0.0.4 2a01:598:9007:686b::c1a7", fake.config)
 
     def test_real_ipv4_stops_it(self):
@@ -185,7 +185,7 @@ class ApplyTests(unittest.TestCase):
             clat.sync()
             fake.addresses = DUAL
             self.assertEqual(clat.sync(), (True, "CLAT off."))
-        self.assertIn(["systemctl", "stop", "chaos-clat"], fake.commands)
+        self.assertIn(["systemctl", "stop", "chardsoft-clat"], fake.commands)
         self.assertFalse(clat.is_active())
 
     def test_lan_ipv4_route_goes_through_clat(self):

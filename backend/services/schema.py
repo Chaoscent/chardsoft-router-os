@@ -2,7 +2,7 @@
 Format version of the settings files, and the steps that bring older
 files up to date.
 
-The version lives in its own file, /var/lib/chaos-router-os/schema.json,
+The version lives in its own file, /var/lib/chardsoft-router-os/schema.json,
 not inside every settings file: some files are plain maps (users.json is
 keyed by user name) where an extra key would be read as data.
 

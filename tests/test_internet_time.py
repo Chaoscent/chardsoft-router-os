@@ -1,6 +1,6 @@
 """
 Internet time (services/internet_time.py): pauses, offline times past
-midnight, the clock, validation, and the CHAOS-PAUSE chain. iptables
+midnight, the clock, validation, and the CHARDSOFT-PAUSE chain. iptables
 is faked.
 
     cd backend && ../.venv/bin/python -m unittest discover -s ../tests

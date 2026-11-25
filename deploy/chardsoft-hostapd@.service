@@ -1,6 +1,6 @@
 # Chardsoft Router OS: one Wi-Fi access point per radio, e.g.
-# chaos-hostapd@wlan0 and chaos-hostapd@wlan1, each with its own
-# config (/etc/hostapd/chaos-<interface>.conf, written by the WiFi
+# chardsoft-hostapd@wlan0 and chardsoft-hostapd@wlan1, each with its own
+# config (/etc/hostapd/chardsoft-<interface>.conf, written by the WiFi
 # page). Installed by deploy/install-service.sh; started, stopped and
 # enabled by the app.
 
@@ -12,7 +12,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/sbin/hostapd /etc/hostapd/chaos-%I.conf
+ExecStart=/usr/sbin/hostapd /etc/hostapd/chardsoft-%I.conf
 Restart=on-failure
 RestartSec=3
 

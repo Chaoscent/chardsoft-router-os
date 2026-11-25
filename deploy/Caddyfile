@@ -1,7 +1,7 @@
 # Chardsoft Router OS: Caddy in front of the dashboard.
 #
 # Installed to /etc/caddy/Caddyfile by deploy/install-service.sh (the
-# file that was there before is kept as Caddyfile.before-chaos).
+# file that was there before is kept as Caddyfile.before-chardsoft).
 #
 # HTTP (80) and HTTPS (443) on every address of the router; the app
 # itself only listens on 127.0.0.1:5000. Caddy doesn't redirect port 80
@@ -17,7 +17,7 @@
 # because they don't know the local CA.
 #
 # Apps (Apps Addon): Chardsoft Router OS writes one file per installed app
-# to /etc/caddy/chaos-apps/ (its name -> the app's port on 127.0.0.1)
+# to /etc/caddy/chardsoft-apps/ (its name -> the app's port on 127.0.0.1)
 # and restarts Caddy. Everything else is the dashboard.
 {
 	# No admin API: nothing on the router can change this config while
@@ -36,7 +36,7 @@
 }
 
 (router) {
-	import /etc/caddy/chaos-apps/*.caddy
+	import /etc/caddy/chardsoft-apps/*.caddy
 
 	handle {
 		# Only for Caddy itself (above), never from the network.

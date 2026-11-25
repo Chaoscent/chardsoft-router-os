@@ -209,7 +209,7 @@ class RouterAdvertisementTests(unittest.TestCase):
         set_routing(ipv6=True, ula_prefix=PREFIX)
         text = self.render()
         self.assertIn("enable-ra\n", text)
-        self.assertIn("dhcp-range=set:chaos-br0,::,constructor:br0,ra-stateless,64,12h", text)
+        self.assertIn("dhcp-range=set:chardsoft-br0,::,constructor:br0,ra-stateless,64,12h", text)
 
     def test_off_has_none(self):
         set_routing(ipv6=False, ula_prefix=PREFIX)

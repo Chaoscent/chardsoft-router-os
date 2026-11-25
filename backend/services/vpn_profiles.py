@@ -45,7 +45,7 @@ from services.openvpn import has_openvpn, ensure_nat_script, NAT_SCRIPT
 # Configuration
 # -------------------------------------------------------------------
 
-# vpn_profiles.json in /var/lib/chaos-router-os (holds keys and passwords).
+# vpn_profiles.json in /var/lib/chardsoft-router-os (holds keys and passwords).
 PROFILES_SETTINGS = "vpn_profiles"
 
 TYPES = ("wireguard", "openvpn")
@@ -117,7 +117,7 @@ def save_profiles(profiles):
 # it belongs to: after a reboot only the autostart profile counts.
 ENGAGED = "vpn_client_engaged"
 
-KILL_CHAIN = "CHAOS-KILLSWITCH"
+KILL_CHAIN = "CHARDSOFT-KILLSWITCH"
 
 
 def find_profile(profiles, profile_id):

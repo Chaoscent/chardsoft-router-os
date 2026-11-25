@@ -1,4 +1,4 @@
-# Chardsoft Router OS: announces chaos-router.local and the app names over
+# Chardsoft Router OS: announces chardsoft-router.local and the app names over
 # mDNS (deploy/mdns-publish.sh). Installed by deploy/install-service.sh,
 # which fills in @USER@, @APP_DIR@ and @STATE_DIR@.
 

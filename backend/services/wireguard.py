@@ -35,8 +35,8 @@ from services.network import unit_stays_active
 # Configuration
 # -------------------------------------------------------------------
 
-# wireguard.json: server defaults in /etc/chaos-router-os,
-# settings, keys and peers in /var/lib/chaos-router-os.
+# wireguard.json: server defaults in /etc/chardsoft-router-os,
+# settings, keys and peers in /var/lib/chardsoft-router-os.
 WIREGUARD_SETTINGS = "wireguard"
 
 SERVER_INTERFACE = "wg0"

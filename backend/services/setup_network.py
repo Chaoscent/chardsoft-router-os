@@ -3,7 +3,7 @@ The setup Wi-Fi: a WPA2 network with a captive portal that runs while
 the router is not set up (fresh install, factory reset).
 
 - Name "Chardsoft-Setup-XXXX" and a random password, stored in
-  /var/lib/chaos-router-os/system/setup_wifi.json (mode 600). They
+  /var/lib/chardsoft-router-os/system/setup_wifi.json (mode 600). They
   survive reboots during setup; a factory reset creates new ones.
   `python backend/setup_wifi.py` prints them with a QR code.
 - 2.4 GHz WPA2 on the built-in radio, so every phone can join.
@@ -41,9 +41,9 @@ NETWORK = ipaddress.IPv4Network(f"{ADDRESS}/{PREFIX}", strict=False)
 DHCP_RANGE = ("10.42.0.100", "10.42.0.200")
 
 # Separate from the DHCP and DNS drop-ins; removed after setup.
-DNSMASQ_FILE = "/etc/dnsmasq.d/chaos-router-setup.conf"
+DNSMASQ_FILE = "/etc/dnsmasq.d/chardsoft-router-setup.conf"
 
-NAT_CHAIN = "CHAOS-SETUP"
+NAT_CHAIN = "CHARDSOFT-SETUP"
 
 
 # Easy to read and type: no 0/O, 1/l/I.

@@ -5,7 +5,7 @@ Internet time: pause a device's internet, or give it offline times
 Unlike "Block device" (clients.py) this only stops the device's
 traffic through the router: it keeps its address, can still reach the
 router and its DNS, and is back the moment the pause ends. Paused
-devices are rejected by MAC address in the CHAOS-PAUSE chain, hooked
+devices are rejected by MAC address in the CHARDSOFT-PAUSE chain, hooked
 first into FORWARD for IPv4 and IPv6 (the CLAT's IPv4 and VPN client
 tunnels are forwarded too, so they are covered).
 
@@ -40,7 +40,7 @@ from services.network import run_command, privileged
 
 SETTINGS = "internet_time"
 
-CHAIN = "CHAOS-PAUSE"
+CHAIN = "CHARDSOFT-PAUSE"
 
 MAX_DEVICES = 64
 MAX_SCHEDULES = 8

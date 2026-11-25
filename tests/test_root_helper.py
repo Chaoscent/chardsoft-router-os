@@ -57,7 +57,7 @@ class GeneratedConfigs(unittest.TestCase):
         self.assertIn("server=1.1.1.1", preset)
 
     def test_caddy(self):
-        helper.check_caddy(apps.caddy_snippet("uptime-kuma", "uptime-kuma.chaos-router.local", 3001))
+        helper.check_caddy(apps.caddy_snippet("uptime-kuma", "uptime-kuma.chardsoft-router.local", 3001))
 
     def test_tayga(self):
         from services import clat
@@ -67,8 +67,8 @@ class GeneratedConfigs(unittest.TestCase):
                 helper.check_tayga(bad)
 
     def test_clat_unit_and_config_path(self):
-        plan("systemctl", "restart", "chaos-clat")
-        self.assertEqual(helper.writable_kind("/etc/tayga/chaos-clat.conf"), "tayga")
+        plan("systemctl", "restart", "chardsoft-clat")
+        self.assertEqual(helper.writable_kind("/etc/tayga/chardsoft-clat.conf"), "tayga")
         self.assertIsNone(helper.writable_kind("/etc/tayga/other.conf"))
 
     def test_nat_script(self):
@@ -142,10 +142,10 @@ class Commands(unittest.TestCase):
         ("date", "-u", "-s", "@1795528404", "+%s"),
         ("date", "-f", "/etc/shadow"),
         ("cat", "/etc/shadow"),
-        ("cat", "/etc/hostapd/chaos-../../shadow"),
+        ("cat", "/etc/hostapd/chardsoft-../../shadow"),
         ("rm", "-rf", "/etc"),
         ("install", "-m", "644", "/tmp/x", "/etc/cron.d/x"),
-        ("install", "-m", "4755", "/tmp/x", "/etc/hostapd/chaos-wlan0.conf"),
+        ("install", "-m", "4755", "/tmp/x", "/etc/hostapd/chardsoft-wlan0.conf"),
         ("find", helper.PKI_DIR, "-exec", "sh", ";"),
         ("/opt/x/deploy/modem-usb-mode.sh", "foo"),
     ]
@@ -158,14 +158,14 @@ class Commands(unittest.TestCase):
     def test_used_by_the_app(self):
         # Only checks the rules: programs missing here (WSL) are fine.
         for argv in (
-            ("systemctl", "restart", "chaos-hostapd@wlan1.service"),
+            ("systemctl", "restart", "chardsoft-hostapd@wlan1.service"),
             ("systemctl", "is-active", "--quiet", "wg-quick@wg0"),
             ("journalctl", "--no-pager", "-o", "json", "-n", "500", "-u", "openvpn-server@*", "-p", "3"),
-            ("/usr/sbin/iptables", "-t", "nat", "-C", "POSTROUTING", "-j", "CHAOS-NAT"),
+            ("/usr/sbin/iptables", "-t", "nat", "-C", "POSTROUTING", "-j", "CHARDSOFT-NAT"),
             ("sysctl", "-w", "net.ipv4.ip_forward=1"),
             ("ip", "addr", "add", "10.42.0.1/24", "dev", "wlan1"),
             ("easyrsa", "--batch", f"--pki-dir={helper.PKI_DIR}", "--use-algo=ec", "--curve=prime256v1", "build-client-full", "laptop", "nopass"),
-            ("openvpn", "--genkey", "secret", "/etc/openvpn/server/chaos-tls-crypt.key"),
+            ("openvpn", "--genkey", "secret", "/etc/openvpn/server/chardsoft-tls-crypt.key"),
             ("find", helper.PKI_DIR, "-mindepth", "1", "-printf", "%y %P\\n"),
             ("hostnamectl", "set-hostname", "chardsoft-router"),
             ("date", "-u", "-s", "@1795528404"),
@@ -192,7 +192,7 @@ class Files(unittest.TestCase):
 
         self.saved = helper.WRITABLE, helper.DIRECTORIES, helper.REMOVABLE
 
-        helper.WRITABLE = ((f"{self.root}/etc/hostapd/chaos-*.conf", "hostapd"), (f"{self.root}/pki/**", "pki"))
+        helper.WRITABLE = ((f"{self.root}/etc/hostapd/chardsoft-*.conf", "hostapd"), (f"{self.root}/pki/**", "pki"))
         helper.DIRECTORIES = (f"{self.root}/pki", f"{self.root}/pki/**")
         helper.REMOVABLE = (f"{self.root}/pki",)
 
@@ -207,7 +207,7 @@ class Files(unittest.TestCase):
 
     def test_install_writes_mode_and_content(self):
 
-        target = f"{self.root}/etc/hostapd/chaos-wlan0.conf"
+        target = f"{self.root}/etc/hostapd/chardsoft-wlan0.conf"
         plan("install", "-m", "600", self.source, target)
 
         self.assertEqual(os.stat(target).st_mode & 0o777, 0o600)
@@ -218,11 +218,11 @@ class Files(unittest.TestCase):
         os.symlink(f"{self.root}/secret/shadow", f"{self.root}/link.conf")
 
         with self.assertRaises(helper.Refused):
-            plan("install", "-m", "600", f"{self.root}/link.conf", f"{self.root}/etc/hostapd/chaos-wlan1.conf")
+            plan("install", "-m", "600", f"{self.root}/link.conf", f"{self.root}/etc/hostapd/chardsoft-wlan1.conf")
 
     def test_symlink_target_replaced_not_followed(self):
 
-        target = f"{self.root}/etc/hostapd/chaos-wlan2.conf"
+        target = f"{self.root}/etc/hostapd/chardsoft-wlan2.conf"
         os.symlink(f"{self.root}/secret/shadow", target)
 
         plan("install", "-m", "600", self.source, target)

@@ -16,7 +16,7 @@
 # Options (also as environment variables):
 #   --country XX   Wi-Fi country code, e.g. US      (CHARDSOFT_COUNTRY;
 #                  asked when not given, no default)
-#   --dir PATH     where to clone the app            (CHARDSOFT_DIR, default /opt/chaos-router-os)
+#   --dir PATH     where to clone the app            (CHARDSOFT_DIR, default /opt/chardsoft-router-os)
 #   --user NAME    the account the app runs as (default: the one that
 #                  called sudo; the updater passes it)
 #   --yes          no questions, use the defaults (needs --country
@@ -26,7 +26,7 @@ set -euo pipefail
 
 REPO=${CHARDSOFT_REPO:-https://github.com/chaoscent/chardsoft-router-os}
 BRANCH=${CHARDSOFT_BRANCH:-dev/core}
-INSTALL_DIR=${CHARDSOFT_DIR:-/opt/chaos-router-os}
+INSTALL_DIR=${CHARDSOFT_DIR:-/opt/chardsoft-router-os}
 COUNTRY=${CHARDSOFT_COUNTRY:-}
 ASSUME_YES=0
 APP_USER_ARG=""
@@ -36,22 +36,22 @@ APP_USER_ARG=""
 MANAGED=1
 
 # What and where was installed, for the updater (deploy/update.sh).
-INSTALL_RECORD=/etc/chaos-router-os/install.json
+INSTALL_RECORD=/etc/chardsoft-router-os/install.json
 
-STATE_DIR=/var/lib/chaos-router-os
-SUDOERS_FILE=/etc/sudoers.d/chaos-router-os
+STATE_DIR=/var/lib/chardsoft-router-os
+SUDOERS_FILE=/etc/sudoers.d/chardsoft-router-os
 
 # Packages this installer installed (not the ones that were already
 # there): uninstall.sh removes exactly these.
-PACKAGES_RECORD=/etc/chaos-router-os/installed-packages
+PACKAGES_RECORD=/etc/chardsoft-router-os/installed-packages
 
 # dnsmasq serves the LAN only: it must not become the router's own DNS
 # server (see keep_name_resolution).
-DNSMASQ_DROPIN=/etc/systemd/system/dnsmasq.service.d/chaos-router-os.conf
+DNSMASQ_DROPIN=/etc/systemd/system/dnsmasq.service.d/chardsoft-router-os.conf
 
 # Where dnsmasq finds upstream servers for the devices while the DNS
 # page names none (see keep_name_resolution).
-DNSMASQ_UPSTREAM=/etc/dnsmasq.d/chaos-router-upstream.conf
+DNSMASQ_UPSTREAM=/etc/dnsmasq.d/chardsoft-router-upstream.conf
 
 # DNS servers that worked before the install (restored if needed).
 SAVED_NAMESERVERS=""
@@ -152,6 +152,150 @@ check_system() {
     else
         warn "This does not look like a Raspberry Pi. Only the Pi 5 is tested."
     fi
+}
+
+
+# Installs from before 2026-11-25 used "chaos" names (folders, services,
+# config files, firewall chains, NetworkManager connections). Moves such
+# an install to the chardsoft names once; does nothing on new installs or
+# ones already moved. The settings move as they are. The running settings
+# are dropped, so the app rebuilds them from the saved ones and applies
+# everything under the new names when it starts, as after a boot: the
+# access points, DHCP and IPv4 for devices are off until then (about a
+# minute). SSH over the LAN cable is not touched.
+migrate_names() {
+
+    # A test folder in front of every path (tests/test_migrate_names.sh).
+    local root=${CHARDSOFT_MIGRATE_ROOT:-}
+
+    local old_etc=$root/etc/chaos-router-os
+    local old_state=$root/var/lib/chaos-router-os
+    local old_code=$root/opt/chaos-router-os
+    local new_code=$root/opt/chardsoft-router-os
+    local systemd=$root/etc/systemd/system
+
+    # The updater of an old install passes its folder (--dir): the new
+    # one is meant, also when the move happened already.
+    local moving_code=0
+
+    if [[ $INSTALL_DIR == "${old_code#"$root"}" ]]; then
+        INSTALL_DIR=${new_code#"$root"}
+        moving_code=1
+    elif [[ $INSTALL_DIR == "${new_code#"$root"}" ]]; then
+        moving_code=1
+    fi
+
+    if [[ ! -e $old_etc && ! -e $old_state && ! -e $systemd/chaos-router-os.service && ! -e $old_code ]]; then
+        return 0
+    fi
+
+    step "Moving the install to its new names (chaos -> chardsoft)"
+
+    # The old services, then their unit files.
+    local unit
+    while read -r unit; do
+        [[ -n $unit ]] && { systemctl disable --now "$unit" 2>/dev/null || true; }
+    done < <(systemctl list-units --all --plain --no-legend 'chaos-*' 2>/dev/null | awk '{print $1}')
+
+    for unit in chaos-router-os chaos-router-mdns chaos-clat; do
+        systemctl disable --now "$unit" 2>/dev/null || true
+    done
+
+    if [[ -f $root/etc/openvpn/server/chaos.conf ]]; then
+        systemctl disable --now openvpn-server@chaos 2>/dev/null || true
+    fi
+
+    rm -f "$systemd/chaos-router-os.service" "$systemd/chaos-router-mdns.service" \
+          "$systemd/chaos-hostapd@.service" "$systemd/chaos-clat.service" \
+          "$systemd/dnsmasq.service.d/chaos-router-os.conf"
+    systemctl daemon-reload || true
+
+    # Defaults and saved settings move; the running ones are rebuilt.
+    if [[ -d $old_etc && ! -e $root/etc/chardsoft-router-os ]]; then
+        mv "$old_etc" $root/etc/chardsoft-router-os
+    fi
+
+    if [[ -d $old_state && ! -e $root$STATE_DIR ]]; then
+        mv "$old_state" "$root$STATE_DIR"
+    fi
+
+    rm -rf $root/tmp/chaos-router-os
+
+    # The code, when it is in the old default folder (an own clone or a
+    # --dir folder elsewhere stays). Its Python environment has the folder
+    # written into it: setup_python builds it anew.
+    if (( moving_code )) && [[ -d $old_code && ! -e $new_code ]]; then
+        mv "$old_code" "$new_code"
+        rm -rf "$new_code/.venv"
+        info "Code: ${new_code#"$root"} (the Python environment is set up again)"
+    fi
+
+    # Config files the app writes: written anew under the new names.
+    rm -f $root/etc/hostapd/chaos-*.conf $root/etc/dnsmasq.d/chaos-router-*.conf $root/etc/tayga/chaos-clat.conf
+
+    if [[ -d $root/etc/caddy/chaos-apps && ! -e $root/etc/caddy/chardsoft-apps ]]; then
+        mv $root/etc/caddy/chaos-apps $root/etc/caddy/chardsoft-apps
+    fi
+
+    if [[ -f $root/etc/caddy/Caddyfile.before-chaos && ! -e $root/etc/caddy/Caddyfile.before-chardsoft ]]; then
+        mv $root/etc/caddy/Caddyfile.before-chaos $root/etc/caddy/Caddyfile.before-chardsoft
+    fi
+
+    # OpenVPN server: the same keys under the new names (clients keep
+    # working: they check the certificate "server", not a name); its
+    # config is written anew by the app.
+    local name
+    if [[ -f $root/etc/openvpn/server/chaos.conf ]]; then
+        for name in pki tls-crypt.key crl.pem; do
+            if [[ -e $root/etc/openvpn/server/chaos-$name && ! -e $root/etc/openvpn/server/chardsoft-$name ]]; then
+                mv "$root/etc/openvpn/server/chaos-$name" "$root/etc/openvpn/server/chardsoft-$name"
+            fi
+        done
+        rm -f $root/etc/openvpn/server/chaos.conf
+    fi
+
+    rm -f $root/etc/openvpn/chaos-nat.sh
+
+    # Root helper and its sudo rule: installed anew by setup_sudo.
+    rm -f $root/etc/sudoers.d/chaos-router-os
+    rm -rf $root/usr/local/libexec/chaos-router-os
+
+    # Firewall: the old chains out (the jumps to them first). The app
+    # builds the new ones when it starts.
+    local cmd table rule chain
+    for cmd in iptables ip6tables; do
+        command -v "$cmd" >/dev/null || continue
+        for table in filter nat mangle; do
+            "$cmd" -t "$table" -S >/dev/null 2>&1 || continue
+            while read -r rule; do
+                eval "$cmd -t $table ${rule/#-A /-D }" 2>/dev/null || true
+            done < <("$cmd" -t "$table" -S | grep -E -- '-j CHAOS-' | grep -vE '^-A CHAOS-')
+            while read -r chain; do
+                "$cmd" -t "$table" -F "$chain" 2>/dev/null || true
+            done < <("$cmd" -t "$table" -S | awk '/^-N CHAOS-/ {print $2}')
+            while read -r chain; do
+                "$cmd" -t "$table" -X "$chain" 2>/dev/null || true
+            done < <("$cmd" -t "$table" -S | awk '/^-N CHAOS-/ {print $2}')
+        done
+    done
+
+    # NetworkManager: the same connections under new names (no reconnect).
+    local uuid
+    if command -v nmcli >/dev/null; then
+        while IFS=: read -r uuid name; do
+            case $name in
+                chaos-lan|chaos-lan-*|chaos-modem)
+                    nmcli connection modify "$uuid" connection.id "chardsoft-${name#chaos-}" 2>/dev/null || true
+                    ;;
+            esac
+        done < <(nmcli -t -f UUID,NAME connection show 2>/dev/null)
+    fi
+
+    if [[ -e $root/opt/chaos-router-apps || -e $root/usr/local/bin/chaos-apps ]]; then
+        warn "The Apps Addon was installed under the old names: install it again from the System page."
+    fi
+
+    info "Done. Access points, DHCP and IPv4 for devices come back when the dashboard starts."
 }
 
 
@@ -287,7 +431,7 @@ keep_name_resolution() {
         local servers
         mapfile -t servers <<< "$SAVED_NAMESERVERS"
 
-        printf 'nameserver %s\n' "${servers[@]}" | resolvconf -a chaos-installer
+        printf 'nameserver %s\n' "${servers[@]}" | resolvconf -a chardsoft-installer
         sleep 1
 
         if resolves; then
@@ -374,7 +518,7 @@ setup_python() {
 
 setup_defaults() {
 
-    step "Writing the default settings (/etc/chaos-router-os)"
+    step "Writing the default settings (/etc/chardsoft-router-os)"
 
     mkdir -p "$STATE_DIR"
     chown "$APP_USER:$APP_GROUP" "$STATE_DIR"
@@ -395,12 +539,12 @@ PY
     # older installer left root-owned files there (e.g. system/).
     chown -R "$APP_USER:$APP_GROUP" "$STATE_DIR"
 
-    if [[ -d /tmp/chaos-router-os ]]; then
-        chown -R "$APP_USER:$APP_GROUP" /tmp/chaos-router-os
+    if [[ -d /tmp/chardsoft-router-os ]]; then
+        chown -R "$APP_USER:$APP_GROUP" /tmp/chardsoft-router-os
     fi
 
     # No longer read since the setup page exists (no default login).
-    rm -f /etc/chaos-router-os/users.json
+    rm -f /etc/chardsoft-router-os/users.json
 }
 
 
@@ -506,7 +650,7 @@ setup_country() {
     # The default for the setup Wi-Fi and the WiFi page.
     "$INSTALL_DIR/.venv/bin/python" - "$COUNTRY" <<'PY'
 import json, sys
-path = "/etc/chaos-router-os/wifi.json"
+path = "/etc/chardsoft-router-os/wifi.json"
 with open(path) as f:
     data = json.load(f)
 data["country"] = sys.argv[1]
@@ -687,8 +831,8 @@ wait_for_setup_wifi() {
     local _
 
     for _ in $(seq 1 30); do
-        # One access point unit per radio: chaos-hostapd@wlan0, ...
-        systemctl list-units --state=active --plain --no-legend 'chaos-hostapd@*' 2>/dev/null \
+        # One access point unit per radio: chardsoft-hostapd@wlan0, ...
+        systemctl list-units --state=active --plain --no-legend 'chardsoft-hostapd@*' 2>/dev/null \
             | grep -q . && return 0
         sleep 1
     done
@@ -742,7 +886,7 @@ finish() {
         step "Set up your router"
         info "This router has no Wi-Fi, so there is no setup Wi-Fi."
         info "Open the setup page from a computer on the LAN:"
-        info "  http://chaos-router.local/setup  or  http://$address/setup"
+        info "  http://chardsoft-router.local/setup  or  http://$address/setup"
         return
     fi
 
@@ -768,9 +912,9 @@ finish() {
 
     # The QR code only when the setup Wi-Fi really runs.
     if ! wait_for_setup_wifi; then
-        warn "The setup Wi-Fi did not start (journalctl -u chaos-router-os shows why)."
+        warn "The setup Wi-Fi did not start (journalctl -u chardsoft-router-os shows why)."
         info "Set up the router from a computer on the LAN instead:"
-        info "  http://chaos-router.local/setup  or  http://$address/setup"
+        info "  http://chardsoft-router.local/setup  or  http://$address/setup"
         return
     fi
 
@@ -789,6 +933,7 @@ main() {
     parse_args "$@"
 
     check_system
+    migrate_names
     install_packages
     keep_name_resolution
     get_code

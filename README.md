@@ -78,18 +78,18 @@ Install on Raspberry Pi OS Lite (64-bit), logged in as your normal user:
 curl -fsSL https://raw.githubusercontent.com/chaoscent/chardsoft-router-os/dev/core/install.sh | sudo bash
 ```
 
-The installer sets up the packages, the app, the default settings and the service, asks for your Wi-Fi country, and finishes with a QR code for the setup Wi-Fi. Scan it with your phone and the setup page opens. Running it again updates an existing install; your settings are kept. The country has no default: the installer lists every country with its code and you type yours. A Quectel modem in MBIM mode is switched to QMI mode (in MBIM mode Linux drops all received mobile data); set `CHARDSOFT_MODEM_MODE=keep` to leave it, and switch back with `sudo /opt/chaos-router-os/deploy/modem-usb-mode.sh mbim`. Options: `--country US`, `--dir PATH`, `--yes` (needs `--country` unless the system already has one).
+The installer sets up the packages, the app, the default settings and the service, asks for your Wi-Fi country, and finishes with a QR code for the setup Wi-Fi. Scan it with your phone and the setup page opens. Running it again updates an existing install; your settings are kept. The country has no default: the installer lists every country with its code and you type yours. A Quectel modem in MBIM mode is switched to QMI mode (in MBIM mode Linux drops all received mobile data); set `CHARDSOFT_MODEM_MODE=keep` to leave it, and switch back with `sudo /opt/chardsoft-router-os/deploy/modem-usb-mode.sh mbim`. Options: `--country US`, `--dir PATH`, `--yes` (needs `--country` unless the system already has one).
 
 Short form: `curl -fsSL https://chardsoft.com/router-os/core | sudo bash`.
 
 To remove Chardsoft Router OS and everything it set up:
 
 ```bash
-sudo /opt/chaos-router-os/uninstall.sh            # asks for confirmation
-sudo /opt/chaos-router-os/uninstall.sh --dry-run  # only shows what it would do
+sudo /opt/chardsoft-router-os/uninstall.sh            # asks for confirmation
+sudo /opt/chardsoft-router-os/uninstall.sh --dry-run  # only shows what it would do
 ```
 
-It removes the Apps Addon with all apps (and Docker, if the addon installed it), switches off and deletes everything Chardsoft Router OS set up (Wi-Fi, DHCP, DNS, VPNs, firewall rules, NAT, LAN bridge, Caddy routes, mDNS names), purges the packages the installer installed, and deletes all its files. It keeps eth0's address settings (so SSH over eth0 stays), the hostname, the Wi-Fi country and the system journal. A dropped SSH connection doesn't stop it halfway (log: `/tmp/chaos-router-os-uninstall.log`). Options: `--yes`, `--keep-packages`, `--all-packages` (for installs made before the installer recorded its packages).
+It removes the Apps Addon with all apps (and Docker, if the addon installed it), switches off and deletes everything Chardsoft Router OS set up (Wi-Fi, DHCP, DNS, VPNs, firewall rules, NAT, LAN bridge, Caddy routes, mDNS names), purges the packages the installer installed, and deletes all its files. It keeps eth0's address settings (so SSH over eth0 stays), the hostname, the Wi-Fi country and the system journal. A dropped SSH connection doesn't stop it halfway (log: `/tmp/chardsoft-router-os-uninstall.log`). Options: `--yes`, `--keep-packages`, `--all-packages` (for installs made before the installer recorded its packages).
 
 ---
 
@@ -130,13 +130,13 @@ The Apps Addon installs:
 
 * Docker Engine
 * Docker Compose
-* App Manager (`chaos-apps`; only installs apps from its catalog)
+* App Manager (`chardsoft-apps`; only installs apps from its catalog)
 
 Chardsoft Router OS does the integration when an app is installed:
 
-* **Name:** `<app>.chaos-router.local`, e.g. `nextcloud.chaos-router.local` (the router itself: `chaos-router.local`)
-* **Local DNS:** dnsmasq answers the name with the router's address (`/etc/dnsmasq.d/chaos-router-apps.conf`)
-* **Caddy:** routes the name to the app over HTTP and HTTPS (`/etc/caddy/chaos-apps/<app>.caddy`)
+* **Name:** `<app>.chardsoft-router.local`, e.g. `nextcloud.chardsoft-router.local` (the router itself: `chardsoft-router.local`)
+* **Local DNS:** dnsmasq answers the name with the router's address (`/etc/dnsmasq.d/chardsoft-router-apps.conf`)
+* **Caddy:** routes the name to the app over HTTP and HTTPS (`/etc/caddy/chardsoft-apps/<app>.caddy`)
 * **HTTPS:** certificates for the app names from the router's local certificate authority
 
 Apps publish their ports on 127.0.0.1 only: Caddy is the only way in.
@@ -163,7 +163,7 @@ Applications never need to expose user-facing ports directly.
 Example:
 
 ```text
-nextcloud.chaos-router.local
+nextcloud.chardsoft-router.local
         │
       Caddy
         │
@@ -174,10 +174,10 @@ Nextcloud container (80)
 
 The router answers these names in two ways, because devices look up `.local` names differently:
 
-* **DNS** (dnsmasq, `/etc/dnsmasq.d/chaos-router-apps.conf`): Windows, Android and everything else that asks the router's DNS.
-* **mDNS** (Avahi, `chaos-router-mdns.service` running `deploy/mdns-publish.sh`): Apple devices and Linux with nss-mdns, which ask only over mDNS.
+* **DNS** (dnsmasq, `/etc/dnsmasq.d/chardsoft-router-apps.conf`): Windows, Android and everything else that asks the router's DNS.
+* **mDNS** (Avahi, `chardsoft-router-mdns.service` running `deploy/mdns-publish.sh`): Apple devices and Linux with nss-mdns, which ask only over mDNS.
 
-`chaos-router.local` (the dashboard) works without the Apps Addon too.
+`chardsoft-router.local` (the dashboard) works without the Apps Addon too.
 
 The user never has to remember `:9000`.
 
@@ -204,18 +204,18 @@ A reboot always comes back to the last verified config, because the running conf
 Everything Chardsoft Router OS writes to these folders is JSON.
 
 ```text
-/etc/chaos-router-os/        Defaults. Shipped with the OS, never written by the app.
+/etc/chardsoft-router-os/        Defaults. Shipped with the OS, never written by the app.
                              Includes a firewall that is on: nothing comes in
                              from the internet, the LAN keeps working.
-/var/lib/chaos-router-os/    Persistent config: only applied and verified settings.
+/var/lib/chardsoft-router-os/    Persistent config: only applied and verified settings.
   └── system/                Records of what is actually on the system
                              (firewall rules, OpenVPN certificate backup, event log).
-/tmp/chaos-router-os/        Running config. Rebuilt from /var/lib at every boot.
+/tmp/chardsoft-router-os/        Running config. Rebuilt from /var/lib at every boot.
 ```
 
-Deleting a file in `/var/lib/chaos-router-os/` restores that area's defaults.
+Deleting a file in `/var/lib/chardsoft-router-os/` restores that area's defaults.
 
-Services still read their own config files (`/etc/hostapd/chaos-<radio>.conf`, `/etc/dnsmasq.d/`, `/etc/wireguard/`, `/etc/openvpn/`). Those are generated from the JSON settings and re-applied at boot. Each Wi-Fi radio's access point is its own service, `chaos-hostapd@wlan0`, `chaos-hostapd@wlan1`, ...; the mobile data connection is the NetworkManager connection `chaos-modem`.
+Services still read their own config files (`/etc/hostapd/chardsoft-<radio>.conf`, `/etc/dnsmasq.d/`, `/etc/wireguard/`, `/etc/openvpn/`). Those are generated from the JSON settings and re-applied at boot. Each Wi-Fi radio's access point is its own service, `chardsoft-hostapd@wlan0`, `chardsoft-hostapd@wlan1`, ...; the mobile data connection is the NetworkManager connection `chardsoft-modem`.
 
 ---
 
@@ -223,7 +223,7 @@ Services still read their own config files (`/etc/hostapd/chaos-<radio>.conf`, `
 
 ```bash
 git clone https://github.com/chaoscent/chardsoft-router-os
-cd chaos-router-os
+cd chardsoft-router-os
 
 python3 -m venv .venv
 source .venv/bin/activate
@@ -236,7 +236,7 @@ The dashboard runs on port `5000` (on the router, Caddy serves it on ports 80 an
 
 While the router is not set up, the app also starts a setup Wi-Fi (WPA2, 10.42.0.1/24) with a captive portal. Show its name, password and QR code with `python backend/setup_wifi.py`. Set `CHARDSOFT_SETUP_WIFI=0` to keep it off during development.
 
-Write the default settings to `/etc/chaos-router-os` (the installer will do this later):
+Write the default settings to `/etc/chardsoft-router-os` (the installer will do this later):
 
 ```bash
 sudo .venv/bin/python backend/install_defaults.py
@@ -252,15 +252,15 @@ On the router, install the systemd service instead of starting `python backend/a
 sudo deploy/install-service.sh            # install or update, then start
 sudo deploy/install-service.sh --remove   # stop and remove (settings are kept)
 
-journalctl -u chaos-router-os -f          # logs
-sudo systemctl restart chaos-router-os    # after pulling new code
+journalctl -u chardsoft-router-os -f          # logs
+sudo systemctl restart chardsoft-router-os    # after pulling new code
 ```
 
 With the service, a reboot (including the one after a factory reset) brings the router back on its saved settings, or into the setup Wi-Fi when it is not set up.
 
 ### Caddy (ports 80 and 443)
 
-When Caddy is installed (`sudo apt install caddy`; the installer does this), `install-service.sh` makes `deploy/Caddyfile` the system's `/etc/caddy/Caddyfile` (an existing one is kept as `Caddyfile.before-chaos` and put back by `--remove`). The app then only listens on `127.0.0.1:5000`, and Caddy serves the dashboard:
+When Caddy is installed (`sudo apt install caddy`; the installer does this), `install-service.sh` makes `deploy/Caddyfile` the system's `/etc/caddy/Caddyfile` (an existing one is kept as `Caddyfile.before-chardsoft` and put back by `--remove`). The app then only listens on `127.0.0.1:5000`, and Caddy serves the dashboard:
 
 - `http://<router>/`: redirected to HTTPS once the router is set up. Before that it stays plain HTTP: the setup Wi-Fi's captive portal and the connectivity checks of phones need it. Apps always redirect to HTTPS.
 - `https://<router>/`: HTTPS with a certificate from Caddy's own local certificate authority, made on the first visit for the address or name in the browser. Caddy asks the app first (`/caddy/tls-allowed`), which only allows the router's LAN addresses, its hostname, `<hostname>.local` and `<hostname>.<LAN domain>`. Browsers warn once per device, since they don't know this authority.

@@ -2,7 +2,7 @@
 Logs: the router's own event log and the system journal.
 
 Router events (logins, applied/reverted settings, blocks, ...) are kept
-as JSON in /var/lib/chaos-router-os/system/events.json, newest last,
+as JSON in /var/lib/chardsoft-router-os/system/events.json, newest last,
 capped at MAX_EVENTS. They survive reboots, so a revert at boot can
 still be read afterwards.
 

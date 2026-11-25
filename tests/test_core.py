@@ -363,9 +363,9 @@ class DhcpTests(unittest.TestCase):
         }
         text = dhcp.render_dnsmasq_config(settings)
         self.assertIn("interface=eth0\n", text)
-        self.assertIn("dhcp-range=set:chaos-eth0,192.168.1.100,192.168.1.200,255.255.255.0,12h", text)
-        self.assertIn("dhcp-option=tag:chaos-eth0,option:router,192.168.1.1", text)
-        self.assertIn("dhcp-option=tag:chaos-eth0,option:dns-server,1.1.1.1", text)
+        self.assertIn("dhcp-range=set:chardsoft-eth0,192.168.1.100,192.168.1.200,255.255.255.0,12h", text)
+        self.assertIn("dhcp-option=tag:chardsoft-eth0,option:router,192.168.1.1", text)
+        self.assertIn("dhcp-option=tag:chardsoft-eth0,option:dns-server,1.1.1.1", text)
         self.assertIn("domain=home.lan", text)
         self.assertIn("dhcp-host=AA:BB:CC:DD:EE:FF,nas,192.168.1.50", text)
 

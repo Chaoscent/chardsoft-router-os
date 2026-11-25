@@ -56,7 +56,7 @@ def valid_name(name):
 
 def write_root_file(path, content, mode="600"):
 
-    fd, tmp = tempfile.mkstemp(prefix="chaos-vpn-")
+    fd, tmp = tempfile.mkstemp(prefix="chardsoft-vpn-")
 
     try:
 

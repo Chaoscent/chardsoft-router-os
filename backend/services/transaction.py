@@ -38,7 +38,7 @@ from services.logs import log_event
 
 CONFIRM_TIMEOUT = int(os.getenv("CHARDSOFT_CONFIRM_TIMEOUT", "120"))
 
-# /tmp/chaos-router-os/pending.json
+# /tmp/chardsoft-router-os/pending.json
 PENDING = "pending"
 
 _lock = threading.RLock()

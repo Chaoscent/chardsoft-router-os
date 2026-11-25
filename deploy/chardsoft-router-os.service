@@ -1,7 +1,7 @@
 # Chardsoft Router OS dashboard and router control.
 #
 # Installed by deploy/install-service.sh, which fills in @USER@,
-# @GROUP@, @APP_DIR@ and @BIND@. Logs: journalctl -u chaos-router-os
+# @GROUP@, @APP_DIR@ and @BIND@. Logs: journalctl -u chardsoft-router-os
 
 [Unit]
 Description=Chardsoft Router OS
@@ -43,7 +43,7 @@ RestartSec=3
 
 # Not hardened on purpose:
 # - no NoNewPrivileges: the app runs system changes through `sudo -n`;
-# - no PrivateTmp: /tmp/chaos-router-os holds the running config, which
+# - no PrivateTmp: /tmp/chardsoft-router-os holds the running config, which
 #   must survive an app restart (Safe Apply reverts from there).
 
 [Install]

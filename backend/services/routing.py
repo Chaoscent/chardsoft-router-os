@@ -59,7 +59,7 @@ DEFAULT_SETTINGS = {
     "clat": True
 }
 
-CHAIN = "CHAOS-NAT"
+CHAIN = "CHARDSOFT-NAT"
 
 FORWARD_SYSCTL = "net.ipv4.ip_forward"
 
@@ -253,7 +253,7 @@ def apply_nat(enabled, wan):
 # TCP MSS clamping (mangle table): mobile networks often have a smaller
 # MTU than the LAN, and without it some sites stall for LAN devices
 # (path MTU discovery blocked somewhere on the way).
-MSS_CHAIN = "CHAOS-MSS"
+MSS_CHAIN = "CHARDSOFT-MSS"
 
 
 def apply_mss_clamping():
@@ -296,7 +296,7 @@ def apply_mss_clamping():
 # until their hop limit runs out: every stray packet sent ~60 times, on
 # mobile data. ufw's "deny routed" catches it too, but not with the
 # firewall off.
-LOOP_CHAIN = "CHAOS-LOOP"
+LOOP_CHAIN = "CHARDSOFT-LOOP"
 
 
 def apply_loop_guard(wan):

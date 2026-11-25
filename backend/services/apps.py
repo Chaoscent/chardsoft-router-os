@@ -3,24 +3,24 @@ Apps: the Apps page, and how installed apps plug into the router.
 
 The apps themselves come from the Apps Addon (Chardsoft Router Apps), a
 separate install with Docker and the App Manager
-(/usr/local/bin/chaos-apps). Core never needs it: without the addon
+(/usr/local/bin/chardsoft-apps). Core never needs it: without the addon
 the Apps page offers to install it (deploy/install-apps.sh).
 
-Every installed app is reached by name, e.g. nextcloud.chaos-router.local
-(<app>.chaos-router.local); the router itself is chaos-router.local:
+Every installed app is reached by name, e.g. nextcloud.chardsoft-router.local
+(<app>.chardsoft-router.local); the router itself is chardsoft-router.local:
 
 - DNS: dnsmasq answers the name with the router's address on the
   interface the question came in on (its own drop-in file, so it works
   whatever the DNS page's state is).
-- mDNS: chaos-router-mdns.service announces the same names with Avahi,
+- mDNS: chardsoft-router-mdns.service announces the same names with Avahi,
   for devices that look up .local names only that way (Apple devices,
   Linux with nss-mdns).
-- Caddy: /etc/caddy/chaos-apps/<app>.caddy sends the name to the app's
+- Caddy: /etc/caddy/chardsoft-apps/<app>.caddy sends the name to the app's
   port on 127.0.0.1, over HTTP and HTTPS (deploy/Caddyfile).
 - HTTPS: Caddy may make certificates for the names (services/caddy.py).
 
 The names and ports of installed apps are kept in
-/var/lib/chaos-router-os/system/apps.json, so DNS and HTTPS never have
+/var/lib/chardsoft-router-os/system/apps.json, so DNS and HTTPS never have
 to ask the App Manager.
 
 Installing, removing, ... runs as a background job (one at a time);
@@ -43,23 +43,23 @@ from services.network import run_command, privileged
 from services.logs import log_event
 
 # Overridable for development and tests.
-CLI = os.getenv("CHARDSOFT_APPS_CLI", "/usr/local/bin/chaos-apps")
+CLI = os.getenv("CHARDSOFT_APPS_CLI", "/usr/local/bin/chardsoft-apps")
 
 # Installs the addon (one click on the Apps page).
 ADDON_INSTALLER = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "deploy", "install-apps.sh")
 )
 
-CADDY_APPS_DIR = "/etc/caddy/chaos-apps"
+CADDY_APPS_DIR = "/etc/caddy/chardsoft-apps"
 
 # The router's name in the LAN; apps are <app>.ROUTER_DOMAIN.
-ROUTER_DOMAIN = "chaos-router.local"
+ROUTER_DOMAIN = "chardsoft-router.local"
 
-DNSMASQ_APPS_FILE = "/etc/dnsmasq.d/chaos-router-apps.conf"
+DNSMASQ_APPS_FILE = "/etc/dnsmasq.d/chardsoft-router-apps.conf"
 
 # Read by deploy/mdns-publish.sh: "name address" per line.
 MDNS_NAMES_FILE = os.path.join(os.path.dirname(system_path("x")), "mdns_names.txt")
-MDNS_SERVICE = "chaos-router-mdns"
+MDNS_SERVICE = "chardsoft-router-mdns"
 
 # System record: {"apps": {id: {"host", "port"}}}
 APPS_RECORD = "apps"
@@ -415,7 +415,7 @@ def _read(path):
 
 def _write_root_file(path, content):
 
-    fd, tmp = tempfile.mkstemp(prefix="chaos-app-", suffix=".caddy")
+    fd, tmp = tempfile.mkstemp(prefix="chardsoft-app-", suffix=".caddy")
 
     try:
         with os.fdopen(fd, "w") as f:
@@ -570,7 +570,7 @@ def mdns_address():
 
 def sync_mdns(apps):
     """
-    The names file for chaos-router-mdns.service; restarts it on change.
+    The names file for chardsoft-router-mdns.service; restarts it on change.
     """
 
     address = mdns_address()
@@ -633,7 +633,7 @@ def sync_integration():
     """
     Brings the router's names (DNS, mDNS) and the app routes (Caddy) in
     line with the installed apps and the router's addresses. Safe to run
-    any time; also without the Apps Addon (chaos-router.local).
+    any time; also without the Apps Addon (chardsoft-router.local).
     """
 
     with _sync_lock:

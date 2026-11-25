@@ -4,8 +4,8 @@ and the Clients page).
 
 Each known device (by MAC) gets a slot 1-255. Its connections are
 tagged with the slot in bits 16-23 of the connection mark, from the
-first packet it sends (mangle/PREROUTING, chain CHAOS-ACCT-MARK); the
-chain CHAOS-ACCT, first in filter/FORWARD, then counts every packet of
+first packet it sends (mangle/PREROUTING, chain CHARDSOFT-ACCT-MARK); the
+chain CHARDSOFT-ACCT, first in filter/FORWARD, then counts every packet of
 a tagged connection, both ways, IPv4 and IPv6. So downloads count too,
 and so does IPv4 through the CLAT (the translated IPv6 packets are
 connections of their own, without a tag, and are not counted twice).
@@ -31,8 +31,8 @@ from services.network import run_command, privileged
 
 COUNTER = "device_usage_counter"
 
-MARK_CHAIN = "CHAOS-ACCT-MARK"
-COUNT_CHAIN = "CHAOS-ACCT"
+MARK_CHAIN = "CHARDSOFT-ACCT-MARK"
+COUNT_CHAIN = "CHARDSOFT-ACCT"
 
 MASK = 0x00FF0000
 SHIFT = 16
@@ -188,7 +188,7 @@ def mark_of(slot):
 
 
 def parse_counters(output):
-    """{MAC: bytes} from `iptables -L CHAOS-ACCT -v -x -n`."""
+    """{MAC: bytes} from `iptables -L CHARDSOFT-ACCT -v -x -n`."""
 
     found = {}
 

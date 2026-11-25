@@ -11,8 +11,8 @@ its own code, but further:
 - Wi-Fi, DHCP, DNS, VPN servers and client profiles off, their units,
   configs, keys and certificates removed.
 - Firewall: every rule Chardsoft Router OS added removed, ufw off.
-- IP forwarding (IPv4 and IPv6) and NAT off; the CHAOS-NAT, CHAOS-NAT6, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS,
-  CHAOS-LOOP, CHAOS-QUOTA and CHAOS-CLAT iptables chains removed; the LAN routing rules
+- IP forwarding (IPv4 and IPv6) and NAT off; the CHARDSOFT-NAT, CHARDSOFT-NAT6, CHARDSOFT-SETUP, CHARDSOFT-BLOCK, CHARDSOFT-KILLSWITCH, CHARDSOFT-MSS,
+  CHARDSOFT-LOOP, CHARDSOFT-QUOTA and CHARDSOFT-CLAT iptables chains removed; the LAN routing rules
   and table 4242 removed; the static routes of the Routes page removed; the CLAT service stopped.
 - LAN bridge removed. The WAN/LAN routing properties Chardsoft Router OS set
   on Ethernet connections (never-default, route-metric) go back to
@@ -37,14 +37,14 @@ DRY_RUN = "--dry-run" in sys.argv
 
 # Files Chardsoft Router OS writes outside its own folders.
 DNSMASQ_FILES = (
-    "/etc/dnsmasq.d/chaos-router-dhcp.conf",
-    "/etc/dnsmasq.d/chaos-router-dns.conf",
-    "/etc/dnsmasq.d/chaos-router-setup.conf",
-    "/etc/dnsmasq.d/chaos-router-apps.conf",
-    "/etc/dnsmasq.d/chaos-router-upstream.conf"
+    "/etc/dnsmasq.d/chardsoft-router-dhcp.conf",
+    "/etc/dnsmasq.d/chardsoft-router-dns.conf",
+    "/etc/dnsmasq.d/chardsoft-router-setup.conf",
+    "/etc/dnsmasq.d/chardsoft-router-apps.conf",
+    "/etc/dnsmasq.d/chardsoft-router-upstream.conf"
 )
 
-CADDY_APPS_DIR = "/etc/caddy/chaos-apps"
+CADDY_APPS_DIR = "/etc/caddy/chardsoft-apps"
 
 problems = []
 
@@ -349,7 +349,7 @@ def main():
         step(f"{AREAS[name].label} off", area_off, name, data)
 
     step("Firewall rules", remove_ufw_rules)
-    step("iptables chains (CHAOS-NAT, CHAOS-SETUP, CHAOS-BLOCK, CHAOS-KILLSWITCH, CHAOS-MSS, CHAOS-LOOP, CHAOS-QUOTA, CHAOS-PAUSE, CHAOS-ACCT, CHAOS-GUEST, CHAOS-CLAT, LAN routing table, static routes)", remove_chains)
+    step("iptables chains (CHARDSOFT-NAT, CHARDSOFT-SETUP, CHARDSOFT-BLOCK, CHARDSOFT-KILLSWITCH, CHARDSOFT-MSS, CHARDSOFT-LOOP, CHARDSOFT-QUOTA, CHARDSOFT-PAUSE, CHARDSOFT-ACCT, CHARDSOFT-GUEST, CHARDSOFT-CLAT, LAN routing table, static routes)", remove_chains)
     step("Config files (dnsmasq, hostapd, VPN, Caddy routes)", remove_files)
     step("dnsmasq restarted", restart_dnsmasq)
     step("Routing properties of Ethernet connections", reset_route_properties)

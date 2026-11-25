@@ -8,7 +8,7 @@ carrier's NAT64 (the "PLAT") translates it back. Devices behind the
 router have no CLAT of their own, so the router runs one for the LAN:
 
     LAN device 10.43.0.157 --IPv4--> router
-        NAT44 (CHAOS-CLAT) to 192.0.0.4 out of the clat interface
+        NAT44 (CHARDSOFT-CLAT) to 192.0.0.4 out of the clat interface
         tayga: 192.0.0.4 <-> <WAN /64>::c1a7, destinations into the
         carrier's NAT64 prefix (e.g. 64:ff9b::1.1.1.1)
     --IPv6--> carrier NAT64 --IPv4--> internet
@@ -19,9 +19,9 @@ setting "clat" is on. The NAT64 prefix comes from the carrier's DNS
 (RFC 7050: the AAAA records of ipv4only.arpa), else the well-known
 64:ff9b::/96.
 
-Pieces: the tayga package, the chaos-clat service (deploy/), its config
-/etc/tayga/chaos-clat.conf (written here, checked by the root helper),
-the NAT chain CHAOS-CLAT, a default route over clat for the router's
+Pieces: the tayga package, the chardsoft-clat service (deploy/), its config
+/etc/tayga/chardsoft-clat.conf (written here, checked by the root helper),
+the NAT chain CHARDSOFT-CLAT, a default route over clat for the router's
 own IPv4 (metric 2000: any real IPv4 route wins) and the LAN routing
 table (services/wan_routing.py asks active_route()). A watcher keeps it
 in step: the modem's /64 changes with every connection.
@@ -49,8 +49,8 @@ from services.network import (
 
 from services.vpn_common import which
 
-CONF = "/etc/tayga/chaos-clat.conf"
-UNIT = "chaos-clat"
+CONF = "/etc/tayga/chardsoft-clat.conf"
+UNIT = "chardsoft-clat"
 TUN = "clat"
 
 # RFC 7335: 192.0.0.0/29 is for exactly this. Not .1/.2: modems put
@@ -67,7 +67,7 @@ WELL_KNOWN_PREFIX = "64:ff9b::/96"
 # ipv4only.arpa resolves to these; a DNS64 server embeds them.
 IPV4ONLY = (b"\xc0\x00\x00\xaa", b"\xc0\x00\x00\xab")
 
-NAT_CHAIN = "CHAOS-CLAT"
+NAT_CHAIN = "CHARDSOFT-CLAT"
 ROUTER_METRIC = "2000"
 
 PREFIX_SECONDS = 3600
@@ -298,7 +298,7 @@ def installed_config():
 
 def install_config(text):
 
-    fd, tmp = tempfile.mkstemp(prefix="chaos-clat-", suffix=".conf")
+    fd, tmp = tempfile.mkstemp(prefix="chardsoft-clat-", suffix=".conf")
 
     try:
         with os.fdopen(fd, "w") as f:

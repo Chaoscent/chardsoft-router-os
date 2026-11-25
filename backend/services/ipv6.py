@@ -47,7 +47,7 @@ from services.vpn_common import which
 
 ROUTING = "routing"
 
-NAT_CHAIN = "CHAOS-NAT6"
+NAT_CHAIN = "CHARDSOFT-NAT6"
 
 FORWARD_SYSCTL = "net.ipv6.conf.all.forwarding"
 

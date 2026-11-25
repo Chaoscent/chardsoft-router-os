@@ -41,10 +41,10 @@ from services.vpn_common import get_wan_interface, DEFAULT_WAN_INTERFACE
 # Configuration
 # -------------------------------------------------------------------
 
-# dns.json in /etc/chaos-router-os (defaults) and /var/lib/chaos-router-os.
+# dns.json in /etc/chardsoft-router-os (defaults) and /var/lib/chardsoft-router-os.
 DNS_SETTINGS = "dns"
 
-DNSMASQ_DNS_FILE = "/etc/dnsmasq.d/chaos-router-dns.conf"
+DNSMASQ_DNS_FILE = "/etc/dnsmasq.d/chardsoft-router-dns.conf"
 
 TRUST_ANCHORS = "/usr/share/dnsmasq-base/trust-anchors.conf"
 

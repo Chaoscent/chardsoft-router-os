@@ -3,7 +3,7 @@ Web security: the session signing key, CSRF protection and login
 rate limiting.
 
 - The key that signs session cookies is random per router, stored in
-  /var/lib/chaos-router-os/system/secret_key.json (mode 600) and never
+  /var/lib/chardsoft-router-os/system/secret_key.json (mode 600) and never
   part of a config backup.
 - Every request that changes something must carry the session's CSRF
   token in the X-CSRF-Token header (added by static/js/csrf.js), and

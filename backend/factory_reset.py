@@ -1,13 +1,13 @@
 """
 Factory reset: back to a freshly installed router.
 
-1. Every settings area is set back to its defaults (/etc/chaos-router-os,
+1. Every settings area is set back to its defaults (/etc/chardsoft-router-os,
    else the built-in ones) and applied: Wi-Fi, DHCP, DNS, VPNs off, own
    firewall rules removed, LAN bridge removed. eth0's own connection
    is left as it is, so the router stays reachable.
 2. Generated secrets are deleted (OpenVPN certificates, WireGuard and
    hostapd configs, VPN client profiles).
-3. /var/lib/chaos-router-os and /tmp/chaos-router-os are emptied.
+3. /var/lib/chardsoft-router-os and /tmp/chardsoft-router-os are emptied.
 4. The router reboots. At boot the defaults from /etc are applied
    (firewall, NAT) and, with no admin account, the setup Wi-Fi with its
    captive portal starts (see setup.py, services/setup_network.py).

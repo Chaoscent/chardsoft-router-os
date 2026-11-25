@@ -17,7 +17,7 @@ Settings (the "data_usage" area, part of backups):
                     (the router itself and the dashboard keep working)
                     until the next period or "Resume" on the dashboard
 
-The block is the CHAOS-QUOTA chain in filter/FORWARD: it rejects
+The block is the CHARDSOFT-QUOTA chain in filter/FORWARD: it rejects
 everything forwarded out of the modem (wwan+). The CLAT's IPv4 leaves
 through the modem as IPv6, so it is covered too.
 
@@ -39,7 +39,7 @@ from services.network import run_command, privileged
 SETTINGS = "data_usage"
 COUNTER = "data_usage_counter"
 
-CHAIN = "CHAOS-QUOTA"
+CHAIN = "CHARDSOFT-QUOTA"
 
 DEFAULT_SETTINGS = {
     "limit_gb": 0,

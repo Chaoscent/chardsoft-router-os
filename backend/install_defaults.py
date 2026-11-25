@@ -1,5 +1,5 @@
 """
-Writes the default settings to /etc/chaos-router-os.
+Writes the default settings to /etc/chardsoft-router-os.
 
 The app itself never writes there; run this from the installer:
 
@@ -21,10 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ["CHARDSOFT_SKIP_STARTUP"] = "1"
 
 # Importing the app creates its folders and session key. This runs as
-# root: point them at a throwaway folder, so /var/lib/chaos-router-os
-# and /tmp/chaos-router-os are never created as root (the app user
+# root: point them at a throwaway folder, so /var/lib/chardsoft-router-os
+# and /tmp/chardsoft-router-os are never created as root (the app user
 # could not write them).
-_SCRATCH = tempfile.mkdtemp(prefix="chaos-install-defaults-")
+_SCRATCH = tempfile.mkdtemp(prefix="chardsoft-install-defaults-")
 atexit.register(shutil.rmtree, _SCRATCH, ignore_errors=True)
 
 os.environ["CHARDSOFT_STATE_DIR"] = os.path.join(_SCRATCH, "state")

@@ -1106,9 +1106,9 @@ def apply_network_settings():
 
 BRIDGE = "br0"
 
-BRIDGE_CONNECTION = "chaos-lan"
+BRIDGE_CONNECTION = "chardsoft-lan"
 
-PORT_CONNECTION_PREFIX = "chaos-lan-"
+PORT_CONNECTION_PREFIX = "chardsoft-lan-"
 
 
 def _connection_names():

@@ -16,26 +16,26 @@
 
 set -euo pipefail
 
-SERVICE=chaos-router-os
+SERVICE=chardsoft-router-os
 UNIT_FILE=/etc/systemd/system/$SERVICE.service
-STATE_DIR=/var/lib/chaos-router-os
+STATE_DIR=/var/lib/chardsoft-router-os
 
 APP_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TEMPLATE=$APP_DIR/deploy/$SERVICE.service
 
-MDNS_SERVICE=chaos-router-mdns
+MDNS_SERVICE=chardsoft-router-mdns
 MDNS_UNIT_FILE=/etc/systemd/system/$MDNS_SERVICE.service
 
-# One access point per Wi-Fi radio: chaos-hostapd@wlan0, @wlan1, ...
-AP_UNIT=chaos-hostapd@.service
+# One access point per Wi-Fi radio: chardsoft-hostapd@wlan0, @wlan1, ...
+AP_UNIT=chardsoft-hostapd@.service
 AP_UNIT_FILE=/etc/systemd/system/$AP_UNIT
 
 # IPv4 over an IPv6-only WAN (tayga); started by the app when needed.
-CLAT_UNIT=chaos-clat.service
+CLAT_UNIT=chardsoft-clat.service
 CLAT_UNIT_FILE=/etc/systemd/system/$CLAT_UNIT
 
 CADDYFILE=/etc/caddy/Caddyfile
-CADDY_BACKUP=/etc/caddy/Caddyfile.before-chaos
+CADDY_BACKUP=/etc/caddy/Caddyfile.before-chardsoft
 # First line of deploy/Caddyfile: tells our config from someone else's.
 CADDY_MARKER="# Chardsoft Router OS: Caddy in front of the dashboard."
 # Before the product was renamed (Caddyfiles of older installs).
@@ -52,14 +52,14 @@ if [[ ${1:-} == "--remove" ]]; then
 
     systemctl disable --now "$SERVICE" "$MDNS_SERVICE" 2>/dev/null || true
 
-    # Every access point instance (chaos-hostapd@wlan0, ...).
-    systemctl list-units --all --plain --no-legend 'chaos-hostapd@*' 2>/dev/null \
+    # Every access point instance (chardsoft-hostapd@wlan0, ...).
+    systemctl list-units --all --plain --no-legend 'chardsoft-hostapd@*' 2>/dev/null \
         | awk '{print $1}' \
         | while read -r unit; do systemctl disable --now "$unit" 2>/dev/null || true; done
 
-    systemctl stop chaos-clat 2>/dev/null || true
+    systemctl stop chardsoft-clat 2>/dev/null || true
 
-    rm -f "$UNIT_FILE" "$MDNS_UNIT_FILE" "$AP_UNIT_FILE" "$CLAT_UNIT_FILE" /etc/tayga/chaos-clat.conf
+    rm -f "$UNIT_FILE" "$MDNS_UNIT_FILE" "$AP_UNIT_FILE" "$CLAT_UNIT_FILE" /etc/tayga/chardsoft-clat.conf
     systemctl daemon-reload
 
     # Caddy: back to the config it had before, or stopped (ours would
@@ -129,7 +129,7 @@ install_caddyfile() {
     install -m 644 "$APP_DIR/deploy/Caddyfile" "$CADDYFILE"
 
     # Routes of installed apps (Apps Addon), written by the app.
-    mkdir -p "$(dirname "$CADDYFILE")/chaos-apps"
+    mkdir -p "$(dirname "$CADDYFILE")/chardsoft-apps"
 }
 
 # The router's LAN address for messages: br0, Ethernet, then Wi-Fi; not

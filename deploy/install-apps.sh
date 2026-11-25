@@ -27,7 +27,7 @@ APP_USER=${SUDO_USER:-}
 
 if [[ -z $APP_USER || $APP_USER == root ]]; then
     # By hand as root: the owner of the router's settings.
-    APP_USER=$(stat -c %U /var/lib/chaos-router-os 2>/dev/null || true)
+    APP_USER=$(stat -c %U /var/lib/chardsoft-router-os 2>/dev/null || true)
 fi
 
 if [[ -z $APP_USER || $APP_USER == root ]]; then
@@ -46,7 +46,7 @@ echo "==> Downloading the Apps Addon ($BRANCH)"
 git clone --depth 1 --quiet --branch "$BRANCH" "$REPO" "$tmp/addon"
 
 # Only ever run the addon's installer, never something else on that branch.
-if [[ ! -x $tmp/addon/bin/chaos-apps || ! -d $tmp/addon/catalog || ! -f $tmp/addon/install.sh ]]; then
+if [[ ! -x $tmp/addon/bin/chardsoft-apps || ! -d $tmp/addon/catalog || ! -f $tmp/addon/install.sh ]]; then
     echo "The branch $BRANCH does not contain the Apps Addon." >&2
     exit 1
 fi
