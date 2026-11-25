@@ -9,11 +9,37 @@
                 Edit dashboard
             </button>
         </div>
+
+        <!-- Edit mode: the layout changes on the page and is saved with "Done". -->
+        <div id="dashboardEditActions" class="page-header-actions hidden">
+            <button id="listLayoutBtn" class="secondary-btn" type="button">List view</button>
+            <button id="resetLayoutBtn" class="secondary-btn" type="button">Reset to default</button>
+            <button id="cancelEditBtn" class="secondary-btn" type="button">Cancel</button>
+            <button id="doneEditBtn" class="save-btn" type="button">Done</button>
+        </div>
+    </div>
+
+    <!-- Edit mode: hidden widgets come back from here, graphs are added. -->
+    <div id="dashboardTray" class="dashboard-tray hidden">
+        <p class="setting-hint" id="dashboardTrayHint">
+            Drag a widget by its handle to move it, and its right edge to change its width.
+            With the keyboard: the arrow keys on the handle or the edge.
+        </p>
+        <div class="dashboard-tray-items">
+            <div id="dashboardTrayHidden" class="dashboard-tray-hidden"></div>
+            <button id="trayAddGraphBtn" class="secondary-btn" type="button">
+                <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/plus.svg') }})" aria-hidden="true"></span>
+                Traffic graph
+            </button>
+        </div>
     </div>
 
     <!-- dashboard.js fills this from the saved layout (/api/dashboard/layout)
          with the widgets below, on a 12 column grid. -->
     <div id="dashboardGrid" class="dashboard-grid"></div>
+
+    <!-- Moves and widths for screen readers. -->
+    <div id="dashboardAnnounce" class="sr-only" aria-live="polite"></div>
 
 </section>
 
@@ -227,7 +253,31 @@
 </template>
 
 
-<!-- One row per widget in the editor. -->
+<!-- Edit mode: the handle, name and hide button on each widget, and its
+     right edge for the width. -->
+<template id="widgetEditChrome">
+    <div class="widget-edit">
+        <button class="widget-grip" type="button" title="Drag to move (arrow keys: earlier or later)">
+            <svg viewBox="0 0 12 18" aria-hidden="true">
+                <circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/>
+                <circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/>
+                <circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/>
+            </svg>
+        </button>
+        <span class="widget-edit-name"></span>
+        <span class="widget-edit-width"></span>
+        <button class="icon-btn widget-edit-hide" type="button">
+            <span class="cs-icon" style="--icon:url({{ asset('chardsoft/icons/x.svg') }})" aria-hidden="true"></span>
+        </button>
+    </div>
+    <div class="widget-resize" role="slider" tabindex="0" aria-orientation="horizontal"
+         title="Drag to change the width (arrow keys: narrower or wider)">
+        <span aria-hidden="true"></span>
+    </div>
+</template>
+
+
+<!-- One row per widget in the list view. -->
 <template id="layoutRowTemplate">
     <li class="layout-row">
 
@@ -269,14 +319,14 @@
     <div class="modal layout-modal" role="dialog" aria-modal="true" aria-labelledby="layoutModalTitle">
 
         <div class="modal-header">
-            <h2 id="layoutModalTitle">Edit dashboard</h2>
+            <h2 id="layoutModalTitle">Dashboard as a list</h2>
             <button id="closeLayoutModal" class="icon-btn" type="button" aria-label="Close">×</button>
         </div>
 
         <p class="modal-subtitle">
-            Choose which widgets show, their order and width. The layout is
-            saved on the router, so every browser shows the same dashboard.
-            Small screens stack the widgets.
+            The same layout as a list: which widgets show, their order and
+            width. "Apply" puts it on the dashboard; "Done" there saves it on
+            the router, so every browser shows the same dashboard.
         </p>
 
         <div class="modal-body">
@@ -295,9 +345,8 @@
         </div>
 
         <div class="modal-actions">
-            <button id="resetLayoutBtn" class="secondary-btn layout-reset" type="button">Reset to default</button>
             <button id="cancelLayoutBtn" class="secondary-btn" type="button">Cancel</button>
-            <button id="saveLayoutBtn" class="save-btn" type="button">Save</button>
+            <button id="saveLayoutBtn" class="save-btn" type="button">Apply</button>
         </div>
 
     </div>

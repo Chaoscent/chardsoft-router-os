@@ -16,8 +16,16 @@ window.Page.dashboard = {
     interfaces: [],
     wanInterface: null,
 
-    // The editor's working copy, saved only with "Save".
+    // Edit mode: the working copy (hidden widgets included), saved only
+    // with "Done"; the list view edits the same copy.
+    editing: false,
     draft: null,
+    listSnapshot: null,
+
+    // The drag in progress: { item, ghost, pointerId, ... }.
+    drag: null,
+
+    SINGLE_TYPES: ["summary", "status", "usage", "interfaces", "system", "gnss"],
 
     NAMES: {
         summary: "Overview (clients, download, upload)",
@@ -155,7 +163,7 @@ window.Page.dashboard = {
 
         dashboardGrid.replaceChildren();
 
-        for (const widget of this.layout) {
+        for (const widget of this.editing ? this.draft : this.layout) {
 
             if (widget.hidden) continue;
 
@@ -175,6 +183,7 @@ window.Page.dashboard = {
 
             if (widget.type === "traffic") this.setUpGraph(item);
             if (widget.type === "status") this.setUpStatus(item);
+            if (this.editing) this.addEditChrome(item);
 
             this.shown.push(item);
 
@@ -271,6 +280,14 @@ window.Page.dashboard = {
 
         item.select.onchange = () => {
 
+            // Edit mode: part of the working copy, saved with "Done".
+            if (this.editing) {
+                widget.interface = item.select.value;
+                item.element.querySelector(".widget-edit-name").textContent = this.widgetName(widget);
+                this.update();
+                return;
+            }
+
             const layout = this.layout.map(w =>
                 w.id === widget.id ? { ...w, interface: item.select.value } : w);
 
@@ -279,6 +296,11 @@ window.Page.dashboard = {
         };
 
         element.querySelector(".widget-remove").onclick = () => {
+
+            if (this.editing) {
+                this.hideWidget(widget);
+                return;
+            }
 
             this.changeLayout(this.layout.filter(w => w.id !== widget.id));
 
@@ -851,20 +873,653 @@ window.Page.dashboard = {
 
 
     // ------------------------------------------------------------
-    // Editor
+    // Edit mode: the layout changes on the dashboard itself
+    // ------------------------------------------------------------
+
+    /** A copy of a layout with every single widget in it, so a hidden one can come back. */
+    withHiddenBuiltins(layout) {
+
+        const draft = layout.map(w => ({ ...w }));
+
+        for (const type of this.SINGLE_TYPES) {
+            if (!draft.some(w => w.type === type)) {
+                const builtin = this.defaultLayout.find(w => w.type === type);
+                draft.push({ ...(builtin || { id: type, type, width: type === "gnss" ? 6 : 12 }), hidden: true });
+            }
+        }
+
+        return draft;
+
+    },
+
+
+    widgetName(widget) {
+
+        if (widget.type !== "traffic") return this.NAMES[widget.type];
+
+        return `Traffic: ${widget.interface || `WAN${this.wanInterface ? ` (${this.wanInterface})` : ""}`}`;
+
+    },
+
+
+    allowedWidths(widget) {
+
+        const widths = this.WIDTHS[widget.type];
+
+        return widths.includes(widget.width) ? widths : [...widths, widget.width].sort((a, b) => a - b);
+
+    },
+
+
+    startEditing() {
+
+        this.draft = this.withHiddenBuiltins(this.layout);
+        this.editing = true;
+
+        this.renderEditing();
+
+        doneEditBtn.focus();
+
+    },
+
+
+    /** The page in or out of edit mode, the widgets from the working copy. */
+    renderEditing() {
+
+        dashboardGrid.closest(".dashboard").classList.toggle("is-editing", this.editing);
+
+        editDashboardBtn.parentElement.classList.toggle("hidden", this.editing);
+        dashboardEditActions.classList.toggle("hidden", !this.editing);
+        dashboardTray.classList.toggle("hidden", !this.editing);
+
+        if (this.editing) this.renderTray();
+
+        this.render();
+        this.update();
+
+    },
+
+
+    renderTray() {
+
+        const icon = trayAddGraphBtn.querySelector(".cs-icon");
+
+        dashboardTrayHidden.replaceChildren(...this.draft.filter(w => w.hidden).map(widget => {
+
+            const button = document.createElement("button");
+
+            button.type = "button";
+            button.className = "secondary-btn";
+            button.title = "Show it again";
+            button.append(icon.cloneNode(true), this.NAMES[widget.type]);
+            button.onclick = () => this.showWidget(widget);
+
+            return button;
+
+        }));
+
+        // Widths follow the pointer only where the 12 columns are shown.
+        dashboardTrayHint.textContent = this.canResize()
+            ? "Drag a widget by its handle to move it, and its right edge to change its width. "
+              + "With the keyboard: the arrow keys on the handle or on the edge."
+            : "Drag a widget by its handle to move it (or the arrow keys on the handle). "
+              + "This screen stacks the widgets; set their widths in the list view or on a wider screen.";
+
+    },
+
+
+    async finishEditing() {
+
+        this.endDrag(true);
+
+        if (this.draft.every(w => w.hidden)) {
+            ChaosModal.notice({ title: "Nothing to show", subtitle: "Show at least one widget." });
+            return;
+        }
+
+        doneEditBtn.disabled = true;
+
+        const result = await this.saveLayout(this.draft);
+
+        doneEditBtn.disabled = false;
+
+        if (result !== true) {
+            ChaosModal.notice({ title: "Dashboard not saved", subtitle: result });
+            return;
+        }
+
+        this.stopEditing();
+
+    },
+
+
+    stopEditing() {
+
+        this.endDrag(true);
+
+        this.editing = false;
+        this.draft = null;
+
+        this.renderEditing();
+
+        editDashboardBtn.focus();
+
+    },
+
+
+    resetDraft() {
+
+        this.draft = this.withHiddenBuiltins(this.defaultLayout);
+
+        this.renderEditing();
+
+        this.announce("The default layout. Done saves it.");
+
+    },
+
+
+    showWidget(widget) {
+
+        // Back at the end, where it is easy to find.
+        this.draft = [...this.draft.filter(w => w !== widget), { ...widget, hidden: false }];
+
+        this.renderEditing();
+
+        const shown = this.shown.find(item => item.widget.id === widget.id);
+
+        if (shown) {
+            this.highlight(shown.element);
+            shown.grip?.focus({ preventScroll: true });
+        }
+
+        this.announce(`${this.widgetName(widget)} is shown at the end.`);
+
+    },
+
+
+    hideWidget(widget) {
+
+        // Graphs are removed; built-in widgets wait in the tray.
+        this.draft = widget.type === "traffic"
+            ? this.draft.filter(w => w !== widget)
+            : this.draft.map(w => w === widget ? { ...w, hidden: true } : w);
+
+        this.renderEditing();
+
+        this.announce(`${this.widgetName(widget)} ${widget.type === "traffic" ? "removed" : "hidden"}.`);
+
+    },
+
+
+    /** Handle, name, width and hide button on a widget, and its right edge. */
+    addEditChrome(item) {
+
+        const { widget, element } = item;
+
+        const chrome = document.getElementById("widgetEditChrome").content.cloneNode(true);
+
+        const name = this.widgetName(widget);
+        const verb = widget.type === "traffic" ? "Remove" : "Hide";
+
+        item.grip = chrome.querySelector(".widget-grip");
+        item.resize = chrome.querySelector(".widget-resize");
+        item.widthLabel = chrome.querySelector(".widget-edit-width");
+
+        chrome.querySelector(".widget-edit-name").textContent = name;
+
+        item.grip.setAttribute("aria-label", `Move ${name}`);
+
+        const hide = chrome.querySelector(".widget-edit-hide");
+
+        hide.title = `${verb} this widget`;
+        hide.setAttribute("aria-label", `${verb} ${name}`);
+        hide.onclick = () => this.hideWidget(widget);
+
+        item.grip.addEventListener("pointerdown", event => this.startDrag(event, item));
+        item.grip.addEventListener("keydown", event => this.moveByKey(event, item));
+
+        item.resize.setAttribute("aria-label", `Width of ${name}`);
+        item.resize.addEventListener("pointerdown", event => this.startResize(event, item));
+        item.resize.addEventListener("keydown", event => this.resizeByKey(event, item));
+
+        // The content only shows the size: no link or button in it is
+        // reached (by mouse or Tab), so nothing leaves the page unsaved.
+        for (const child of element.children) child.inert = true;
+
+        element.append(chrome);
+
+        this.showWidth(item);
+
+    },
+
+
+    showWidth(item) {
+
+        const widths = this.allowedWidths(item.widget);
+        const label = this.WIDTH_LABELS[item.widget.width] || `${item.widget.width} of 12`;
+
+        item.widthLabel.textContent = label;
+
+        item.resize.setAttribute("aria-valuemin", String(widths[0]));
+        item.resize.setAttribute("aria-valuemax", String(widths[widths.length - 1]));
+        item.resize.setAttribute("aria-valuenow", String(item.widget.width));
+        item.resize.setAttribute("aria-valuetext", label);
+
+    },
+
+
+    announce(text) {
+
+        // Cleared first, so the same text is read again.
+        dashboardAnnounce.textContent = "";
+        requestAnimationFrame(() => { dashboardAnnounce.textContent = text; });
+
+    },
+
+
+    announceMove(item) {
+
+        const elements = this.widgetElements();
+        const place = elements.indexOf(item.element) + 1;
+
+        this.announce(`${this.widgetName(item.widget)}: place ${place} of ${elements.length}.`);
+
+    },
+
+
+    widgetElements() {
+
+        return [...dashboardGrid.children].filter(el => el.dataset.widget);
+
+    },
+
+
+    /** The working copy in the order on the page (hidden widgets after). */
+    syncDraftOrder() {
+
+        const byId = new Map(this.draft.map(w => [w.id, w]));
+        const shown = this.widgetElements().map(el => byId.get(el.dataset.widget)).filter(Boolean);
+
+        this.draft = [...shown, ...this.draft.filter(w => !shown.includes(w))];
+
+    },
+
+
+    /** Runs a change of the grid and slides the widgets to their new places. */
+    reflow(change) {
+
+        const elements = this.widgetElements();
+        const before = new Map(elements.map(el => [el, el.getBoundingClientRect()]));
+
+        change();
+
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+        for (const el of elements) {
+
+            const a = before.get(el);
+            const b = el.getBoundingClientRect();
+            const dx = a.left - b.left;
+            const dy = a.top - b.top;
+
+            if (dx || dy) {
+                el.animate(
+                    [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+                    { duration: 160, easing: "ease-out" }
+                );
+            }
+
+        }
+
+    },
+
+
+    // Moving: the widget's place stays open (dashed) and follows the
+    // pointer through the grid; a copy of it follows the pointer.
+
+    startDrag(event, item) {
+
+        if (event.button !== 0 || this.drag) return;
+
+        event.preventDefault();
+
+        const element = item.element;
+        const rect = element.getBoundingClientRect();
+
+        item.grip.setPointerCapture(event.pointerId);
+
+        // The widget lifts only once the pointer moves: a click or a tap
+        // on the handle changes nothing.
+        const drag = this.drag = {
+            item,
+            ghost: null,
+            rect,
+            startX: event.clientX,
+            startY: event.clientY,
+            pointerId: event.pointerId,
+            offsetX: event.clientX - rect.left,
+            offsetY: event.clientY - rect.top,
+            x: event.clientX,
+            y: event.clientY,
+            // Where it was: Escape puts it back.
+            home: element.nextSibling,
+            last: null,
+            scroller: dashboardGrid.closest("main") || document.scrollingElement
+        };
+
+        drag.listeners = {
+            pointermove: e => {
+                if (e.pointerId !== drag.pointerId) return;
+                drag.x = e.clientX;
+                drag.y = e.clientY;
+                this.dragMoved();
+            },
+            pointerup: e => { if (e.pointerId === drag.pointerId) this.endDrag(false); },
+            pointercancel: e => { if (e.pointerId === drag.pointerId) this.endDrag(true); },
+            lostpointercapture: e => { if (e.pointerId === drag.pointerId) this.endDrag(false); }
+        };
+
+        for (const [name, listener] of Object.entries(drag.listeners)) {
+            item.grip.addEventListener(name, listener);
+        }
+
+        drag.frame = requestAnimationFrame(() => this.autoScroll());
+
+    },
+
+
+    dragMoved() {
+
+        const drag = this.drag;
+
+        if (!drag) return;
+
+        if (!drag.ghost) {
+
+            if (Math.hypot(drag.x - drag.startX, drag.y - drag.startY) < 5) return;
+
+            const ghost = drag.ghost = drag.item.element.cloneNode(true);
+
+            ghost.classList.add("widget-ghost");
+            ghost.removeAttribute("data-widget");
+            ghost.setAttribute("aria-hidden", "true");
+
+            Object.assign(ghost.style, {
+                width: `${drag.rect.width}px`,
+                height: `${Math.min(drag.rect.height, 320)}px`
+            });
+
+            document.body.appendChild(ghost);
+
+            drag.item.element.classList.add("is-dragging");
+
+        }
+
+        drag.ghost.style.left = `${drag.x - drag.offsetX}px`;
+        drag.ghost.style.top = `${drag.y - drag.offsetY}px`;
+
+        // After a move the widgets shift under the pointer: wait for a
+        // real movement before the next one, so they never flicker.
+        if (drag.last && Math.hypot(drag.x - drag.last.x, drag.y - drag.last.y) < 16) return;
+
+        const element = drag.item.element;
+        const others = this.widgetElements().filter(el => el !== element);
+
+        if (!others.length) return;
+
+        // The widget under the pointer, or the nearest one (in a gap).
+        let target = null;
+        let distance = Infinity;
+
+        for (const other of others) {
+
+            const r = other.getBoundingClientRect();
+            const d = Math.hypot(
+                Math.max(r.left - drag.x, 0, drag.x - r.right),
+                Math.max(r.top - drag.y, 0, drag.y - r.bottom)
+            );
+
+            if (d < distance) {
+                distance = d;
+                target = other;
+            }
+
+        }
+
+        if (distance > 80) return;
+
+        const r = target.getBoundingClientRect();
+        const grid = dashboardGrid.getBoundingClientRect();
+
+        // A wide widget: above or below it; a narrow one: left or right.
+        const after = r.width > grid.width * 0.7 || drag.y < r.top || drag.y > r.bottom
+            ? drag.y > r.top + r.height / 2
+            : drag.x > r.left + r.width / 2;
+
+        const reference = after ? target.nextSibling : target;
+
+        // Already there.
+        if (reference === element || reference === element.nextSibling) return;
+
+        this.reflow(() => dashboardGrid.insertBefore(element, reference));
+
+        drag.last = { x: drag.x, y: drag.y };
+
+    },
+
+
+    /** Near the top or bottom edge the page scrolls while dragging. */
+    autoScroll() {
+
+        const drag = this.drag;
+
+        if (!drag) return;
+
+        if (!drag.ghost) {
+            drag.frame = requestAnimationFrame(() => this.autoScroll());
+            return;
+        }
+
+        const box = drag.scroller.getBoundingClientRect();
+        const top = Math.max(box.top, 0);
+        const bottom = Math.min(box.bottom, innerHeight);
+        const edge = 70;
+
+        let step = 0;
+
+        if (drag.y < top + edge) step = -Math.ceil(16 * (1 - Math.max(0, drag.y - top) / edge));
+        else if (drag.y > bottom - edge) step = Math.ceil(16 * (1 - Math.max(0, bottom - drag.y) / edge));
+
+        if (step) {
+            const before = drag.scroller.scrollTop;
+            drag.scroller.scrollTop += step;
+            // The widgets moved under a pointer that did not.
+            if (drag.scroller.scrollTop !== before) this.dragMoved();
+        }
+
+        drag.frame = requestAnimationFrame(() => this.autoScroll());
+
+    },
+
+
+    endDrag(cancel) {
+
+        const drag = this.drag;
+
+        if (!drag) return;
+
+        this.drag = null;
+
+        cancelAnimationFrame(drag.frame);
+
+        const { item } = drag;
+
+        for (const [name, listener] of Object.entries(drag.listeners)) {
+            item.grip.removeEventListener(name, listener);
+        }
+
+        if (item.grip.hasPointerCapture?.(drag.pointerId)) item.grip.releasePointerCapture(drag.pointerId);
+
+        // Only a click: nothing moved.
+        if (!drag.ghost) return;
+
+        drag.ghost.remove();
+        item.element.classList.remove("is-dragging");
+
+        if (cancel && item.element.isConnected) {
+            this.reflow(() => dashboardGrid.insertBefore(item.element, drag.home?.parentNode === dashboardGrid ? drag.home : null));
+        }
+
+        if (!this.draft) return;
+
+        this.syncDraftOrder();
+
+        if (!cancel) this.announceMove(item);
+
+    },
+
+
+    moveByKey(event, item) {
+
+        const back = event.key === "ArrowUp" || event.key === "ArrowLeft";
+        const forward = event.key === "ArrowDown" || event.key === "ArrowRight";
+
+        if (!back && !forward) return;
+
+        event.preventDefault();
+
+        const element = item.element;
+        const sibling = back ? element.previousElementSibling : element.nextElementSibling;
+
+        if (!sibling?.dataset.widget) return;
+
+        this.reflow(() => dashboardGrid.insertBefore(element, back ? sibling : sibling.nextSibling));
+
+        this.syncDraftOrder();
+
+        item.grip.focus();
+        element.scrollIntoView({ block: "nearest" });
+
+        this.announceMove(item);
+
+    },
+
+
+    // Width: the right edge follows the pointer and snaps to the widths
+    // the widget has (quarter, third, half, ...).
+
+    canResize() {
+
+        // Below this the grid stacks (style.css), so widths do not show.
+        return matchMedia("(min-width: 1101px)").matches;
+
+    },
+
+
+    startResize(event, item) {
+
+        if (event.button !== 0 || this.drag || !this.canResize()) return;
+
+        event.preventDefault();
+
+        const handle = item.resize;
+        const grid = dashboardGrid.getBoundingClientRect();
+        const gap = parseFloat(getComputedStyle(dashboardGrid).columnGap) || 0;
+
+        // Measured from where it starts: a widget that wraps to the next
+        // row while it grows does not jump back and forth.
+        const left = item.element.getBoundingClientRect().left;
+        const column = (grid.width - 11 * gap) / 12;
+
+        handle.setPointerCapture(event.pointerId);
+        item.element.classList.add("is-resizing");
+
+        const move = e => {
+
+            const span = (e.clientX - left + gap) / (column + gap);
+            const widths = this.allowedWidths(item.widget);
+
+            this.setWidth(item, widths.reduce((a, b) => Math.abs(b - span) < Math.abs(a - span) ? b : a));
+
+        };
+
+        // pointerup and then lostpointercapture: ends once.
+        let ended = false;
+
+        const end = () => {
+
+            if (ended) return;
+
+            ended = true;
+
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", end);
+            handle.removeEventListener("pointercancel", end);
+            handle.removeEventListener("lostpointercapture", end);
+
+            item.element.classList.remove("is-resizing");
+
+            this.announce(`${this.widgetName(item.widget)}: ${this.WIDTH_LABELS[item.widget.width]}.`);
+
+        };
+
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", end);
+        handle.addEventListener("pointercancel", end);
+        handle.addEventListener("lostpointercapture", end);
+
+    },
+
+
+    resizeByKey(event, item) {
+
+        const widths = this.allowedWidths(item.widget);
+        const index = widths.indexOf(item.widget.width);
+
+        const next = {
+            ArrowLeft: index - 1, ArrowDown: index - 1,
+            ArrowRight: index + 1, ArrowUp: index + 1,
+            Home: 0, End: widths.length - 1
+        }[event.key];
+
+        if (next === undefined) return;
+
+        event.preventDefault();
+
+        if (next < 0 || next >= widths.length) return;
+
+        this.setWidth(item, widths[next]);
+
+        item.resize.focus();
+
+        this.announce(`${this.widgetName(item.widget)}: ${this.WIDTH_LABELS[item.widget.width]}.`);
+
+    },
+
+
+    setWidth(item, width) {
+
+        if (item.widget.width === width) return;
+
+        this.reflow(() => {
+            item.widget.width = width;
+            item.element.dataset.width = width;
+        });
+
+        this.showWidth(item);
+
+    },
+
+
+    // ------------------------------------------------------------
+    // List view: the same working copy as rows (keyboard, phones)
     // ------------------------------------------------------------
 
     openEditor() {
 
-        this.draft = this.layout.map(w => ({ ...w }));
+        this.endDrag(true);
 
-        // Every single widget is listed, so a hidden one can come back.
-        for (const type of ["summary", "status", "usage", "interfaces", "system", "gnss"]) {
-            if (!this.draft.some(w => w.type === type)) {
-                const builtin = this.defaultLayout.find(w => w.type === type);
-                this.draft.push({ ...(builtin || { id: type, type, width: type === "gnss" ? 6 : 12 }), hidden: true });
-            }
-        }
+        this.listSnapshot = this.draft.map(w => ({ ...w }));
 
         layoutError.classList.add("hidden");
 
@@ -877,11 +1532,25 @@ window.Page.dashboard = {
     },
 
 
+    isListOpen() {
+
+        return !layoutModal.classList.contains("hidden");
+
+    },
+
+
+    /** Cancel: the working copy as it was before the list view. */
     closeEditor() {
+
+        if (this.listSnapshot) this.draft = this.listSnapshot;
+
+        this.listSnapshot = null;
 
         layoutModal.classList.add("hidden");
 
-        this.draft = null;
+        if (this.editing) this.renderEditing();
+
+        listLayoutBtn.focus();
 
     },
 
@@ -971,22 +1640,38 @@ window.Page.dashboard = {
 
         const next = this.interfaces.find(row => !row.wan && !graphed.has(row.interface));
 
-        this.draft.push({
+        const widget = {
             id: this.newId(),
             type: "traffic",
             width: 6,
             hidden: false,
             interface: next ? next.interface : ""
-        });
+        };
 
-        this.renderEditor();
+        this.draft.push(widget);
 
-        layoutList.lastElementChild?.scrollIntoView({ block: "nearest" });
+        if (this.isListOpen()) {
+            this.renderEditor();
+            layoutList.lastElementChild?.scrollIntoView({ block: "nearest" });
+            return;
+        }
+
+        this.renderEditing();
+
+        const added = this.shown.find(item => item.widget.id === widget.id);
+
+        if (added) {
+            this.highlight(added.element);
+            added.grip.focus({ preventScroll: true });
+        }
+
+        this.announce(`${this.widgetName(widget)} added at the end.`);
 
     },
 
 
-    async saveEditor() {
+    /** Apply: the list's layout on the dashboard (still in edit mode). */
+    saveEditor() {
 
         if (this.draft.every(w => w.hidden)) {
             layoutError.textContent = "Show at least one widget.";
@@ -994,21 +1679,13 @@ window.Page.dashboard = {
             return;
         }
 
-        saveLayoutBtn.disabled = true;
+        this.listSnapshot = null;
 
-        const result = await this.saveLayout(this.draft);
+        layoutModal.classList.add("hidden");
 
-        saveLayoutBtn.disabled = false;
+        this.renderEditing();
 
-        if (result !== true) {
-            layoutError.textContent = result;
-            layoutError.classList.remove("hidden");
-            return;
-        }
-
-        this.closeEditor();
-        this.render();
-        this.update();
+        listLayoutBtn.focus();
 
     },
 
@@ -1023,24 +1700,31 @@ window.Page.dashboard = {
         // (destroy() clears it): nothing renders into a page that's gone.
         const run = this.run = {};
 
-        editDashboardBtn.onclick = () => this.openEditor();
+        this.editing = false;
+        this.draft = null;
+
+        editDashboardBtn.onclick = () => this.startEditing();
+        doneEditBtn.onclick = () => this.finishEditing();
+        cancelEditBtn.onclick = () => this.stopEditing();
+        resetLayoutBtn.onclick = () => this.resetDraft();
+        listLayoutBtn.onclick = () => this.openEditor();
+        trayAddGraphBtn.onclick = () => this.addDraftGraph();
+
         addGraphBtn.onclick = () => this.addDraftGraph();
         saveLayoutBtn.onclick = () => this.saveEditor();
         cancelLayoutBtn.onclick = () => this.closeEditor();
         closeLayoutModal.onclick = () => this.closeEditor();
 
-        resetLayoutBtn.onclick = () => {
-            this.draft = this.defaultLayout.map(w => ({ ...w }));
-            layoutError.classList.add("hidden");
-            this.renderEditor();
-        };
-
         layoutModal.onclick = e => {
             if (e.target === layoutModal) this.closeEditor();
         };
 
+        // Escape: a drag goes back, the list view closes. Edit mode
+        // itself ends only with Done or Cancel (nothing lost by a key).
         this.onKey = e => {
-            if (e.key === "Escape" && this.draft) this.closeEditor();
+            if (e.key !== "Escape") return;
+            if (this.drag) this.endDrag(true);
+            else if (this.isListOpen()) this.closeEditor();
         };
 
         document.addEventListener("keydown", this.onKey);
@@ -1080,7 +1764,11 @@ window.Page.dashboard = {
         document.removeEventListener("keydown", this.onKey);
         window.removeEventListener("themechange", this.onTheme);
 
+        this.endDrag(true);
+
+        this.editing = false;
         this.draft = null;
+        this.listSnapshot = null;
 
     },
 

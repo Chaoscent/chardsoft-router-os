@@ -52,7 +52,7 @@ Networking-first installation.
 
 **Included**
 
-* Dashboard (internet check with one-click fixes, mobile data used this month and by which device)
+* Dashboard (internet check with one-click fixes, mobile data used this month and by which device), arranged on the page itself: drag widgets to move them and their edge to resize them
 * Modem (ModemManager: mobile data, APN, SIM PIN, data limit per billing period, GNSS position, map and clock)
 * Network (LAN bridge with selectable ports)
 * WiFi (hostapd, 2.4 / 5 / 6 GHz, one network per radio, guest network with internet only, QR code to join)

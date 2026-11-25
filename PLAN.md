@@ -140,6 +140,14 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   the LAN interfaces while it waits and nothing after. "Speed (iperf3)" tab
   to a LAN machine running `iperf3 -s`; a test over the modem says the
   mobile data it used. `systemctl is-enabled iperf3` is not "enabled".
+- [ ] **Dashboard edit mode:** in a browser (mouse, and a phone or tablet
+  by touch): drag widgets by the handle (the others slide, the page scrolls
+  near the edges), drag the right edge (snaps to quarter ... full width),
+  hide a widget and bring it back from the tray, add a graph, List view
+  Apply and Cancel, then Done: the layout stays after a reload and in a
+  second browser. Cancel drops everything; Escape mid-drag puts the widget
+  back. Keyboard: Tab to a handle, arrow keys move it; on the edge, arrow
+  keys change the width. Light and dark theme.
 - [ ] **Notifications:** a wrong password at the login, a new phone joining
   the Wi-Fi, pulling the cable behind a static route ("stopped working",
   then "works again") and a watchdog modem restart each show under the
