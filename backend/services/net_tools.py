@@ -1,14 +1,17 @@
 """
-The Tools page: ping, traceroute, name lookup, port check and "which
-way" (`ip route get`), run from the router, with the result in plain
-words next to the raw output.
+The Tools page: ping, traceroute, name lookup, port check, "which
+way" (`ip route get`) and speed (iperf3), run from the router, with the
+result in plain words next to the raw output. The router can also be
+the iperf3 server for one test from a device on the LAN.
 
-Only reads. Targets are checked (an IP address or a host name, never
+Only reads, except the speed test server: it opens its port on the LAN
+interfaces (never the WAN) while it waits, and closes it afterwards. Targets are checked (an IP address or a host name, never
 anything that looks like an option), commands run without a shell and
 with a timeout, and one test runs at a time.
 """
 
 import ipaddress
+import json
 import os
 import re
 import socket
@@ -17,7 +20,7 @@ import threading
 import time
 from shutil import which
 
-TOOLS = ("ping", "traceroute", "lookup", "port", "route")
+TOOLS = ("ping", "traceroute", "lookup", "port", "route", "iperf")
 
 HOST_RE = re.compile(
     r"^(?=.{1,253}\.?$)([A-Za-z0-9_]([A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?\.)*"
@@ -29,6 +32,17 @@ INTERFACE_RE = re.compile(r"^[A-Za-z0-9_.@-]{1,15}$")
 PING_COUNT = 4
 TRACE_HOPS = 20
 PORT_TIMEOUT = 4
+
+# iperf3: its usual port, a 10 s test; the router as the server waits
+# 5 minutes for one test.
+IPERF_PORT = 5201
+IPERF_SECONDS = 10
+SERVER_WAIT = 300
+
+# The server's port rule (firewall.sync_rules owner; the comment keeps
+# it out of the user's rules).
+SPEEDTEST_OWNER = "speedtest"
+SPEEDTEST_COMMENT = "Chardsoft Router OS: Speed test"
 
 _lock = threading.Lock()
 
@@ -523,6 +537,311 @@ def run_route(target, family):
 
 
 # ------------------------------------------------------------------
+# Speed (iperf3)
+# ------------------------------------------------------------------
+
+def clean_direction(value):
+
+    value = str(value or "download")
+
+    if value not in ("download", "upload"):
+        raise ToolError("Choose download or upload.")
+
+    return value
+
+
+def parse_iperf(output):
+    """
+    iperf3 -J (client or server). The client's JSON has both sides
+    (the speed is what the receiving side measured, sum_received); the
+    server's only its own: zeros under sum_received when it sent (a
+    reverse test), so then its sum_sent counts.
+    """
+
+    try:
+        data = json.loads(output)
+    except (ValueError, TypeError):
+        return {"error": (output or "").strip() or "iperf3 gave no result."}
+
+    if not isinstance(data, dict):
+        return {"error": "iperf3 gave no result."}
+
+    if data.get("error"):
+        return {"error": str(data["error"])}
+
+    end = data.get("end") or {}
+    sent = end.get("sum_sent") or {}
+    received = end.get("sum_received") or end.get("sum") or {}
+
+    if not received.get("bits_per_second"):
+        received = sent
+    start = data.get("start") or {}
+    connected = (start.get("connected") or [{}])[0]
+    test = start.get("test_start") or {}
+
+    if not received.get("bits_per_second"):
+        return {"error": "The test ended without a result."}
+
+    seconds = [
+        round(i["sum"]["bits_per_second"] / 1e6, 1)
+        for i in data.get("intervals") or []
+        if isinstance(i, dict) and isinstance(i.get("sum"), dict) and "bits_per_second" in i["sum"]
+    ]
+
+    return {
+        "error": None,
+        "mbits": round(received["bits_per_second"] / 1e6, 1),
+        "bytes": max(int(sent.get("bytes") or 0), int(received.get("bytes") or 0)),
+        "retransmits": sent.get("retransmits"),
+        "seconds": seconds,
+        "local": connected.get("local_host"),
+        "remote": connected.get("remote_host"),
+        "reverse": bool(test.get("reverse")),
+    }
+
+
+def iperf_problem(text, port):
+
+    text = text or ""
+
+    if "busy" in text:
+        return "The server is busy with another test. Try again in a minute, or use another server."
+
+    if "Connection refused" in text:
+        return f"Nothing answers on port {port} there: no iperf3 server runs (start one with iperf3 -s)."
+
+    if "timed out" in text or "Connection timed out" in text:
+        return f"The server did not answer. A firewall may block port {port}, or no iperf3 server runs there."
+
+    if "No route to host" in text:
+        return "The router has no way to that address."
+
+    return name_problem(text) or f"iperf3: {text}"
+
+
+def speed(mbits):
+
+    return f"{mbits:.0f} Mbit/s" if mbits >= 10 else f"{mbits:.1f} Mbit/s"
+
+
+def megabytes(count):
+
+    return f"{count / 1e6:.0f} MB" if count >= 10e6 else f"{count / 1e6:.1f} MB"
+
+
+def over_mobile(address):
+    """Whether the router reaches the address over the modem (data that counts)."""
+
+    if not address:
+        return False
+
+    code, output = execute(["ip", "route", "get", address], timeout=5)
+
+    interface = parse_route_get(output)["interface"] if code == 0 else ""
+
+    return bool(interface) and (interface.startswith("wwan") or interface == "clat")
+
+
+def run_iperf(target, family, port, direction):
+
+    if not which("iperf3"):
+        raise ToolError("iperf3 is not installed. Run the installer again.")
+
+    command = ["iperf3", "-c", target, "-p", str(port), "-t", str(IPERF_SECONDS), "-J",
+               "--connect-timeout", "5000", *family_flag(family)]
+
+    if direction == "download":
+        command.append("-R")
+
+    code, output = execute(command, timeout=IPERF_SECONDS + 20)
+
+    data = parse_iperf(output)
+
+    if data["error"]:
+        return result(False, iperf_problem(data["error"], port), raw=output)
+
+    way = f"Download from {data['remote']}" if direction == "download" else f"Upload to {data['remote']}"
+
+    summary = f"{way}: {speed(data['mbits'])} over {IPERF_SECONDS} s."
+
+    mobile = over_mobile(data["remote"])
+
+    if mobile:
+        summary += f" It used about {megabytes(data['bytes'])} of mobile data."
+
+    return result(True, summary, **data, direction=direction, mobile=mobile, raw=output)
+
+
+# The router as the server: one test from a device on the LAN, then it
+# stops. The port is open on the LAN interfaces only while it waits.
+
+_server_lock = threading.Lock()
+
+_server = {"process": None, "until": None, "stopped": False, "last": None}
+
+
+def server_rules():
+
+    from services import firewall
+
+    return [
+        ["allow", "in", "on", lan, "from", "any", "to", "any", "port", str(IPERF_PORT), "comment", SPEEDTEST_COMMENT]
+        for lan in firewall.get_lan_interfaces()
+    ]
+
+
+def close_server_port():
+    """Also at startup: a port left open by a crash is closed."""
+
+    from services import firewall
+
+    return firewall.sync_rules(SPEEDTEST_OWNER, [])
+
+
+def lan_addresses():
+    """[{"interface", "address"}]: where devices reach the router."""
+
+    from services import firewall
+
+    found = []
+
+    for lan in firewall.get_lan_interfaces():
+
+        code, output = execute(["ip", "-4", "-o", "addr", "show", "dev", lan], timeout=5)
+
+        for match in re.finditer(r"\binet (\d+\.\d+\.\d+\.\d+)/", output if code == 0 else ""):
+            found.append({"interface": lan, "address": match.group(1)})
+
+    return found
+
+
+def server_status():
+
+    process = _server["process"]
+
+    return {
+        "available": bool(which("iperf3")),
+        "running": bool(process and process.poll() is None),
+        "until": _server["until"],
+        "port": IPERF_PORT,
+        "addresses": lan_addresses(),
+        "last": _server["last"],
+    }
+
+
+def explain_server(output, timed_out):
+
+    if timed_out:
+        return result(False, f"No device started a test within {SERVER_WAIT // 60} minutes.", level="warning")
+
+    data = parse_iperf(output)
+
+    if data["error"]:
+        return result(False, f"The test did not finish: {data['error']}", raw=output)
+
+    # Seen from the router: reverse means the router sent (the device's download).
+    way = f"Router to {data['remote']} (the device's download)" if data["reverse"] \
+        else f"{data['remote']} to the router (the device's upload)"
+
+    return result(True, f"{way}: {speed(data['mbits'])}.", **data, raw=output)
+
+
+def _wait_server(process):
+
+    timed_out = False
+
+    try:
+        output, _ = process.communicate(timeout=SERVER_WAIT)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        output, _ = process.communicate()
+        timed_out = True
+
+    with _server_lock:
+
+        close_server_port()
+
+        stopped = _server["stopped"]
+
+        _server.update(process=None, until=None, stopped=False)
+
+        if not stopped:
+            _server["last"] = explain_server(output, timed_out)
+
+
+def start_server():
+
+    with _server_lock:
+
+        if _server["process"] and _server["process"].poll() is None:
+            return server_status()
+
+        if not which("iperf3"):
+            raise ToolError("iperf3 is not installed. Run the installer again.")
+
+        from services import firewall
+
+        ok, message = firewall.sync_rules(SPEEDTEST_OWNER, server_rules())
+
+        if not ok:
+            close_server_port()
+            raise ToolError(f"The port could not be opened: {message}")
+
+        try:
+            process = subprocess.Popen(
+                ["iperf3", "-s", "-1", "-p", str(IPERF_PORT), "-J"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+        except OSError as e:
+            close_server_port()
+            raise ToolError(f"iperf3 did not start: {e}")
+
+        _server.update(process=process, until=time.time() + SERVER_WAIT, stopped=False, last=None)
+
+        threading.Thread(target=_wait_server, args=(process,), daemon=True, name="iperf-server").start()
+
+    return server_status()
+
+
+def stop_server():
+
+    with _server_lock:
+
+        process = _server["process"]
+
+        if process and process.poll() is None:
+            _server["stopped"] = True
+            process.terminate()
+
+    # The waiting thread closes the port.
+    if process:
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+
+    return server_status()
+
+
+def server_action(data):
+
+    action = (data or {}).get("action") if isinstance(data, dict) else None
+
+    try:
+
+        if action == "start":
+            return start_server()
+
+        if action == "stop":
+            return stop_server()
+
+    except ToolError as e:
+        return {"error": str(e)}
+
+    return {"error": "Unknown action."}
+
+
+# ------------------------------------------------------------------
 # Entry
 # ------------------------------------------------------------------
 
@@ -542,7 +861,8 @@ def run_tool(data):
         target = clean_target(data.get("target"))
         family = clean_family(data.get("family"))
         interface = clean_interface(data.get("interface")) if tool in ("ping", "traceroute") else ""
-        port = clean_port(data.get("port")) if tool == "port" else None
+        port = clean_port(data.get("port")) if tool in ("port", "iperf") else None
+        direction = clean_direction(data.get("direction")) if tool == "iperf" else None
 
         if not _lock.acquire(blocking=False):
             return {"ok": False, "error": "Another test is still running. Wait for it to finish."}
@@ -557,6 +877,8 @@ def run_tool(data):
                 outcome = run_lookup(target, family)
             elif tool == "port":
                 outcome = run_port(target, family, port)
+            elif tool == "iperf":
+                outcome = run_iperf(target, family, port, direction)
             else:
                 outcome = run_route(target, family)
 
@@ -571,4 +893,9 @@ def run_tool(data):
 
 def get_info():
 
-    return {"interfaces": interfaces(), "traceroute": bool(which("traceroute"))}
+    return {
+        "interfaces": interfaces(),
+        "traceroute": bool(which("traceroute")),
+        "iperf": bool(which("iperf3")),
+        "iperf_seconds": IPERF_SECONDS,
+    }

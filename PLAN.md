@@ -133,6 +133,13 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   `/etc/dnsmasq.d/chaos-router-upstream.conf` exists, a phone on each
   network opens websites, the internet check says "Everything works", and
   choosing Cloudflare on the DNS page still switches to it.
+- [ ] **Speed test (iperf3):** Tools, "Speed test from a device": start the
+  server, run `iperf3 -c 10.43.0.1` and `iperf3 -c 10.43.0.1 -R` from a
+  laptop or phone on "Chaos Router 6G" (also the AXML under load); the card
+  shows the speed, and `sudo iptables -S ufw-user-input | grep 5201` lists
+  the LAN interfaces while it waits and nothing after. "Speed (iperf3)" tab
+  to a LAN machine running `iperf3 -s`; a test over the modem says the
+  mobile data it used. `systemctl is-enabled iperf3` is not "enabled".
 - [ ] **Notifications:** a wrong password at the login, a new phone joining
   the Wi-Fi, pulling the cable behind a static route ("stopped working",
   then "works again") and a watchdog modem restart each show under the

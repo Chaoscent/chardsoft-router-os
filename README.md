@@ -64,7 +64,7 @@ Networking-first installation.
 * VPN (WireGuard and OpenVPN, servers and clients)
 * Logs (and a notification bell for warnings and notable events)
 * System
-* Tools (ping, traceroute, name lookup, port check and "which way" from the router, explained)
+* Tools (ping, traceroute, name lookup, port check, "which way" and iperf3 speed tests from the router, explained; the router can be the iperf3 server for one test from a phone or laptop)
 * Shell (web terminal; off by default, password per session, desktop only)
 * Safe Apply (bad settings never brick the router)
 * Setup Wizard (first-time setup at `/setup`)

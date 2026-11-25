@@ -108,7 +108,7 @@ VPN_COMMENTS = tuple(
     f"{name}: {kind}"
     # Rules added before the product was renamed carry the old name.
     for name in (ESSENTIAL_COMMENT, "Chaos Router OS")
-    for kind in ("WireGuard", "OpenVPN", "VPN client", "Essential")
+    for kind in ("WireGuard", "OpenVPN", "VPN client", "Essential", "Speed test")
 )
 
 

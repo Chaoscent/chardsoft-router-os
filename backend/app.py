@@ -1991,6 +1991,36 @@ def tools_run_api():
 
 
 
+@app.route("/api/tools/iperf-server")
+
+@login_required
+
+def tools_iperf_server_api():
+
+        return jsonify(net_tools.server_status())
+
+
+
+
+
+@app.route("/api/tools/iperf-server", methods=["POST"])
+
+@login_required
+
+def tools_iperf_server_action_api():
+
+        outcome = net_tools.server_action(request.get_json(silent=True))
+
+        if "error" not in outcome:
+                log_event("system", "Speed test server started (port 5201 on the LAN)."
+                          if outcome.get("running") else "Speed test server stopped.")
+
+        return jsonify(outcome), 400 if "error" in outcome else 200
+
+
+
+
+
 @app.route("/api/routes")
 
 @login_required
@@ -4064,6 +4094,13 @@ def startup():
         # Settings files from an older Router OS are brought up to
         # the current format before anything reads them.
         schema.migrate()
+
+        # The speed test server's port, if the app stopped while it
+        # waited (it closes after the test otherwise).
+        try:
+                net_tools.close_server_port()
+        except Exception as e:
+                print(f"[tools] {e}")
 
         # After a boot, the running config is rebuilt from the
         # persistent (verified) config and applied to the system.

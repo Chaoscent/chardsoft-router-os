@@ -16,6 +16,7 @@
             <button class="secondary-btn" type="button" data-tool="lookup" aria-pressed="false">Name lookup</button>
             <button class="secondary-btn" type="button" data-tool="port" aria-pressed="false">Port check</button>
             <button class="secondary-btn" type="button" data-tool="route" aria-pressed="false">Which way</button>
+            <button class="secondary-btn" type="button" data-tool="iperf" aria-pressed="false">Speed (iperf3)</button>
         </div>
 
         <p id="toolHint" class="setting-hint"></p>
@@ -46,6 +47,14 @@
                     inputmode="numeric">
             </div>
 
+            <div class="setting-field hidden" id="toolDirectionField">
+                <label for="toolDirection">Direction</label>
+                <select id="toolDirection" class="setting-input">
+                    <option value="download">Download (server to router)</option>
+                    <option value="upload">Upload (router to server)</option>
+                </select>
+            </div>
+
             <div class="setting-field">
                 <label for="toolFamily">IP version</label>
                 <select id="toolFamily" class="setting-input">
@@ -68,6 +77,34 @@
 
         <div class="setting-row">
             <button id="toolRun" class="save-btn" type="button">Run</button>
+        </div>
+
+    </div>
+
+
+    <!-- The router as the iperf3 server for one test from a device -->
+
+    <div class="card" id="speedServerCard">
+
+        <span>Speed test from a device</span>
+
+        <p class="setting-hint">
+            Measures the Wi-Fi or cable between a phone or computer and the router, without the internet.
+            Start the server, then run iperf3 on the device (an iperf3 app on a phone). The router waits
+            five minutes for one test; port 5201 is open on your networks only while it waits.
+        </p>
+
+        <div class="tool-verdict">
+            <span id="speedServerPill" class="status"></span>
+            <p id="speedServerText"></p>
+        </div>
+
+        <div id="speedServerCommands"></div>
+
+        <div id="speedServerResult"></div>
+
+        <div class="setting-row">
+            <button id="speedServerButton" class="save-btn" type="button">Start server</button>
         </div>
 
     </div>

@@ -155,5 +155,189 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(r["route"], "10.20.0.0/16")
 
 
+IPERF = os.path.join(ROOT, "tests", "data", "iperf3")
+
+
+def iperf_sample(name):
+    """Real iperf3 3.18 -J output (loopback on the Pi, 2 s tests)."""
+    with open(os.path.join(IPERF, name)) as f:
+        return f.read()
+
+
+class IperfTests(unittest.TestCase):
+
+    def test_client_upload_and_download(self):
+        up = nt.parse_iperf(iperf_sample("cli1.json"))
+        self.assertIsNone(up["error"])
+        self.assertAlmostEqual(up["mbits"], 36884.9, places=1)
+        self.assertEqual((up["remote"], up["reverse"], up["retransmits"]), ("127.0.0.1", False, 0))
+        self.assertEqual(len(up["seconds"]), 2)
+        down = nt.parse_iperf(iperf_sample("cli2.json"))
+        self.assertTrue(down["reverse"])
+        self.assertAlmostEqual(down["mbits"], 49787.2, places=1)
+
+    def test_server_side_of_a_reverse_test(self):
+        # The server only has its own side: zeros under sum_received.
+        data = nt.parse_iperf(iperf_sample("srv2.json"))
+        self.assertIsNone(data["error"])
+        self.assertAlmostEqual(data["mbits"], 49791.3, places=1)
+        self.assertGreater(data["bytes"], 0)
+        r = nt.explain_server(iperf_sample("srv2.json"), False)
+        self.assertIn("device's download", r["summary"])
+        self.assertIn("device's upload", nt.explain_server(iperf_sample("srv1.json"), False)["summary"])
+
+    def test_refused_and_busy(self):
+        data = nt.parse_iperf(iperf_sample("cli3.json"))
+        self.assertIn("Connection refused", data["error"])
+        self.assertIn("no iperf3 server runs", nt.iperf_problem(data["error"], 5201))
+        self.assertIn("busy", nt.iperf_problem("the server is busy running a test. try again later", 5201))
+        self.assertEqual(nt.parse_iperf("")["error"], "iperf3 gave no result.")
+        self.assertIn("nope", nt.parse_iperf("iperf3: error - nope")["error"])
+
+    def test_run_builds_the_command(self):
+        calls = []
+
+        def fake(command, timeout):
+            calls.append(command)
+            if command[0] == "ip":
+                return 0, "1.2.3.4 dev wwan0 src 10.0.0.2 uid 1000"
+            return 0, iperf_sample("cli2.json")
+
+        with mock.patch.object(nt, "which", return_value="/usr/bin/iperf3"), \
+                mock.patch.object(nt, "execute", side_effect=fake):
+            r = nt.run_tool({"tool": "iperf", "target": "speed.example", "port": "5202", "direction": "download", "family": "4"})
+        command = calls[0]
+        self.assertEqual(command[:3], ["iperf3", "-c", "speed.example"])
+        self.assertIn("-R", command)
+        self.assertIn("-4", command)
+        self.assertEqual(command[command.index("-p") + 1], "5202")
+        self.assertEqual(r["level"], "good")
+        self.assertIn("Download from 127.0.0.1", r["summary"])
+        # Over the modem: the data it used is said.
+        self.assertTrue(r["mobile"])
+        self.assertIn("of mobile data", r["summary"])
+
+    def test_upload_without_mobile_note(self):
+        def fake(command, timeout):
+            return (0, "10.42.0.5 dev wlan0 src 10.42.0.1 uid 1000") if command[0] == "ip" else (0, iperf_sample("cli1.json"))
+
+        with mock.patch.object(nt, "which", return_value="/usr/bin/iperf3"), \
+                mock.patch.object(nt, "execute", side_effect=fake):
+            r = nt.run_tool({"tool": "iperf", "target": "10.42.0.5", "port": "5201", "direction": "upload"})
+        self.assertIn("Upload to", r["summary"])
+        self.assertNotIn("mobile", r["summary"])
+
+    def test_input(self):
+        self.assertIn("error", nt.run_tool({"tool": "iperf", "target": "x", "port": "5201", "direction": "sideways"}))
+        self.assertIn("error", nt.run_tool({"tool": "iperf", "target": "-s", "port": "5201"}))
+        with mock.patch.object(nt, "which", return_value=None):
+            self.assertIn("not installed", nt.run_tool({"tool": "iperf", "target": "x.example", "port": "5201"})["error"])
+
+
+class FakeServer:
+    """iperf3 -s -1: finishes with a sample, or waits until stopped."""
+
+    def __init__(self, output=None):
+        self.output = output
+        self.code = None
+        self.terminated = False
+        import threading
+        self.done = threading.Event()
+        if output is not None:
+            self.done.set()
+
+    def poll(self):
+        return 0 if self.done.is_set() else None
+
+    def communicate(self, timeout=None):
+        if not self.done.wait(timeout if timeout is not None else 5):
+            raise nt.subprocess.TimeoutExpired("iperf3", timeout)
+        return self.output or "", None
+
+    def terminate(self):
+        self.terminated = True
+        self.done.set()
+
+    kill = terminate
+
+    def wait(self, timeout=None):
+        self.done.wait(timeout)
+        return 0
+
+
+class IperfServerTests(unittest.TestCase):
+
+    def setUp(self):
+        self.rules = {}
+        self.history = []
+
+        def sync(owner, rules):
+            self.rules[owner] = rules
+            self.history.append((owner, len(rules)))
+            return True, "OK"
+
+        nt._server.update(process=None, until=None, stopped=False, last=None)
+        for p in (
+            mock.patch("services.firewall.sync_rules", side_effect=sync),
+            mock.patch("services.firewall.get_lan_interfaces", return_value=["eth0", "wlan0", "wlan1"]),
+            mock.patch.object(nt, "which", return_value="/usr/bin/iperf3"),
+            mock.patch.object(nt, "lan_addresses", return_value=[{"interface": "wlan1", "address": "10.43.0.1"}]),
+        ):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def wait_done(self):
+        for _ in range(200):
+            if nt._server["process"] is None:
+                return
+            nt.time.sleep(0.01)
+        self.fail("the server did not finish")
+
+    def test_one_test_then_the_port_closes(self):
+        with mock.patch.object(nt.subprocess, "Popen", return_value=FakeServer(iperf_sample("srv1.json"))) as popen:
+            nt.server_action({"action": "start"})
+        self.assertEqual(popen.call_args[0][0], ["iperf3", "-s", "-1", "-p", "5201", "-J"])
+        self.wait_done()
+        # Opened on the three LAN interfaces, then closed.
+        self.assertEqual(self.history, [(nt.SPEEDTEST_OWNER, 3), (nt.SPEEDTEST_OWNER, 0)])
+        last = nt.server_status()["last"]
+        self.assertEqual(last["level"], "good")
+        self.assertIn("device's upload", last["summary"])
+
+    def test_rules_only_on_the_lan(self):
+        rules = nt.server_rules()
+        self.assertEqual([r[3] for r in rules], ["eth0", "wlan0", "wlan1"])
+        for r in rules:
+            self.assertEqual(r[:3], ["allow", "in", "on"])
+            self.assertIn("5201", r)
+            self.assertEqual(r[-1], nt.SPEEDTEST_COMMENT)
+
+    def test_stop_closes_without_a_result(self):
+        server = FakeServer()
+        with mock.patch.object(nt.subprocess, "Popen", return_value=server):
+            self.assertTrue(nt.server_action({"action": "start"})["running"])
+            self.assertTrue(self.rules[nt.SPEEDTEST_OWNER])
+            # A second start keeps the one server.
+            self.assertTrue(nt.server_action({"action": "start"})["running"])
+            nt.server_action({"action": "stop"})
+        self.wait_done()
+        self.assertTrue(server.terminated)
+        self.assertEqual(self.rules[nt.SPEEDTEST_OWNER], [])
+        self.assertIsNone(nt.server_status()["last"])
+
+    def test_nobody_came(self):
+        with mock.patch.object(nt, "SERVER_WAIT", 0.05), \
+                mock.patch.object(nt.subprocess, "Popen", return_value=FakeServer()):
+            nt.server_action({"action": "start"})
+            self.wait_done()
+        self.assertEqual(self.rules[nt.SPEEDTEST_OWNER], [])
+        self.assertIn("No device started a test", nt.server_status()["last"]["summary"])
+
+    def test_port_that_cannot_open(self):
+        with mock.patch("services.firewall.sync_rules", side_effect=lambda owner, rules: (False, "ufw broke") if rules else (True, "OK")):
+            self.assertIn("could not be opened", nt.server_action({"action": "start"})["error"])
+        self.assertIn("error", nt.server_action({"action": "jump"}))
+
+
 if __name__ == "__main__":
     unittest.main()

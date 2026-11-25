@@ -64,7 +64,7 @@ PACKAGES=(
     tayga
     ufw iptables
     wireguard-tools openvpn easy-rsa openresolv
-    qrencode traceroute
+    qrencode traceroute iperf3
     caddy
     avahi-daemon avahi-utils
 )
@@ -168,6 +168,10 @@ install_packages() {
     for pkg in "${PACKAGES[@]}"; do
         dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed" || new+=("$pkg")
     done
+
+    # iperf3 runs only for a test from the Tools page, never as a
+    # daemon listening all the time (its package asks).
+    echo "iperf3 iperf3/start_daemon boolean false" | debconf-set-selections 2>/dev/null || true
 
     apt-get update -q
     apt-get install -y -q "${PACKAGES[@]}"

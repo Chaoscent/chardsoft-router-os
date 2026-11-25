@@ -27,8 +27,17 @@ window.Page.tools = {
         route: {
             hint: "Shows which interface and gateway the router uses for an address: handy to check a route of the Routes page.",
             quick: [["1.1.1.1", "Internet"]]
+        },
+        iperf: {
+            hint: "Measures the speed between the router and an iperf3 server: a computer on your network running \"iperf3 -s\", or a public server. Takes 10 s. Over mobile data a test can use several hundred MB of your data.",
+            quick: []
         }
     },
+
+    // The usual port of each tool that has one.
+    PORTS: { port: "443", iperf: "5201" },
+
+    serverTimer: null,
 
     LEVELS: {
         good: ["online", "OK"],
@@ -65,6 +74,9 @@ window.Page.tools = {
         ChaosSelect.refresh(toolInterface);
 
         this.traceroute = data.traceroute;
+        this.iperf = data.iperf;
+
+        if (this.tool === "iperf") this.choose("iperf");
 
     },
 
@@ -79,9 +91,17 @@ window.Page.tools = {
 
         const info = this.TOOLS[tool];
 
-        toolHint.textContent = info.hint;
+        toolHint.textContent = tool === "iperf" && this.iperf === false
+            ? "iperf3 is not installed on the router. Run the installer again (System page: update)."
+            : info.hint;
 
-        toolPortField.classList.toggle("hidden", tool !== "port");
+        // Switching between the port check and iperf3: their usual port.
+        if (this.PORTS[tool] && Object.values(this.PORTS).includes(toolPort.value)) {
+            toolPort.value = this.PORTS[tool];
+        }
+
+        toolPortField.classList.toggle("hidden", !this.PORTS[tool]);
+        toolDirectionField.classList.toggle("hidden", tool !== "iperf");
         toolInterfaceField.classList.toggle("hidden", !["ping", "traceroute"].includes(tool));
 
         toolQuick.replaceChildren(...info.quick.map(([target, label]) => {
@@ -115,7 +135,8 @@ window.Page.tools = {
 
         this.running = true;
         toolRun.disabled = true;
-        toolRun.textContent = this.tool === "traceroute" ? "Running (up to a minute)..." : "Running...";
+        toolRun.textContent = this.tool === "traceroute" ? "Running (up to a minute)..."
+            : this.tool === "iperf" ? "Measuring (10 s)..." : "Running...";
 
         let data;
 
@@ -129,7 +150,8 @@ window.Page.tools = {
                     target,
                     family: toolFamily.value,
                     interface: toolInterface.value,
-                    port: toolPort.value
+                    port: toolPort.value,
+                    direction: toolDirection.value
                 })
             });
 
@@ -161,7 +183,7 @@ window.Page.tools = {
 
         toolResultCard.classList.remove("hidden");
 
-        const names = { ping: "Ping", traceroute: "Traceroute", lookup: "Name lookup", port: "Port check", route: "Which way" };
+        const names = { ping: "Ping", traceroute: "Traceroute", lookup: "Name lookup", port: "Port check", route: "Which way", iperf: "Speed" };
 
         toolResultTitle.textContent = data.target ? `${names[data.tool]}: ${data.target}` : "Result";
 
@@ -235,6 +257,8 @@ window.Page.tools = {
 
         }
 
+        if (data.tool === "iperf" && data.mbits != null) return this.speedFigures(data);
+
         if (data.tool === "route" && data.interface) {
 
             return `<div class="info-grid tool-figures">
@@ -252,9 +276,142 @@ window.Page.tools = {
     },
 
 
+    /** Speed, its spread over the seconds, retransmissions and data. */
+    speedFigures(data) {
+
+        const mbit = value => `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} Mbit/s`;
+        const seconds = data.seconds || [];
+        const mb = data.bytes >= 10e6 ? (data.bytes / 1e6).toFixed(0) : (data.bytes / 1e6).toFixed(1);
+
+        return `<div class="info-grid tool-figures">
+            <div class="info-row"><span>Speed</span><strong>${mbit(data.mbits)}</strong></div>
+            ${seconds.length ? `<div class="info-row"><span>Slowest / fastest second</span><strong>${mbit(Math.min(...seconds))} / ${mbit(Math.max(...seconds))}</strong></div>` : ""}
+            ${data.retransmits != null ? `<div class="info-row"><span>Resent packets</span><strong>${data.retransmits}</strong></div>` : ""}
+            <div class="info-row"><span>Data moved</span><strong>${mb} MB${data.mobile ? " (mobile data)" : ""}</strong></div>
+            ${data.local ? `<div class="info-row"><span>Between</span><strong class="mono">${this.escape(data.local)} ↔ ${this.escape(data.remote)}</strong></div>` : ""}
+        </div>`;
+
+    },
+
+
+    // The router as the iperf3 server.
+
+    async loadServer() {
+
+        const res = await fetch("/api/tools/iperf-server");
+
+        if (res.status === 401) {
+            location.href = "/login";
+            return;
+        }
+
+        if (res.ok) this.renderServer(await res.json());
+
+    },
+
+
+    async toggleServer() {
+
+        speedServerButton.disabled = true;
+
+        let data;
+
+        try {
+
+            const res = await fetch("/api/tools/iperf-server", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: this.server?.running ? "stop" : "start" })
+            });
+
+            if (res.status === 401) {
+                location.href = "/login";
+                return;
+            }
+
+            data = await res.json().catch(() => ({ error: "Unexpected server response." }));
+
+        } catch {
+
+            data = { error: "The router did not answer. Try again." };
+
+        } finally {
+
+            speedServerButton.disabled = false;
+
+        }
+
+        if (data.error) {
+            speedServerPill.className = "status offline";
+            speedServerPill.textContent = "Not started";
+            speedServerText.textContent = data.error;
+            return;
+        }
+
+        this.renderServer(data);
+
+    },
+
+
+    renderServer(status) {
+
+        this.server = status;
+
+        clearTimeout(this.serverTimer);
+
+        speedServerButton.textContent = status.running ? "Stop server" : "Start server";
+        speedServerButton.disabled = !status.available;
+
+        const last = status.last;
+
+        if (!status.available) {
+            speedServerPill.className = "status offline";
+            speedServerPill.textContent = "Not installed";
+            speedServerText.textContent = "iperf3 is not installed on the router. Run the installer again (System page: update).";
+        } else if (status.running) {
+            const left = Math.max(0, Math.round((status.until * 1000 - Date.now()) / 60000));
+            speedServerPill.className = "status warning";
+            speedServerPill.textContent = "Waiting";
+            speedServerText.textContent = `Waiting for a test on port ${status.port} (${left ? `about ${left} min left` : "less than a minute left"}).`;
+        } else if (last) {
+            const [badge, label] = this.LEVELS[last.level] || this.LEVELS.bad;
+            speedServerPill.className = `status ${badge}`;
+            speedServerPill.textContent = label;
+            speedServerText.textContent = last.summary;
+        } else {
+            speedServerPill.className = "status";
+            speedServerPill.textContent = "Off";
+            speedServerText.textContent = "The server is off.";
+        }
+
+        // What to run on the device, per network the router is on.
+        speedServerCommands.innerHTML = status.running && status.addresses.length ? `
+            <div class="table-scroll">
+                <table class="client-table data-table">
+                    <thead><tr><th>Device on</th><th>Upload test</th><th>Download test</th></tr></thead>
+                    <tbody>${status.addresses.map(a => `<tr>
+                        <td class="mono">${this.escape(a.interface)}</td>
+                        <td class="mono">iperf3 -c ${this.escape(a.address)}</td>
+                        <td class="mono">iperf3 -c ${this.escape(a.address)} -R</td>
+                    </tr>`).join("")}</tbody>
+                </table>
+            </div>` : "";
+
+        speedServerResult.innerHTML = !status.running && last && last.mbits != null ? this.speedFigures(last) : "";
+
+        // Follows the test while the router waits.
+        if (status.running) this.serverTimer = setTimeout(() => this.loadServer(), 2000);
+
+    },
+
+
     init() {
 
-        [toolFamily, toolInterface].forEach(select => ChaosSelect.enhance(select));
+        [toolFamily, toolInterface, toolDirection].forEach(select => ChaosSelect.enhance(select));
+
+        speedServerButton.onclick = () => this.toggleServer();
+
+        this.loadServer();
 
         document.querySelectorAll("[data-tool]").forEach(button => {
             button.onclick = () => this.choose(button.dataset.tool);
@@ -282,6 +439,10 @@ window.Page.tools = {
     },
 
 
-    destroy() {}
+    destroy() {
+
+        clearTimeout(this.serverTimer);
+
+    }
 
 };
