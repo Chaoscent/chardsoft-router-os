@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Chaos Router Apps: installs the Apps Addon for Chaos Router OS.
+# Chardsoft Router Apps: installs the Apps Addon for Chardsoft Router OS.
 #
 #   sudo ./install.sh [--user NAME] [--yes]     install or update
 #   sudo ./install.sh --remove [--delete-data] [--purge]
@@ -9,29 +9,29 @@
 #                                               installer installed it
 #
 # Installs Docker Engine and Docker Compose (Docker's own apt
-# repository), the App Manager (/usr/local/bin/chaos-apps) and a
-# sudoers rule that lets Chaos Router OS run exactly that command.
+# repository), the App Manager (/usr/local/bin/chardsoft-apps) and a
+# sudoers rule that lets Chardsoft Router OS run exactly that command.
 # Running it again updates the addon; installed apps keep running.
 #
-# --user is the account Chaos Router OS runs as (default: the owner of
-# /var/lib/chaos-router-os, else the user who called sudo).
+# --user is the account Chardsoft Router OS runs as (default: the owner of
+# /var/lib/chardsoft-router-os, else the user who called sudo).
 
 set -euo pipefail
 
-ADDON_DIR=/opt/chaos-router-apps
-STATE_DIR=/var/lib/chaos-router-apps
-CLI_LINK=/usr/local/bin/chaos-apps
-SUDOERS_FILE=/etc/sudoers.d/chaos-router-apps
+ADDON_DIR=/opt/chardsoft-router-apps
+STATE_DIR=/var/lib/chardsoft-router-apps
+CLI_LINK=/usr/local/bin/chardsoft-apps
+SUDOERS_FILE=/etc/sudoers.d/chardsoft-router-apps
 DAEMON_JSON=/etc/docker/daemon.json
 # Copy of the daemon.json we wrote: tells ours from someone else's
 # (dockerd refuses unknown keys, so no marker inside the file).
-DAEMON_COPY=/var/lib/chaos-router-apps/daemon.json
+DAEMON_COPY=/var/lib/chardsoft-router-apps/daemon.json
 # Written when this installer installed Docker (--purge removes it then).
-DOCKER_MARKER=/var/lib/chaos-router-apps/docker-installed
+DOCKER_MARKER=/var/lib/chardsoft-router-apps/docker-installed
 DOCKER_LIST=/etc/apt/sources.list.d/docker.list
 DOCKER_KEY=/etc/apt/keyrings/docker.asc
 DOCKER_PACKAGES=(docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin docker-ce-rootless-extras)
-ROUTER_STATE=/var/lib/chaos-router-os
+ROUTER_STATE=/var/lib/chardsoft-router-os
 
 SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
@@ -89,10 +89,10 @@ check_system() {
     fi
 
     if [[ -z $APP_USER || $APP_USER == root ]] || ! id "$APP_USER" >/dev/null 2>&1; then
-        die "Could not tell which user Chaos Router OS runs as. Use --user NAME."
+        die "Could not tell which user Chardsoft Router OS runs as. Use --user NAME."
     fi
 
-    info "Chaos Router OS user: $APP_USER"
+    info "Chardsoft Router OS user: $APP_USER"
 }
 
 
@@ -202,8 +202,8 @@ install_addon() {
         mv "$ADDON_DIR.new" "$ADDON_DIR"
     fi
 
-    chmod 755 "$ADDON_DIR/bin/chaos-apps"
-    ln -sfn "$ADDON_DIR/bin/chaos-apps" "$CLI_LINK"
+    chmod 755 "$ADDON_DIR/bin/chardsoft-apps"
+    ln -sfn "$ADDON_DIR/bin/chardsoft-apps" "$CLI_LINK"
 
     mkdir -p "$STATE_DIR"
     chmod 700 "$STATE_DIR"
@@ -214,13 +214,13 @@ install_addon() {
 
 setup_sudo() {
 
-    step "Allowing Chaos Router OS to manage apps"
+    step "Allowing Chardsoft Router OS to manage apps"
 
     local tmp
     tmp=$(mktemp)
 
     {
-        echo "# Chaos Router Apps: Chaos Router OS runs the App Manager (sudo -n)."
+        echo "# Chardsoft Router Apps: Chardsoft Router OS runs the App Manager (sudo -n)."
         echo "$APP_USER ALL=(root) NOPASSWD: $CLI_LINK"
     } > "$tmp"
 
@@ -239,7 +239,7 @@ setup_sudo() {
 finish() {
 
     step "Done"
-    info "The Apps page of Chaos Router OS now shows the app catalog."
+    info "The Apps page of Chardsoft Router OS now shows the app catalog."
 }
 
 

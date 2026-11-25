@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-Chaos Router Apps: the App Manager.
+Chardsoft Router Apps: the App Manager.
 
 Installs and runs the apps in catalog/ with Docker Compose. Runs as
-root (Docker); Chaos Router OS calls it with `sudo -n chaos-apps ...`,
+root (Docker); Chardsoft Router OS calls it with `sudo -n chardsoft-apps ...`,
 which its sudoers file allows. Only apps from the catalog can be
 installed, so this never runs a compose file from anywhere else.
 
-    chaos-apps version                      versions, Docker state (JSON)
-    chaos-apps catalog                      apps that can be installed (JSON)
-    chaos-apps status                       installed apps and their state (JSON)
-    chaos-apps install <app> --host <name>  pull and start an app
-    chaos-apps start|stop|restart <app>
-    chaos-apps update <app>                 pull newer images, recreate
-    chaos-apps set-host <app> <name>        the name the app is reached at
-    chaos-apps remove <app> [--delete-data]
-    chaos-apps logs <app> [--lines N]
+    chardsoft-apps version                      versions, Docker state (JSON)
+    chardsoft-apps catalog                      apps that can be installed (JSON)
+    chardsoft-apps status                       installed apps and their state (JSON)
+    chardsoft-apps install <app> --host <name>  pull and start an app
+    chardsoft-apps start|stop|restart <app>
+    chardsoft-apps update <app>                 pull newer images, recreate
+    chardsoft-apps set-host <app> <name>        the name the app is reached at
+    chardsoft-apps remove <app> [--delete-data]
+    chardsoft-apps logs <app> [--lines N]
 
-Every app is a Compose project "chaos-<app>". Its settings (app.env,
-with generated passwords) and data live in /var/lib/chaos-router-apps/
+Every app is a Compose project "chardsoft-<app>". Its settings (app.env,
+with generated passwords) and data live in /var/lib/chardsoft-router-apps/
 apps/<app>/; removing an app keeps its data unless --delete-data.
 """
 
@@ -39,8 +39,8 @@ ADDON_DIR = Path(__file__).resolve().parent.parent
 CATALOG_DIR = ADDON_DIR / "catalog"
 
 # Overridable for tests only (sudo resets the environment).
-STATE_DIR = Path(os.environ.get("CHAOS_APPS_STATE", "/var/lib/chaos-router-apps"))
-DOCKER = os.environ.get("CHAOS_APPS_DOCKER", "docker")
+STATE_DIR = Path(os.environ.get("CHARDSOFT_APPS_STATE", "/var/lib/chardsoft-router-apps"))
+DOCKER = os.environ.get("CHARDSOFT_APPS_DOCKER", "docker")
 
 APPS_DIR = STATE_DIR / "apps"
 LOCK_FILE = STATE_DIR / ".lock"
@@ -157,7 +157,7 @@ def write_env(app_id, values):
     tmp = path.with_suffix(".tmp")
 
     with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
-        f.write("# Chaos Router Apps: settings of this app. Generated, keep private.\n")
+        f.write("# Chardsoft Router Apps: settings of this app. Generated, keep private.\n")
         for key, value in values.items():
             f.write(f"{key}={value}\n")
 
@@ -188,10 +188,10 @@ def new_env(app, host):
     """
 
     values = {
-        "CHAOS_APP": app["id"],
-        "CHAOS_HOST": host,
-        "CHAOS_PORT": str(app["port"]),
-        "CHAOS_DATA": str(data_dir(app["id"])),
+        "CHARDSOFT_APP": app["id"],
+        "CHARDSOFT_HOST": host,
+        "CHARDSOFT_PORT": str(app["port"]),
+        "CHARDSOFT_DATA": str(data_dir(app["id"])),
         "TZ": timezone()
     }
 
@@ -234,7 +234,7 @@ def compose_cmd(app, *args):
 
     return [
         DOCKER, "compose",
-        "--project-name", f"chaos-{app_id}",
+        "--project-name", f"chardsoft-{app_id}",
         "--project-directory", str(app_dir(app_id)),
         "--file", str(app["compose_file"]),
         "--env-file", str(env_file(app_id)),
@@ -371,7 +371,7 @@ def cmd_status(args):
 
         result.append({
             "id": app["id"],
-            "host": env.get("CHAOS_HOST", ""),
+            "host": env.get("CHARDSOFT_HOST", ""),
             "port": app["port"],
             "state": app_state(items) if running else "unknown",
             "containers": items
@@ -480,11 +480,11 @@ def cmd_set_host(args):
 
     env = read_env(app["id"])
 
-    if env.get("CHAOS_HOST") == host:
+    if env.get("CHARDSOFT_HOST") == host:
         say(f"{app['name']} already uses {host}.")
         return
 
-    env["CHAOS_HOST"] = host
+    env["CHARDSOFT_HOST"] = host
     write_env(app["id"], env)
 
     # Containers that use the name are recreated.
@@ -528,7 +528,7 @@ def cmd_logs(args):
 
 def parser():
 
-    p = argparse.ArgumentParser(prog="chaos-apps", description="Chaos Router Apps: App Manager")
+    p = argparse.ArgumentParser(prog="chardsoft-apps", description="Chardsoft Router Apps: App Manager")
     sub = p.add_subparsers(dest="command", required=True)
 
     sub.add_parser("version").set_defaults(func=cmd_version, locked=False)
