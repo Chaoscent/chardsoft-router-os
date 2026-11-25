@@ -35,7 +35,7 @@ Every app is reached by its own name: `<app>.chardsoft-router.local`, e.g. `http
 - **Caddy:** routes the name to the app over HTTP and HTTPS.
 - **HTTPS:** a certificate from the router's local certificate authority, like the dashboard.
 
-Apps publish their port on **127.0.0.1 only**. Docker's published ports bypass the firewall (ufw), so nothing is ever exposed directly; Caddy is the only way in.
+Catalog apps publish their port on **127.0.0.1 only**. Docker's published ports bypass the firewall (ufw), so nothing is exposed directly; Caddy is the only way in. Your own apps may publish more, after a warning (below).
 
 ## App Manager
 
@@ -49,13 +49,26 @@ chardsoft-apps update <app>                 newer images, recreate
 chardsoft-apps set-host <app> <name>        the name the app is reached at
 chardsoft-apps remove <app> [--delete-data]
 chardsoft-apps logs <app> [--lines N]
+chardsoft-apps check-custom <file>          check your own app (JSON)
+chardsoft-apps add <file> --host <name> [--accept-risks]
+                                            install your own app
 ```
 
-- Only apps from `catalog/` can be installed, so the dashboard can never make it run anything else.
+- `install` only takes apps from `catalog/`; your own apps come in through `add`.
 - Each app is a Compose project named `chardsoft-<app>`.
 - Its settings, with passwords generated per router, are in `/var/lib/chardsoft-router-apps/apps/<app>/app.env` (mode 600), and its data in `.../<app>/data/`.
 - Removing an app keeps its data unless you pass `--delete-data`.
 - Only one change runs at a time.
+
+## Your own apps
+
+The Apps page adds any image as an app: from a form (image, web port, folders to keep, variables), or from a pasted compose file. It gets a name like the catalog apps, e.g. `https://home-assistant.chardsoft-router.local/`.
+
+- **Files** in `/var/lib/chardsoft-router-apps/apps/<app>/`: `custom.json` (name, web route, accepted risks), `compose.yaml` (your file, or the form's), `compose.json` (what runs).
+- **Before every start** Docker Compose normalizes `compose.yaml` and the App Manager checks it, then publishes the web port on 127.0.0.1 (9200 and up) for Caddy. Relative folders (`./data`) land in the app's folder.
+- **Refused:** building images (`build:`), and publishing ports the router uses (22, 53, 67, 68, 80, 443, 546, 547, 5000, 5353).
+- **Risky, installed only after you accept them on the Apps page:** `privileged`, the host network, `pid`/`ipc`/`userns_mode`/`uts: host`, `cap_add`, devices, folders outside the app's folder (the Docker socket in particular), protections turned off in `security_opt`, and ports published beyond 127.0.0.1 (Docker opens those past the router's firewall). The accepted list stays visible on the app.
+- **Removing** works like for catalog apps; `--delete-data` also removes its named volumes.
 
 ## Catalog
 
@@ -89,8 +102,9 @@ Check it with `docker compose --env-file <an app.env> -f catalog/<app>/compose.y
 
 ```
 install.sh          Installer (also updates and removes)
-bin/chardsoft-apps      The App Manager (Python 3, standard library only)
+bin/chardsoft-apps  The App Manager (Python 3, standard library only)
 catalog/<app>/      app.json + compose.yaml per app
+tests/              python3 -m unittest discover -s tests
 ```
 
 ## License

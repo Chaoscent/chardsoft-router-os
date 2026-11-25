@@ -2,10 +2,16 @@
 """
 Chardsoft Router Apps: the App Manager.
 
-Installs and runs the apps in catalog/ with Docker Compose. Runs as
-root (Docker); Chardsoft Router OS calls it with `sudo -n chardsoft-apps ...`,
-which its sudoers file allows. Only apps from the catalog can be
-installed, so this never runs a compose file from anywhere else.
+Installs and runs the apps in catalog/ with Docker Compose, and the
+router admin's own apps (custom apps: an image from a form, or a compose
+file). Runs as root (Docker); Chardsoft Router OS calls it with
+`sudo -n chardsoft-apps ...`, which its sudoers file allows.
+
+Custom apps are checked before every start (check_model): building
+images and ports the router needs are refused; settings that can harm
+the router (privileged, host network, mounts outside the app's folder,
+ports opened past the firewall, ...) are listed, and `add` refuses them
+unless --accept-risks says the admin saw that list.
 
     chardsoft-apps version                      versions, Docker state (JSON)
     chardsoft-apps catalog                      apps that can be installed (JSON)
@@ -16,6 +22,9 @@ installed, so this never runs a compose file from anywhere else.
     chardsoft-apps set-host <app> <name>        the name the app is reached at
     chardsoft-apps remove <app> [--delete-data]
     chardsoft-apps logs <app> [--lines N]
+    chardsoft-apps check-custom <file>          check a custom app (JSON)
+    chardsoft-apps add <file> --host <name> [--accept-risks]
+                                                install a custom app
 
 Every app is a Compose project "chardsoft-<app>". Its settings (app.env,
 with generated passwords) and data live in /var/lib/chardsoft-router-apps/
@@ -29,11 +38,13 @@ import os
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 ADDON_DIR = Path(__file__).resolve().parent.parent
 CATALOG_DIR = ADDON_DIR / "catalog"
@@ -46,6 +57,14 @@ APPS_DIR = STATE_DIR / "apps"
 LOCK_FILE = STATE_DIR / ".lock"
 
 APP_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
+# Ports the router itself uses: never published by an app.
+ROUTER_PORTS = {22, 53, 67, 68, 80, 443, 546, 547, 5000, 5353}
+
+# Web ports of custom apps on 127.0.0.1 (Caddy sends the app's name there).
+CUSTOM_PORTS = range(9200, 9400)
+
+MAX_COMPOSE_BYTES = 64 * 1024
+
 HOST_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 SECRET_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
@@ -80,6 +99,9 @@ def load_app(app_id):
 
     folder = CATALOG_DIR / app_id
     compose = folder / "compose.yaml"
+
+    if not (folder / "app.json").is_file():
+        return load_custom(app_id)
 
     try:
         with open(folder / "app.json") as f:
@@ -229,6 +251,7 @@ def require_docker():
 
 
 def compose_cmd(app, *args):
+    """docker compose for the app; a custom app runs its prepared file."""
 
     app_id = app["id"]
 
@@ -325,6 +348,649 @@ def app_state(items):
 
 
 # -------------------------------------------------------------------
+# Custom apps
+#
+# The admin's own apps: an image from the form (turned into a compose
+# file here), or a compose file. Each lives in its app folder:
+#
+#   custom.json   the definition: name, web route, accepted risks
+#   compose.yaml  the admin's compose file, or the form's
+#   compose.json  what runs: Docker Compose's normalized model of
+#                 compose.yaml, checked, with the web route added
+#
+# compose.json is made again before every start (prepare), so a
+# changed name reaches the app and the checks always apply.
+# -------------------------------------------------------------------
+
+CUSTOM_FILE = "custom.json"
+SOURCE_FILE = "compose.yaml"
+PREPARED_FILE = "compose.json"
+CUSTOM_FILES = (CUSTOM_FILE, SOURCE_FILE, PREPARED_FILE)
+
+ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$")
+SERVICE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$")
+CONTAINER_PATH_RE = re.compile(r"^/[^\x00-\x1f:]{0,254}$")
+
+MAX_FORM_VOLUMES = 20
+MAX_FORM_ENV = 50
+
+
+def custom_apps():
+    """The installed and half-installed custom apps' definitions."""
+
+    apps = []
+
+    for folder in sorted(APPS_DIR.iterdir()) if APPS_DIR.is_dir() else []:
+
+        if not (folder / CUSTOM_FILE).is_file() or (CATALOG_DIR / folder.name / "app.json").is_file():
+            continue
+
+        try:
+            apps.append(load_custom(folder.name))
+        except Fail:
+            continue
+
+    return apps
+
+
+def load_custom(app_id):
+
+    try:
+        with open(app_dir(app_id) / CUSTOM_FILE) as f:
+            app = json.load(f)
+    except (OSError, ValueError):
+        raise Fail(f"Unknown app: {app_id}")
+
+    if not isinstance(app, dict) or app.get("id") != app_id:
+        raise Fail(f"The definition of {app_id} is broken.")
+
+    app["custom"] = True
+    app["compose_file"] = app_dir(app_id) / PREPARED_FILE
+
+    try:
+        app["port"] = int(read_env(app_id)["CHARDSOFT_PORT"]) if app.get("route") else None
+    except (KeyError, ValueError):
+        app["port"] = None
+
+    return app
+
+
+def check_port(value, what="port"):
+
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        raise Fail(f"Not a valid {what}: {value}")
+
+    if not 1 <= port <= 65535:
+        raise Fail(f"Not a valid {what}: {value}")
+
+    return port
+
+
+def form_compose(d):
+    """
+    (compose text, route) from the form: one service "app" with the
+    image, folders kept in the app's data folder, and variables.
+    """
+
+    image = str(d.get("image") or "").strip()
+
+    if not IMAGE_RE.fullmatch(image):
+        raise Fail("Not a valid image, e.g. nginx:alpine or ghcr.io/owner/app:1.0")
+
+    route = None
+
+    if d.get("port") not in (None, ""):
+        route = {"service": "app", "port": check_port(d["port"], "web port")}
+
+    volumes, used = [], set()
+
+    paths = [str(p).strip() for p in d.get("volumes") or [] if str(p).strip()]
+
+    if len(paths) > MAX_FORM_VOLUMES:
+        raise Fail(f"At most {MAX_FORM_VOLUMES} folders.")
+
+    for path in paths:
+
+        if not CONTAINER_PATH_RE.fullmatch(path) or path == "/":
+            raise Fail(f"Not a valid folder inside the app: {path}")
+
+        name = re.sub(r"[^a-z0-9]+", "-", path.lower()).strip("-")[:40] or "data"
+        base, n = name, 2
+
+        while name in used:
+            name, n = f"{base}-{n}", n + 1
+
+        used.add(name)
+
+        volumes.append({
+            "type": "bind",
+            "source": "${CHARDSOFT_DATA}/" + name,
+            "target": path,
+            "bind": {"create_host_path": True}
+        })
+
+    env = d.get("env") or {}
+
+    if not isinstance(env, dict) or len(env) > MAX_FORM_ENV:
+        raise Fail("Invalid variables.")
+
+    environment = {}
+
+    for key, value in env.items():
+
+        key, value = str(key).strip(), str(value)
+
+        if not ENV_KEY_RE.fullmatch(key):
+            raise Fail(f"Not a valid variable name: {key}")
+
+        if any(c in value for c in "\r\n\x00"):
+            raise Fail(f"{key}: one line only.")
+
+        # Taken as written: Compose would replace $NAME.
+        environment[key] = value.replace("$", "$$")
+
+    environment.setdefault("TZ", "${TZ}")
+
+    service = {"image": image, "restart": "unless-stopped", "environment": environment}
+
+    if volumes:
+        service["volumes"] = volumes
+
+    # JSON is YAML too.
+    return json.dumps({"services": {"app": service}}, indent=2) + "\n", route
+
+
+def read_definition(path):
+    """
+    The custom app from the file Chardsoft Router OS wrote:
+    {"id", "name", "mode": "form"|"compose", ...}. Returns
+    {"id", "name", "mode", "source", "route"}.
+    """
+
+    try:
+        if os.path.getsize(path) > 4 * MAX_COMPOSE_BYTES:
+            raise Fail("The app definition is too large.")
+        with open(path) as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        raise Fail("The app definition could not be read.")
+
+    if not isinstance(d, dict):
+        raise Fail("The app definition could not be read.")
+
+    app_id = str(d.get("id") or "")
+
+    if not APP_ID_RE.fullmatch(app_id):
+        raise Fail("The name gives no valid address: use letters, digits and dashes (up to 31).")
+
+    name = str(d.get("name") or app_id).strip()[:60] or app_id
+
+    if d.get("mode") == "form":
+
+        source, route = form_compose(d)
+
+    elif d.get("mode") == "compose":
+
+        source = str(d.get("compose") or "")
+
+        if not source.strip():
+            raise Fail("Paste a compose file.")
+
+        if len(source.encode()) > MAX_COMPOSE_BYTES:
+            raise Fail("The compose file is too large (64 KB at most).")
+
+        route = None
+
+        if d.get("port") not in (None, ""):
+
+            service = str(d.get("service") or "").strip()
+
+            if service and not SERVICE_RE.fullmatch(service):
+                raise Fail(f"Not a valid service name: {service}")
+
+            # No service: the file's only one (check_model).
+            route = {"service": service, "port": check_port(d["port"], "web port")}
+
+    else:
+        raise Fail("Unknown kind of app.")
+
+    return {"id": app_id, "name": name, "mode": d["mode"], "source": source, "route": route}
+
+
+def custom_env(app_id, host, port):
+
+    return {
+        "CHARDSOFT_APP": app_id,
+        "CHARDSOFT_HOST": host,
+        "CHARDSOFT_PORT": str(port) if port else "",
+        "CHARDSOFT_DATA": str(data_dir(app_id)),
+        "TZ": timezone()
+    }
+
+
+def normalize(app_id, source, env):
+    """
+    Docker Compose's model of a compose file (JSON): variables filled
+    in, short forms written out, relative paths below the app folder.
+    """
+
+    with tempfile.TemporaryDirectory(prefix="chardsoft-apps-") as tmp:
+
+        source_path = Path(tmp) / "compose.yaml"
+        source_path.write_text(source)
+
+        env_path = Path(tmp) / "app.env"
+        env_path.write_text("".join(f"{k}={v}\n" for k, v in env.items()))
+
+        try:
+            result = subprocess.run(
+                [
+                    DOCKER, "compose",
+                    "--project-name", f"chardsoft-{app_id}",
+                    "--project-directory", str(app_dir(app_id)),
+                    "--file", str(source_path),
+                    "--env-file", str(env_path),
+                    "config", "--format", "json"
+                ],
+                capture_output=True, text=True, timeout=60
+            )
+        except (OSError, subprocess.TimeoutExpired) as e:
+            raise Fail(f"Docker Compose could not check the file: {e}")
+
+    if result.returncode != 0:
+        message = (result.stderr.strip() or result.stdout.strip())[:600]
+        raise Fail(f"The compose file is not valid: {message}")
+
+    try:
+        model = json.loads(result.stdout)
+    except ValueError:
+        raise Fail("Docker Compose gave an unexpected answer.")
+
+    if not isinstance(model, dict):
+        raise Fail("Docker Compose gave an unexpected answer.")
+
+    return model
+
+
+def port_numbers(published):
+    """[8000] from "8000", [8000 ... 8010] from "8000-8010"."""
+
+    first, _, last = str(published).partition("-")
+
+    try:
+        first = int(first)
+        last = int(last) if last else first
+    except ValueError:
+        return []
+
+    return list(range(first, last + 1)) if 0 < first <= last <= 65535 else []
+
+
+def check_model(app_id, model, route):
+    """
+    (errors, warnings) of a normalized compose model. Errors are refused;
+    warnings are settings that can harm the router, installed only once
+    the admin accepted them. A route without a service gets the file's
+    only one.
+    """
+
+    services = model.get("services") or {}
+    names = sorted(services)
+
+    errors, warnings = [], []
+
+    if not names:
+        errors.append("The file has no services.")
+
+    if route:
+
+        if not route.get("service"):
+            if len(names) == 1:
+                route["service"] = names[0]
+            elif names:
+                errors.append("The file has several services: choose the one with the web page.")
+
+        if route.get("service") and route["service"] not in services:
+            errors.append(f"There is no service \"{route['service']}\" in the file.")
+
+    folder = os.path.normpath(str(app_dir(app_id)))
+
+    for name in names:
+
+        svc = services[name] if isinstance(services[name], dict) else {}
+        label = f"{name}: " if len(names) > 1 else ""
+        network = str(svc.get("network_mode") or "")
+
+        if svc.get("build"):
+            errors.append(f"{label}builds an image. Only ready-made images can be used (image: ...).")
+        elif not svc.get("image"):
+            errors.append(f"{label}has no image.")
+
+        if svc.get("privileged"):
+            warnings.append(f"{label}privileged: full access to the router's hardware and system.")
+
+        if network == "host":
+            warnings.append(
+                f"{label}host network: shares the router's network. If it takes a port the router "
+                "needs (DNS, the dashboard), the router stops working."
+            )
+
+            if route and route.get("service") == name and route["port"] in ROUTER_PORTS:
+                errors.append(f"{label}the web port {route['port']} is the router's own.")
+
+        for key, what in (("pid", "processes"), ("ipc", "shared memory"),
+                          ("userns_mode", "users"), ("uts", "host name")):
+            if svc.get(key) == "host":
+                warnings.append(f"{label}{key}: host: uses the router's {what}.")
+
+        caps = [str(c) for c in svc.get("cap_add") or []]
+
+        if caps:
+            warnings.append(f"{label}extra permissions (cap_add): {', '.join(caps)}.")
+
+        devices = [
+            str(d.get("source", "")) if isinstance(d, dict) else str(d)
+            for d in svc.get("devices") or []
+        ]
+
+        if devices:
+            warnings.append(f"{label}uses the router's devices: {', '.join(devices)}.")
+
+        for option in svc.get("security_opt") or []:
+            if "unconfined" in str(option) or "disable" in str(option):
+                warnings.append(f"{label}security_opt {option}: turns a protection off.")
+
+        for volume in svc.get("volumes") or []:
+
+            if not isinstance(volume, dict) or volume.get("type") != "bind":
+                continue
+
+            source = os.path.normpath(str(volume.get("source") or ""))
+
+            if source == folder or source.startswith(folder + "/"):
+                continue
+
+            if source in ("/var/run/docker.sock", "/run/docker.sock"):
+                warnings.append(f"{label}{source}: full control over Docker, and so over the whole router.")
+                continue
+
+            read_only = " (read only)" if volume.get("read_only") else ""
+            warnings.append(f"{label}uses the router's folder {source}{read_only}.")
+
+        if network == "host":
+            continue
+
+        for port in svc.get("ports") or []:
+
+            if not isinstance(port, dict):
+                continue
+
+            published = str(port.get("published") or "")
+            protocol = port.get("protocol") or "tcp"
+            host_ip = str(port.get("host_ip") or "")
+
+            if not published:
+                warnings.append(
+                    f"{label}port {port.get('target')}/{protocol} is opened on a random port "
+                    "on all networks, past the router's firewall."
+                )
+                continue
+
+            clash = sorted(set(port_numbers(published)) & ROUTER_PORTS)
+
+            if clash:
+                errors.append(f"{label}port {clash[0]} is the router's own.")
+                continue
+
+            if host_ip not in ("127.0.0.1", "::1"):
+                where = "all networks" if host_ip in ("", "0.0.0.0", "::") else host_ip
+                warnings.append(
+                    f"{label}port {published}/{protocol} is opened by Docker on {where}, "
+                    "past the router's firewall (also from the internet side, if reachable)."
+                )
+
+    return errors, warnings
+
+
+def model_images(model):
+
+    return sorted({
+        str(s.get("image")) for s in (model.get("services") or {}).values()
+        if isinstance(s, dict) and s.get("image")
+    })
+
+
+def uses_host_network(model, route):
+
+    if not route or not route.get("service"):
+        return False
+
+    svc = (model.get("services") or {}).get(route["service"]) or {}
+
+    return svc.get("network_mode") == "host"
+
+
+def with_route(model, route, port):
+    """
+    The model to run: the web port published on 127.0.0.1 (Caddy sends
+    the app's name there). With the host network, the app listens on
+    the router itself and needs nothing.
+    """
+
+    model = json.loads(json.dumps(model))
+    model.pop("name", None)
+
+    if route and port and not uses_host_network(model, route):
+        model["services"][route["service"]].setdefault("ports", []).append({
+            "mode": "ingress",
+            "host_ip": "127.0.0.1",
+            "target": route["port"],
+            "published": str(port),
+            "protocol": "tcp"
+        })
+
+    return model
+
+
+def write_private(path, text):
+
+    tmp = path.with_suffix(path.suffix + ".tmp")
+
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        f.write(text)
+
+    os.replace(tmp, path)
+
+
+def prepare(app):
+    """
+    Writes a custom app's compose.json from its compose.yaml, checked
+    again: errors and risks nobody accepted stop it. Catalog apps run
+    their compose file as it is.
+    """
+
+    if not app.get("custom"):
+        return
+
+    folder = app_dir(app["id"])
+
+    try:
+        source = (folder / SOURCE_FILE).read_text()
+    except OSError:
+        raise Fail(f"The compose file of {app['name']} is missing.")
+
+    route = dict(app["route"]) if app.get("route") else None
+
+    model = normalize(app["id"], source, read_env(app["id"]))
+    errors, warnings = check_model(app["id"], model, route)
+
+    if errors:
+        raise Fail(" ".join(errors))
+
+    new = [w for w in warnings if w not in app.get("accepted", [])]
+
+    if new:
+        raise Fail("Risky settings nobody accepted: " + " ".join(new))
+
+    write_private(folder / PREPARED_FILE, json.dumps(with_route(model, route, app.get("port")), indent=1) + "\n")
+
+
+def free_port():
+    """A port for a custom app's web route, on 127.0.0.1."""
+
+    used = set()
+
+    for other in catalog() + custom_apps():
+        if is_installed(other["id"]) and other.get("port"):
+            used.add(other["port"])
+
+    for port in CUSTOM_PORTS:
+
+        if port in used:
+            continue
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+
+        return port
+
+    raise Fail("No free port for the app.")
+
+
+def name_taken(app_id):
+
+    if (CATALOG_DIR / app_id / "app.json").is_file():
+        return "A catalog app has this name: choose another."
+
+    if is_installed(app_id):
+        return "An installed app has this name: choose another."
+
+    return None
+
+
+def cmd_check_custom(args):
+    """
+    JSON: {"errors", "warnings", "services", "images", "route"}. Exits 0
+    with the errors listed; 1 only for a definition it cannot read.
+    """
+
+    d = read_definition(args.file)
+
+    require_docker()
+
+    errors = [e for e in [name_taken(d["id"])] if e]
+
+    try:
+        model = normalize(d["id"], d["source"], custom_env(d["id"], "check.invalid", CUSTOM_PORTS[0]))
+    except Fail as e:
+        print_json({"errors": errors + [str(e)], "warnings": [], "services": [], "images": [], "route": d["route"]})
+        return
+
+    route = dict(d["route"]) if d["route"] else None
+    found, warnings = check_model(d["id"], model, route)
+
+    print_json({
+        "errors": errors + found,
+        "warnings": warnings,
+        "services": sorted(model.get("services") or {}),
+        "images": model_images(model),
+        "route": route
+    })
+
+
+def cmd_add(args):
+
+    d = read_definition(args.file)
+    host = check_host(args.host)
+    app_id = d["id"]
+
+    taken = name_taken(app_id)
+
+    if taken:
+        raise Fail(taken)
+
+    require_docker()
+
+    route = dict(d["route"]) if d["route"] else None
+
+    say(f"==> Checking {d['name']}")
+
+    model = normalize(app_id, d["source"], custom_env(app_id, host, CUSTOM_PORTS[0]))
+    errors, warnings = check_model(app_id, model, route)
+
+    if errors:
+        raise Fail(" ".join(errors))
+
+    if warnings and not args.accept_risks:
+        raise Fail("These settings can harm the router and were not accepted: " + " ".join(warnings))
+
+    for warning in warnings:
+        say(f"  ! {warning}")
+
+    if not route:
+        port = None
+    elif uses_host_network(model, route):
+        port = route["port"]
+    else:
+        port = free_port()
+
+    folder = app_dir(app_id)
+    new_folder = not folder.exists()
+
+    data_dir(app_id).mkdir(parents=True, exist_ok=True)
+    os.chmod(folder, 0o700)
+
+    write_private(folder / CUSTOM_FILE, json.dumps({
+        "id": app_id,
+        "name": d["name"],
+        "mode": d["mode"],
+        "route": route,
+        "images": model_images(model),
+        "accepted": warnings
+    }, indent=1) + "\n")
+
+    write_private(folder / SOURCE_FILE, d["source"])
+    write_env(app_id, custom_env(app_id, host, port))
+
+    app = load_custom(app_id)
+
+    try:
+        prepare(app)
+
+        say(f"==> Downloading {d['name']} (this can take a while)")
+        compose(app, "pull", "--quiet", what="Downloading")
+
+        say(f"==> Starting {d['name']}")
+        compose(app, "up", "--detach", "--remove-orphans", what="Starting")
+
+    except Fail:
+        # Back to "not installed"; data from an earlier install stays.
+        if (folder / PREPARED_FILE).is_file():
+            stream(compose_cmd(app, "down", "--remove-orphans"))
+
+        env_file(app_id).unlink(missing_ok=True)
+
+        for name in CUSTOM_FILES:
+            (folder / name).unlink(missing_ok=True)
+
+        if new_folder:
+            shutil.rmtree(folder, ignore_errors=True)
+
+        raise
+
+    if route:
+        say(f"==> {d['name']} is installed: https://{host}/")
+    else:
+        say(f"==> {d['name']} is installed (no web page).")
+
+
+# -------------------------------------------------------------------
 # Commands
 # -------------------------------------------------------------------
 
@@ -361,7 +1027,7 @@ def cmd_status(args):
     running = docker_ok() is not None
     result = []
 
-    for app in catalog():
+    for app in catalog() + custom_apps():
 
         if not is_installed(app["id"]):
             continue
@@ -369,13 +1035,24 @@ def cmd_status(args):
         env = read_env(app["id"])
         items = containers(load_app(app["id"])) if running else []
 
-        result.append({
+        entry = {
             "id": app["id"],
             "host": env.get("CHARDSOFT_HOST", ""),
             "port": app["port"],
             "state": app_state(items) if running else "unknown",
             "containers": items
-        })
+        }
+
+        if app.get("custom"):
+            entry.update(
+                custom=True,
+                name=app["name"],
+                mode=app["mode"],
+                images=app.get("images", []),
+                accepted=app.get("accepted", [])
+            )
+
+        result.append(entry)
 
     print_json(result)
 
@@ -446,6 +1123,7 @@ def installed_app(app_id):
 def cmd_start(args):
     app = installed_app(args.app)
     require_docker()
+    prepare(app)
     compose(app, "up", "--detach", "--remove-orphans", what="Starting")
     say(f"==> {app['name']} is running.")
 
@@ -467,6 +1145,7 @@ def cmd_restart(args):
 def cmd_update(args):
     app = installed_app(args.app)
     require_docker()
+    prepare(app)
     say(f"==> Downloading updates for {app['name']}")
     compose(app, "pull", "--quiet", what="Downloading")
     compose(app, "up", "--detach", "--remove-orphans", what="Starting")
@@ -489,6 +1168,7 @@ def cmd_set_host(args):
 
     # Containers that use the name are recreated.
     if docker_ok():
+        prepare(app)
         compose(app, "up", "--detach", "--remove-orphans", what="Starting")
 
     say(f"==> {app['name']} is now reached at {host}.")
@@ -500,9 +1180,14 @@ def cmd_remove(args):
     require_docker()
 
     say(f"==> Removing {app['name']}")
-    compose(app, "down", "--remove-orphans", "--rmi", "all", what="Removing")
+    compose(app, "down", "--remove-orphans", "--rmi", "all",
+            *(["--volumes"] if args.delete_data else []), what="Removing")
 
     env_file(app["id"]).unlink(missing_ok=True)
+
+    # A custom app's definition goes with it; its data stays (below).
+    for name in CUSTOM_FILES:
+        (app_dir(app["id"]) / name).unlink(missing_ok=True)
 
     folder = app_dir(app["id"])
 
@@ -555,6 +1240,16 @@ def parser():
     s.add_argument("app")
     s.add_argument("--delete-data", action="store_true")
     s.set_defaults(func=cmd_remove, locked=True)
+
+    s = sub.add_parser("check-custom")
+    s.add_argument("file")
+    s.set_defaults(func=cmd_check_custom, locked=False)
+
+    s = sub.add_parser("add")
+    s.add_argument("file")
+    s.add_argument("--host", required=True)
+    s.add_argument("--accept-risks", action="store_true")
+    s.set_defaults(func=cmd_add, locked=True)
 
     s = sub.add_parser("logs")
     s.add_argument("app")
