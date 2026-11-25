@@ -24,7 +24,7 @@ window.Page.apps = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -339,7 +339,7 @@ window.Page.apps = {
                 <span>Also delete its data (files, accounts, settings)</span>
             `;
 
-            const confirmed = await ChaosModal.confirm({
+            const confirmed = await ChardsoftModal.confirm({
                 title: `Remove ${app.name}`,
                 subtitle: "The app stops and is removed. Without the box below, its data stays on the router for a later install.",
                 body: box,
@@ -354,7 +354,7 @@ window.Page.apps = {
 
         if (action === "install" && app.low_ram) {
 
-            const confirmed = await ChaosModal.confirm({
+            const confirmed = await ChardsoftModal.confirm({
                 title: `Install ${app.name} anyway?`,
                 subtitle: `${app.name} needs ${this.gigabytes(app.min_ram_mb)} of memory to run well; this router has ${this.gigabytes(this.data.board_ram_mb)}. Other apps and the router itself may slow down. You can remove it again later.`,
                 confirmText: "Install anyway"
@@ -366,7 +366,7 @@ window.Page.apps = {
 
         if (action === "update") {
 
-            const confirmed = await ChaosModal.confirm({
+            const confirmed = await ChardsoftModal.confirm({
                 title: `Update ${app.name}`,
                 subtitle: "Downloads the newest version and restarts the app. It is unavailable for a moment.",
                 confirmText: "Update"
@@ -395,7 +395,7 @@ window.Page.apps = {
 
     async installAddon() {
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Install Apps Addon",
             subtitle: "Installs Docker Engine, Docker Compose and the App Manager. This takes a few minutes and needs internet.",
             confirmText: "Install"
@@ -430,7 +430,7 @@ window.Page.apps = {
             ? res.data.logs || "No output yet."
             : res.data.message;
 
-        const shown = ChaosModal.confirm({
+        const shown = ChardsoftModal.confirm({
             title: `${app.name}: Logs`,
             subtitle: "The last 200 lines.",
             body: pre,
@@ -471,7 +471,7 @@ window.Page.apps = {
         clearTimeout(this.timer);
         this.timer = null;
 
-        ChaosModal.close();
+        ChardsoftModal.close();
 
     }
 

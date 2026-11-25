@@ -18,11 +18,11 @@ sys.path.insert(0, os.path.join(ROOT, "backend"))
 
 SANDBOX = tempfile.mkdtemp(prefix="chardsoft-test-")
 
-for name, folder in (("CHAOS_DEFAULTS_DIR", "etc"), ("CHAOS_STATE_DIR", "var"), ("CHAOS_RUNTIME_DIR", "tmp")):
+for name, folder in (("CHARDSOFT_DEFAULTS_DIR", "etc"), ("CHARDSOFT_STATE_DIR", "var"), ("CHARDSOFT_RUNTIME_DIR", "tmp")):
     os.environ.setdefault(name, os.path.join(SANDBOX, folder))
     os.makedirs(os.environ[name], exist_ok=True)
 
-os.environ.setdefault("CHAOS_SKIP_STARTUP", "1")
+os.environ.setdefault("CHARDSOFT_SKIP_STARTUP", "1")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-" + "x" * 32)
 
 from werkzeug.security import generate_password_hash  # noqa: E402

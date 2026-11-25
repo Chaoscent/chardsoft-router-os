@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 #
-# Installs the Apps Addon (Chaos Router Apps): Docker, Docker Compose
+# Installs the Apps Addon (Chardsoft Router Apps): Docker, Docker Compose
 # and the App Manager. The Apps page runs this ("Install Apps Addon");
 # it also works by hand:
 #
 #   sudo deploy/install-apps.sh
 #
-# Downloads the addon (branch CHAOS_APPS_BRANCH of CHAOS_APPS_REPO) and
+# Downloads the addon (branch CHARDSOFT_APPS_BRANCH of CHARDSOFT_APPS_REPO) and
 # runs its install.sh for the user Chardsoft Router OS runs as. The sudoers rule
 # from the installer allows this script without arguments only, and
 # sudo drops the environment: the dashboard cannot pick another source.
 
 set -euo pipefail
 
-REPO=${CHAOS_APPS_REPO:-https://github.com/chaoscent/chardsoft-router-os.git}
+REPO=${CHARDSOFT_APPS_REPO:-https://github.com/chaoscent/chardsoft-router-os.git}
 
 # release/apps from the v1 release on (empty until then).
-BRANCH=${CHAOS_APPS_BRANCH:-dev/apps}
+BRANCH=${CHARDSOFT_APPS_BRANCH:-dev/apps}
 
 if [[ $EUID -ne 0 ]]; then
     echo "Run with sudo: sudo $0" >&2

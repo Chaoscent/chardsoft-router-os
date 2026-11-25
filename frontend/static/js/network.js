@@ -179,7 +179,7 @@ window.Page.network = {
 
         wrapper.classList.remove("open");
 
-        const trigger = wrapper.querySelector(".chaos-select-trigger");
+        const trigger = wrapper.querySelector(".chardsoft-select-trigger");
 
         if (trigger)
             trigger.setAttribute("aria-expanded", "false");
@@ -188,12 +188,12 @@ window.Page.network = {
 
     setupCustomSelect(node) {
 
-        const wrapper = node.querySelector(".chaos-select");
-        const trigger = node.querySelector(".chaos-select-trigger");
-        const value = node.querySelector(".chaos-select-value");
-        const menu = node.querySelector(".chaos-select-menu");
+        const wrapper = node.querySelector(".chardsoft-select");
+        const trigger = node.querySelector(".chardsoft-select-trigger");
+        const value = node.querySelector(".chardsoft-select-value");
+        const menu = node.querySelector(".chardsoft-select-menu");
         const nativeSelect = node.querySelector(".interface-mode-select");
-        const options = node.querySelectorAll(".chaos-select-option");
+        const options = node.querySelectorAll(".chardsoft-select-option");
 
         if (!wrapper || !trigger || !value || !menu || !nativeSelect)
             return;
@@ -224,7 +224,7 @@ window.Page.network = {
             const wasOpen = wrapper.classList.contains("open");
 
             document
-                .querySelectorAll(".chaos-select.open")
+                .querySelectorAll(".chardsoft-select.open")
                 .forEach(other => {
                     if (other !== wrapper)
                         this.closeSelect(other);
@@ -359,7 +359,7 @@ window.Page.network = {
             });
 
             // Keep the visible custom dropdown in sync with the native select.
-            const trigger = q(".chaos-select-trigger");
+            const trigger = q(".chardsoft-select-trigger");
 
             if (trigger)
                 trigger.disabled = isWWAN;
@@ -909,7 +909,7 @@ window.Page.network = {
         card.mode.disabled = bridged;
         this.FIELDS.forEach(({ key }) => { card[key].disabled = bridged || card[key].disabled; });
 
-        const trigger = card.node.querySelector(".chaos-select-trigger");
+        const trigger = card.node.querySelector(".chardsoft-select-trigger");
 
         if (trigger)
             trigger.disabled = bridged;
@@ -1093,7 +1093,7 @@ window.Page.network = {
         this.outsideClickHandler = event => {
 
             document
-                .querySelectorAll(".chaos-select.open")
+                .querySelectorAll(".chardsoft-select.open")
                 .forEach(wrapper => {
                     if (!wrapper.contains(event.target))
                         this.closeSelect(wrapper);

@@ -29,8 +29,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-os.environ["CHAOS_SKIP_STARTUP"] = "1"
-os.environ["CHAOS_SETUP_WIFI"] = "0"
+os.environ["CHARDSOFT_SKIP_STARTUP"] = "1"
+os.environ["CHARDSOFT_SETUP_WIFI"] = "0"
 os.environ.setdefault("SECRET_KEY", "uninstall-only")
 
 DRY_RUN = "--dry-run" in sys.argv

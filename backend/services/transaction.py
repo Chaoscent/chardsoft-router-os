@@ -36,7 +36,7 @@ from services.config import (
 
 from services.logs import log_event
 
-CONFIRM_TIMEOUT = int(os.getenv("CHAOS_CONFIRM_TIMEOUT", "120"))
+CONFIRM_TIMEOUT = int(os.getenv("CHARDSOFT_CONFIRM_TIMEOUT", "120"))
 
 # /tmp/chaos-router-os/pending.json
 PENDING = "pending"

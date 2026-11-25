@@ -14,12 +14,12 @@ window.Page.vpn = {
         "vpnImportTypeInput"
     ],
 
-    TAB_KEY: "chaos-vpn-tab",
+    TAB_KEY: "chardsoft-vpn-tab",
 
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -186,7 +186,7 @@ window.Page.vpn = {
         ovpnRoutingInput.value = ovpn.routing;
 
         this.selects.forEach(id => {
-            ChaosSelect.refresh(document.getElementById(id));
+            ChardsoftSelect.refresh(document.getElementById(id));
         });
 
     },
@@ -511,7 +511,7 @@ window.Page.vpn = {
 
     async removePeer(peer) {
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Remove device",
             subtitle: `${peer.name} will no longer be able to connect.`,
             confirmText: "Remove"
@@ -573,7 +573,7 @@ window.Page.vpn = {
 
     async revokeClient(client) {
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Revoke device",
             subtitle: `${client.name}'s certificate will be revoked. ` +
                 "It cannot connect again, even with its saved profile.",
@@ -622,7 +622,7 @@ window.Page.vpn = {
                 /^\s*client\s*$/m.test(reader.result);
 
             vpnImportTypeInput.value = isOvpn ? "openvpn" : "wireguard";
-            ChaosSelect.refresh(vpnImportTypeInput);
+            ChardsoftSelect.refresh(vpnImportTypeInput);
             this.updateImportType();
 
             if (!vpnImportNameInput.value) {
@@ -674,7 +674,7 @@ window.Page.vpn = {
                 p => p.connected && p.id !== profile.id
             );
 
-            const confirmed = await ChaosModal.confirm({
+            const confirmed = await ChardsoftModal.confirm({
                 title: `Connect to ${profile.name}`,
                 subtitle: (others ? "The current VPN connection will be closed. " : "") +
                     "All traffic from the router and your network will go through this VPN.",
@@ -733,7 +733,7 @@ window.Page.vpn = {
 
     async deleteProfile(profile) {
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Delete profile",
             subtitle: `${profile.name} will be disconnected and removed.`,
             confirmText: "Delete"
@@ -751,7 +751,7 @@ window.Page.vpn = {
     init() {
 
         this.selects.forEach(id => {
-            ChaosSelect.enhance(document.getElementById(id));
+            ChardsoftSelect.enhance(document.getElementById(id));
         });
 
         document.querySelectorAll(".tab-btn").forEach(btn => {
@@ -791,7 +791,7 @@ window.Page.vpn = {
         Poll.stop(this.timer);
         this.timer = null;
 
-        ChaosModal.close();
+        ChardsoftModal.close();
 
     }
 

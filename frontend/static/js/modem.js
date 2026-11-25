@@ -177,7 +177,7 @@ async loadMobile(){
 
     mobileForgetPin.classList.toggle("hidden",!this.mobile.pin_saved);
 
-    ["mobileEnabledInput","mobileRoamingInput"].forEach(id=>ChaosSelect.refresh(document.getElementById(id)));
+    ["mobileEnabledInput","mobileRoamingInput"].forEach(id=>ChardsoftSelect.refresh(document.getElementById(id)));
 
 },
 
@@ -249,7 +249,7 @@ async loadUsage(){
         dataWarnInput.value=String(s.warn_percent);
     }
 
-    ["dataDayInput","dataWarnInput","dataBlockInput"].forEach(id=>ChaosSelect.refresh(document.getElementById(id)));
+    ["dataDayInput","dataWarnInput","dataBlockInput"].forEach(id=>ChardsoftSelect.refresh(document.getElementById(id)));
 
     this.renderUsage(data);
 
@@ -296,7 +296,7 @@ async correctUsage(reset){
         return;
     }
 
-    if(reset&&!await ChaosModal.confirm({
+    if(reset&&!await ChardsoftModal.confirm({
         title:"Set the count to zero?",
         subtitle:"The data used so far in this period is no longer counted.",
         confirmText:"Set to zero"
@@ -345,7 +345,7 @@ async loadGnss(first=false){
         gnssEnabledInput.value=String(data.enabled);
         gnssClockInput.value=String(data.set_clock);
         gnssTrackInput.value=String(data.track_days);
-        ["gnssEnabledInput","gnssClockInput","gnssTrackInput"].forEach(id=>ChaosSelect.refresh(document.getElementById(id)));
+        ["gnssEnabledInput","gnssClockInput","gnssTrackInput"].forEach(id=>ChardsoftSelect.refresh(document.getElementById(id)));
     }
 
     this.lastGnss=data;
@@ -463,10 +463,10 @@ async openMap(){
 
     try{
 
-        if(!window.ChaosMap)await this.loadScript("/static/js/map.js");
+        if(!window.ChardsoftMap)await this.loadScript("/static/js/map.js");
 
         this.mapView?.destroy();
-        this.mapView=await ChaosMap.create(gnssMap,{region});
+        this.mapView=await ChardsoftMap.create(gnssMap,{region});
 
         if(this.lastGnss)this.renderGnss(this.lastGnss);
 
@@ -504,7 +504,7 @@ async loadTrack(){
 
 async clearTrack(){
 
-    if(!await ChaosModal.confirm({
+    if(!await ChardsoftModal.confirm({
         title:"Clear the track?",
         subtitle:"Every position recorded so far is deleted from the router.",
         confirmText:"Clear"
@@ -558,7 +558,7 @@ async loadMaps(){
 
         if(chosen)mapsCountry.value=chosen;
 
-        ChaosSelect.refresh(mapsCountry);
+        ChardsoftSelect.refresh(mapsCountry);
 
     }
 
@@ -625,7 +625,7 @@ async downloadMap(){
 
     const name=mapsCountry.selectedOptions[0]?.textContent||"this country";
 
-    if(!await ChaosModal.confirm({
+    if(!await ChardsoftModal.confirm({
         title:`Download the map of ${name.replace(" (where the router is)","")}?`,
         subtitle:"This can take a while and uses the router's internet (mobile data counts towards your limit). A detailed map you already have is replaced when the new one is done.",
         confirmText:"Download"
@@ -637,13 +637,13 @@ async downloadMap(){
 
 init(){
 
-    ["mapsCountry","mapsDetail","gnssTrackInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+    ["mapsCountry","mapsDetail","gnssTrackInput"].forEach(id=>ChardsoftSelect.enhance(document.getElementById(id)));
 
     mapsDownload.onclick=()=>this.downloadMap();
     mapsCountry.addEventListener("change",()=>{ this.mapsChosen=true; });
     mapsCancel.onclick=()=>this.mapsAction("/api/maps/cancel");
     mapsDelete.onclick=async()=>{
-        if(await ChaosModal.confirm({title:"Delete the detailed map?",subtitle:"The map shows the countries of the world only again.",confirmText:"Delete"}))
+        if(await ChardsoftModal.confirm({title:"Delete the detailed map?",subtitle:"The map shows the countries of the world only again.",confirmText:"Delete"}))
             this.mapsAction("/api/maps/delete");
     };
 
@@ -655,7 +655,7 @@ init(){
     this.trackTimer=Poll.every(60000,()=>this.loadTrack());
 
 
-    ["gnssEnabledInput","gnssClockInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+    ["gnssEnabledInput","gnssClockInput"].forEach(id=>ChardsoftSelect.enhance(document.getElementById(id)));
 
     gnssSave.onclick=()=>this.saveGnss();
 
@@ -665,13 +665,13 @@ init(){
 
     this.gnssTimer=Poll.every(5000,()=>this.loadGnss());
 
-    ["mobileEnabledInput","mobileRoamingInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+    ["mobileEnabledInput","mobileRoamingInput"].forEach(id=>ChardsoftSelect.enhance(document.getElementById(id)));
 
     for(let day=1;day<=28;day++){
         dataDayInput.add(new Option(day===1?"1 (start of the month)":String(day),String(day)));
     }
 
-    ["dataDayInput","dataWarnInput","dataBlockInput"].forEach(id=>ChaosSelect.enhance(document.getElementById(id)));
+    ["dataDayInput","dataWarnInput","dataBlockInput"].forEach(id=>ChardsoftSelect.enhance(document.getElementById(id)));
 
     dataLimitSave.onclick=()=>this.saveUsage();
     dataUsedSave.onclick=()=>this.correctUsage(false);

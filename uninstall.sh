@@ -34,7 +34,7 @@
 set -uo pipefail
 
 INSTALL_DIR_DEFAULT=/opt/chaos-router-os
-APP_DIR=${CHAOS_UNINSTALL_APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
+APP_DIR=${CHARDSOFT_UNINSTALL_APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
 
 SERVICE=chaos-router-os
 MDNS_SERVICE=chaos-router-mdns
@@ -191,7 +191,7 @@ confirm() {
 detach() {
 
     (( DRY_RUN )) && return
-    [[ -n ${CHAOS_UNINSTALL_DETACHED:-} ]] && return
+    [[ -n ${CHARDSOFT_UNINSTALL_DETACHED:-} ]] && return
 
     # A copy outside the install folder (which is deleted at the end).
     local copy
@@ -201,7 +201,7 @@ detach() {
 
     : > "$LOG"
 
-    CHAOS_UNINSTALL_DETACHED=1 CHAOS_UNINSTALL_APP_DIR="$APP_DIR" \
+    CHARDSOFT_UNINSTALL_DETACHED=1 CHARDSOFT_UNINSTALL_APP_DIR="$APP_DIR" \
         setsid "$copy" --yes "${@}" > "$LOG" 2>&1 < /dev/null &
 
     local pid=$!
@@ -487,7 +487,7 @@ main() {
         die "Run with sudo: sudo $0"
     fi
 
-    if [[ -z ${CHAOS_UNINSTALL_DETACHED:-} ]]; then
+    if [[ -z ${CHARDSOFT_UNINSTALL_DETACHED:-} ]]; then
         confirm
         detach "$@"
     fi

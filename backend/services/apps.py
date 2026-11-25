@@ -1,7 +1,7 @@
 """
 Apps: the Apps page, and how installed apps plug into the router.
 
-The apps themselves come from the Apps Addon (Chaos Router Apps), a
+The apps themselves come from the Apps Addon (Chardsoft Router Apps), a
 separate install with Docker and the App Manager
 (/usr/local/bin/chaos-apps). Core never needs it: without the addon
 the Apps page offers to install it (deploy/install-apps.sh).
@@ -43,7 +43,7 @@ from services.network import run_command, privileged
 from services.logs import log_event
 
 # Overridable for development and tests.
-CLI = os.getenv("CHAOS_APPS_CLI", "/usr/local/bin/chaos-apps")
+CLI = os.getenv("CHARDSOFT_APPS_CLI", "/usr/local/bin/chaos-apps")
 
 # Installs the addon (one click on the Apps page).
 ADDON_INSTALLER = os.path.abspath(

@@ -4,11 +4,11 @@
  * world map (Natural Earth countries) and, when one was downloaded, the
  * detailed OpenStreetMap region (/maps/region.pmtiles, read in pieces).
  *
- *   const map = await ChaosMap.create(element, { region });
+ *   const map = await ChardsoftMap.create(element, { region });
  *   map.setPosition(position);  map.setTrack(points);  map.destroy();
  */
 
-window.ChaosMap = {
+window.ChardsoftMap = {
 
     VENDOR: "/static/vendor/map",
 
@@ -91,25 +91,25 @@ window.ChaosMap = {
         const border = dark ? "#4c5867" : "#b9b2a6";
 
         const sources = {
-            "chaos-world": {
+            "chardsoft-world": {
                 type: "geojson",
                 data: `${origin}${this.VENDOR}/countries.geojson`,
                 attribution: "Natural Earth"
             },
-            "chaos-track": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
-            "chaos-me": { type: "geojson", data: { type: "FeatureCollection", features: [] } }
+            "chardsoft-track": { type: "geojson", data: { type: "FeatureCollection", features: [] } },
+            "chardsoft-me": { type: "geojson", data: { type: "FeatureCollection", features: [] } }
         };
 
         let layers = [
-            { id: "chaos-water", type: "background", paint: { "background-color": water } },
-            { id: "chaos-world-land", type: "fill", source: "chaos-world", paint: { "fill-color": land } },
-            { id: "chaos-world-border", type: "line", source: "chaos-world", paint: { "line-color": border, "line-width": 0.6 } }
+            { id: "chardsoft-water", type: "background", paint: { "background-color": water } },
+            { id: "chardsoft-world-land", type: "fill", source: "chardsoft-world", paint: { "fill-color": land } },
+            { id: "chardsoft-world-border", type: "line", source: "chardsoft-world", paint: { "line-color": border, "line-width": 0.6 } }
         ];
 
         // Country names on the world map, where no detailed map labels them.
         if (!region) {
             layers.push({
-                id: "chaos-world-names", type: "symbol", source: "chaos-world", minzoom: 2,
+                id: "chardsoft-world-names", type: "symbol", source: "chardsoft-world", minzoom: 2,
                 layout: { "text-field": ["get", "name"], "text-font": ["Noto Sans Regular"], "text-size": 11 },
                 paint: {
                     "text-color": dark ? "#9aa6b4" : "#6b6358",
@@ -138,16 +138,16 @@ window.ChaosMap = {
 
         layers.push(
             {
-                id: "chaos-track", type: "line", source: "chaos-track",
+                id: "chardsoft-track", type: "line", source: "chardsoft-track",
                 layout: { "line-join": "round", "line-cap": "round" },
                 paint: { "line-color": accent, "line-width": 3, "line-opacity": 0.8 }
             },
             {
-                id: "chaos-me-halo", type: "circle", source: "chaos-me",
+                id: "chardsoft-me-halo", type: "circle", source: "chardsoft-me",
                 paint: { "circle-radius": 14, "circle-color": accent, "circle-opacity": 0.25 }
             },
             {
-                id: "chaos-me", type: "circle", source: "chaos-me",
+                id: "chardsoft-me", type: "circle", source: "chardsoft-me",
                 paint: {
                     "circle-radius": 6, "circle-color": accent,
                     "circle-stroke-width": 2, "circle-stroke-color": dark ? "#0b1220" : "#ffffff"
@@ -208,7 +208,7 @@ window.ChaosMap = {
 
         const draw = () => {
 
-            source("chaos-me")?.setData({
+            source("chardsoft-me")?.setData({
                 type: "FeatureCollection",
                 features: position ? [{
                     type: "Feature",
@@ -217,7 +217,7 @@ window.ChaosMap = {
                 }] : []
             });
 
-            source("chaos-track")?.setData({
+            source("chardsoft-track")?.setData({
                 type: "FeatureCollection",
                 features: track.length > 1 ? [{
                     type: "Feature",

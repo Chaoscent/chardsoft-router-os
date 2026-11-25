@@ -28,7 +28,7 @@ window.Page.dhcp = {
     refreshSelects() {
 
         this.selects.forEach(id => {
-            ChaosSelect.refresh(document.getElementById(id));
+            ChardsoftSelect.refresh(document.getElementById(id));
         });
 
     },
@@ -461,7 +461,7 @@ window.Page.dhcp = {
     init() {
 
         this.selects.forEach(id => {
-            ChaosSelect.enhance(document.getElementById(id));
+            ChardsoftSelect.enhance(document.getElementById(id));
         });
 
         this.load();

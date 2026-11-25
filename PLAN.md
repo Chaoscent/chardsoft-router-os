@@ -112,7 +112,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   DHCP serves `wlan0-guest`; the main network keeps working while guests
   are on; switching the guest network off removes `wlan0-guest`; the rules
   come back within 30 s after `sudo ufw reload`.
-- [ ] **USB Wi-Fi hotplug:** with "Chaos Router 6G" saved for the AXML
+- [ ] **USB Wi-Fi hotplug:** with the 6 GHz network saved for the AXML
   (wlan1), plug it in while the router runs: within about 10 s the network
   is on (`systemctl status chaos-hostapd@wlan1`), DHCP serves 10.43.0.x and
   the bell says so; pull it out: the bell says it is off, `wlan1` is gone
@@ -135,7 +135,7 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   choosing Cloudflare on the DNS page still switches to it.
 - [ ] **Speed test (iperf3):** Tools, "Speed test from a device": start the
   server, run `iperf3 -c 10.43.0.1` and `iperf3 -c 10.43.0.1 -R` from a
-  laptop or phone on "Chaos Router 6G" (also the AXML under load); the card
+  laptop or phone on the 6 GHz network (wlan1) (also the AXML under load); the card
   shows the speed, and `sudo iptables -S ufw-user-input | grep 5201` lists
   the LAN interfaces while it waits and nothing after. "Speed (iperf3)" tab
   to a LAN machine running `iperf3 -s`; a test over the modem says the
@@ -197,11 +197,10 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   root helper only limits the app on systems without that (the installer
   warns). A system user of its own would make the helper count everywhere,
   but changes the web shell: it would no longer be the admin's own shell.
-- [ ] **Names on the router.** The default Wi-Fi name "Chaos Router", the
-  setup Wi-Fi "ChaosRouter-Setup-XXXX" and `chaos-router.local` (and
-  `<app>.chaos-router.local`) carry the hardware's name. Keep them, or use
-  Chardsoft names for installs on any Pi? Changing the `.local` name changes
-  every app address and certificate on routers in use.
+- [ ] **Names on the router:** decided 2026-11-25: no "chaos" anywhere (the
+  hardware is now "Chardsoft Router"). Defaults "Chardsoft Router" and
+  "Chardsoft-Setup-XXXX" are done; the installed names (paths, services,
+  `chardsoft-router.local`, firewall chains) follow with a migration.
 
 ---
 

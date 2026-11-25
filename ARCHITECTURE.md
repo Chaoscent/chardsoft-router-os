@@ -294,7 +294,7 @@ curl installer
         ↓
 App starts, no admin account → setup mode
         ↓
-Setup Wi-Fi "ChaosRouter-Setup-XXXX" (WPA2, 2.4 GHz, 10.42.0.1/24)
+Setup Wi-Fi "Chardsoft-Setup-XXXX" (WPA2, 2.4 GHz, 10.42.0.1/24)
 on the first radio that can do 2.4 GHz (preferably the built-in wlan0),
 with a captive portal; the installer shows its name, password and QR code
         ↓
@@ -352,7 +352,7 @@ The installer is a **bootstrapper**, not the app. It gets the code with git and 
    - The app runs as a normal user and uses `sudo -n` for a fixed list of commands only (systemctl, nmcli, mmcli, ip, ufw, ...).
    - Paths are resolved with `type -P`.
 8. **Ports:** it warns when something else uses 53, 67, 80 or 443.
-9. **Modem mode:** a Quectel modem in MBIM mode is switched to QMI (`CHAOS_MODEM_MODE=keep` skips it).
+9. **Modem mode:** a Quectel modem in MBIM mode is switched to QMI (`CHARDSOFT_MODEM_MODE=keep` skips it).
 10. **Services:**
    - `deploy/install-service.sh` installs `chaos-router-os` (the app), `chaos-router-mdns` and the `chaos-hostapd@` template.
    - It installs the Caddyfile and keeps the previous one as `Caddyfile.before-chaos`.
@@ -421,7 +421,7 @@ App names (DNS, mDNS, Caddy routes) synced
 Chardsoft Router OS has two editions:
 
 - **Core:** the main edition for any Raspberry Pi 5 with a cellular modem. Networking first.
-- **Hardware Edition:** Core plus support for physical switches and OLED displays, made for the author's own Pi 5 router design, **Chaos Router**. Not installable from Core.
+- **Hardware Edition:** Core plus support for physical switches and OLED displays, made for the author's own Pi 5 router design, **Chardsoft Router**. Not installable from Core.
 
 ```bash
 curl -fsSL https://chardsoft.com/router-os/core | sudo bash
@@ -573,8 +573,8 @@ Planned: offering a backup download before a reset. Today, download one on the S
 # Licensing
 
 - **Software and docs** (Core, Apps Addon): open source, [Apache License 2.0](LICENSE). The [NOTICE](NOTICE) file (Copyright Chaoscent) must stay with every copy; changed files must say they were changed.
-- **Contributions** come under the same license (Apache 2.0, section 5), so they can also be used in commercial products, e.g. on Chaos Router hardware.
-- **Names and logos** ("Chardsoft", "Chardsoft Router OS", "Chaos Router"): not licensed. **Chaos Router hardware** (PCB, case): not public. The Hardware Edition may stay closed: Apache 2.0 allows closed products built on the code.
+- **Contributions** come under the same license (Apache 2.0, section 5), so they can also be used in commercial products, e.g. on Chardsoft Router hardware.
+- **Names and logos** ("Chardsoft", "Chardsoft Router OS", "Chardsoft Router"): not licensed. **Chardsoft Router hardware** (PCB, case): not public. The Hardware Edition may stay closed: Apache 2.0 allows closed products built on the code.
 - **Third-party code** keeps its license (xterm.js: MIT). Devices sold with Chardsoft Router OS preinstalled must also meet the obligations of the GPL software in the OS image (Linux, dnsmasq, ...): its source code or a written offer for it, and its license texts.
 
 ---

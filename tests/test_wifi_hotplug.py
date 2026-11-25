@@ -17,10 +17,10 @@ sys.path.insert(0, os.path.join(ROOT, "backend"))
 
 SANDBOX = tempfile.mkdtemp(prefix="chardsoft-test-")
 
-for name, folder in (("CHAOS_DEFAULTS_DIR", "etc"), ("CHAOS_STATE_DIR", "var"), ("CHAOS_RUNTIME_DIR", "tmp")):
+for name, folder in (("CHARDSOFT_DEFAULTS_DIR", "etc"), ("CHARDSOFT_STATE_DIR", "var"), ("CHARDSOFT_RUNTIME_DIR", "tmp")):
     os.environ.setdefault(name, os.path.join(SANDBOX, folder))
 
-os.environ.setdefault("CHAOS_SKIP_STARTUP", "1")
+os.environ.setdefault("CHARDSOFT_SKIP_STARTUP", "1")
 
 from services import config, wifi, wifi_hotplug  # noqa: E402
 
@@ -58,8 +58,8 @@ class FakeRadios:
 
 
 NETWORKS = {
-    "wlan0": {"enabled": True, "ssid": "Chaos Router"},
-    "wlan1": {"enabled": True, "ssid": "Chaos Router 6G"},
+    "wlan0": {"enabled": True, "ssid": "Chardsoft Router"},
+    "wlan1": {"enabled": True, "ssid": "Chardsoft Router 6G"},
 }
 
 
@@ -124,7 +124,7 @@ class HotplugTests(unittest.TestCase):
         self.plug("wlan1", AXML)
         self.assertIn("wlan1", self.fake.running)
         self.assertEqual(wifi.remembered_radios()["wlan1"], AXML)
-        self.assertTrue(any(n and '"Chaos Router 6G" is on' in m for _, n, m in self.events), self.events)
+        self.assertTrue(any(n and '"Chardsoft Router 6G" is on' in m for _, n, m in self.events), self.events)
 
     def test_unplugged_stops_and_says_so(self):
         self.plug("wlan1", AXML)
@@ -191,7 +191,7 @@ class HotplugTests(unittest.TestCase):
         self.assertTrue(any(level == "warning" and "did not start" in m for level, _, m in self.events))
 
     def test_switched_off_network(self):
-        self.settings["networks"]["wlan1"] = {"enabled": False, "ssid": "Chaos Router 6G"}
+        self.settings["networks"]["wlan1"] = {"enabled": False, "ssid": "Chardsoft Router 6G"}
         wifi_hotplug.check()
         self.plug("wlan1", AXML)
         self.assertEqual(self.fake.applied, 0)

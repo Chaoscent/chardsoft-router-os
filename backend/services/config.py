@@ -21,7 +21,7 @@ applied to the system (e.g. firewall rules we added). They follow the
 system, not the config, so they are never committed or reverted.
 
 The directories can be overridden for development and tests with
-CHAOS_DEFAULTS_DIR, CHAOS_STATE_DIR and CHAOS_RUNTIME_DIR.
+CHARDSOFT_DEFAULTS_DIR, CHARDSOFT_STATE_DIR and CHARDSOFT_RUNTIME_DIR.
 """
 
 import json
@@ -35,9 +35,9 @@ from pathlib import Path
 # Locations
 # -------------------------------------------------------------------
 
-DEFAULTS_DIR = Path(os.getenv("CHAOS_DEFAULTS_DIR", "/etc/chaos-router-os"))
-STATE_DIR = Path(os.getenv("CHAOS_STATE_DIR", "/var/lib/chaos-router-os"))
-RUNTIME_DIR = Path(os.getenv("CHAOS_RUNTIME_DIR", "/tmp/chaos-router-os"))
+DEFAULTS_DIR = Path(os.getenv("CHARDSOFT_DEFAULTS_DIR", "/etc/chaos-router-os"))
+STATE_DIR = Path(os.getenv("CHARDSOFT_STATE_DIR", "/var/lib/chaos-router-os"))
+RUNTIME_DIR = Path(os.getenv("CHARDSOFT_RUNTIME_DIR", "/tmp/chaos-router-os"))
 SYSTEM_DIR = STATE_DIR / "system"
 
 BOOT_ID_FILE = "/proc/sys/kernel/random/boot_id"

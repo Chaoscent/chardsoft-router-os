@@ -101,8 +101,8 @@ window.Page.system = {
             pingEnabledInput.value !== "true";
 
         // Keep the custom dropdowns in step with the native selects.
-        ChaosSelect.refresh(pingEnabledInput);
-        ChaosSelect.refresh(pingIntervalInput);
+        ChardsoftSelect.refresh(pingEnabledInput);
+        ChardsoftSelect.refresh(pingIntervalInput);
 
     },
 
@@ -414,7 +414,7 @@ window.Page.system = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -440,7 +440,7 @@ window.Page.system = {
             </p>
         `;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Download backup",
             subtitle: "Encrypt the backup with a password (at least 8 characters).",
             body,
@@ -549,7 +549,7 @@ window.Page.system = {
             </label>
         `;
 
-        const shown = ChaosModal.confirm({
+        const shown = ChardsoftModal.confirm({
             title: "Encrypted backup",
             subtitle: retry
                 ? `Wrong password for ${fileName}. Try again.`
@@ -694,7 +694,7 @@ window.Page.system = {
             </ul>
         `;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Restore backup",
             subtitle: "These settings are replaced with the ones from the backup:",
             body: body,
@@ -748,9 +748,9 @@ window.Page.system = {
     async reboot() {
 
         // A reboot reverts changes that wait for confirmation.
-        const pending = window.ChaosApply?.pending;
+        const pending = window.ChardsoftApply?.pending;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Reboot the router?",
             subtitle: pending
                 ? "Unconfirmed changes (" + pending.areas.map(a => a.label).join(", ") + ") will be reverted. Devices lose their connection for about a minute."
@@ -830,7 +830,7 @@ window.Page.system = {
             </label>
         `;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: enable ? "Turn on the web shell?" : "Turn off the web shell?",
             subtitle: enable
                 ? "Anyone who signs in to this dashboard and knows your password can then run any command on the router."
@@ -894,7 +894,7 @@ window.Page.system = {
             </label>
         `;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Erase everything?",
             subtitle: "Download a backup first if you may want your settings back.",
             body,
@@ -1094,7 +1094,7 @@ window.Page.system = {
             </p>
         `;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Update now",
             subtitle: "Install the new version from GitHub?",
             body,
@@ -1179,8 +1179,8 @@ window.Page.system = {
     init() {
 
         // Same dropdown look as every other page.
-        ChaosSelect.enhance(pingEnabledInput);
-        ChaosSelect.enhance(pingIntervalInput);
+        ChardsoftSelect.enhance(pingEnabledInput);
+        ChardsoftSelect.enhance(pingIntervalInput);
 
         this.load();
 

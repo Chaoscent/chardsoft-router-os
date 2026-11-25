@@ -2,7 +2,7 @@
 The setup Wi-Fi: a WPA2 network with a captive portal that runs while
 the router is not set up (fresh install, factory reset).
 
-- Name "ChaosRouter-Setup-XXXX" and a random password, stored in
+- Name "Chardsoft-Setup-XXXX" and a random password, stored in
   /var/lib/chaos-router-os/system/setup_wifi.json (mode 600). They
   survive reboots during setup; a factory reset creates new ones.
   `python backend/setup_wifi.py` prints them with a QR code.
@@ -65,7 +65,7 @@ def get_credentials():
         return stored
 
     credentials = {
-        "ssid": f"ChaosRouter-Setup-{secrets.token_hex(2).upper()}",
+        "ssid": f"Chardsoft-Setup-{secrets.token_hex(2).upper()}",
         "password": "".join(secrets.choice(PASSWORD_CHARS) for _ in range(12)),
         "created": int(time.time())
     }
@@ -225,8 +225,8 @@ def start():
     Returns (success, message).
     """
 
-    if os.getenv("CHAOS_SETUP_WIFI") == "0":
-        return False, "The setup Wi-Fi is turned off (CHAOS_SETUP_WIFI=0)."
+    if os.getenv("CHARDSOFT_SETUP_WIFI") == "0":
+        return False, "The setup Wi-Fi is turned off (CHARDSOFT_SETUP_WIFI=0)."
 
     if not wifi.has_hostapd():
         return False, "hostapd is not available."

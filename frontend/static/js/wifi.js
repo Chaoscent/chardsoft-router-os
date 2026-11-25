@@ -25,7 +25,7 @@ window.Page.wifi = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -112,7 +112,7 @@ window.Page.wifi = {
         const network = guest ? { ...radio.guest, interface: radio.interface } : radio;
 
         if (!network.enabled || (guest && !radio.enabled)) {
-            ChaosModal.notice({
+            ChardsoftModal.notice({
                 title: "This Wi-Fi is off",
                 subtitle: "Switch it on and save first; the QR code shows the saved network."
             });
@@ -131,7 +131,7 @@ window.Page.wifi = {
 
         } catch {
 
-            ChaosModal.notice({ title: "No QR code", subtitle: "The router could not make the QR code. Try again." });
+            ChardsoftModal.notice({ title: "No QR code", subtitle: "The router could not make the QR code. Try again." });
             return;
 
         }
@@ -169,7 +169,7 @@ window.Page.wifi = {
         const changed = ssidInput.value !== network.ssid
             || (network.security !== "open" && passwordInput.value !== (network.password || ""));
 
-        ChaosModal.notice({
+        ChardsoftModal.notice({
             title: `Join ${network.ssid}`,
             subtitle: changed
                 ? "Shows the saved network. Save & apply to use the name and password you just typed."
@@ -222,7 +222,7 @@ window.Page.wifi = {
         const { networks, interfaces } = this.data;
         const settings = this.network();
 
-        // Every radio with its network: "wlan0 · Chaos Router (on)".
+        // Every radio with its network: "wlan0 · Chardsoft Router (on)".
         wifiInterfaceInput.innerHTML = "";
 
         Object.values(networks).forEach(network => {
@@ -268,7 +268,7 @@ window.Page.wifi = {
         this.updatePasswordState();
 
         this.selects.forEach(id => {
-            ChaosSelect.refresh(document.getElementById(id));
+            ChardsoftSelect.refresh(document.getElementById(id));
         });
 
     },
@@ -318,7 +318,7 @@ window.Page.wifi = {
         // A guest network needs a password to start with.
         if (on && !open && !wifiGuestPasswordInput.value) this.newGuestPassword();
 
-        ChaosSelect.refresh(wifiGuestSecurityInput);
+        ChardsoftSelect.refresh(wifiGuestSecurityInput);
 
     },
 
@@ -365,7 +365,7 @@ window.Page.wifi = {
 
         });
 
-        ChaosSelect.refresh(wifiBandInput);
+        ChardsoftSelect.refresh(wifiBandInput);
 
     },
 
@@ -407,7 +407,7 @@ window.Page.wifi = {
             ? String(selected)
             : String(fallback);
 
-        ChaosSelect.refresh(wifiChannelInput);
+        ChardsoftSelect.refresh(wifiChannelInput);
 
     },
 
@@ -428,7 +428,7 @@ window.Page.wifi = {
 
         wifiWidthInput.value = widths.includes(Number(selected)) ? String(selected) : "20";
 
-        ChaosSelect.refresh(wifiWidthInput);
+        ChardsoftSelect.refresh(wifiWidthInput);
 
     },
 
@@ -450,7 +450,7 @@ window.Page.wifi = {
 
         wifiSecurityInput.disabled = sixGhz;
 
-        ChaosSelect.refresh(wifiSecurityInput);
+        ChardsoftSelect.refresh(wifiSecurityInput);
 
         this.updatePasswordState();
 
@@ -663,7 +663,7 @@ window.Page.wifi = {
         const settings = this.collectSettings();
 
         // Wireless clients drop briefly while hostapd restarts.
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
 
             title: `Apply WiFi Settings (${settings.interface})`,
 
@@ -730,7 +730,7 @@ window.Page.wifi = {
     init() {
 
         this.selects.forEach(id => {
-            ChaosSelect.enhance(document.getElementById(id));
+            ChardsoftSelect.enhance(document.getElementById(id));
         });
 
         wifiBandInput.onchange = () => {
@@ -783,7 +783,7 @@ window.Page.wifi = {
         Poll.stop(this.timer);
         this.timer = null;
 
-        ChaosModal.close();
+        ChardsoftModal.close();
 
     }
 

@@ -19,10 +19,10 @@ sys.path.insert(0, os.path.join(ROOT, "backend"))
 # The services must not touch the real /etc or /var/lib.
 SANDBOX = tempfile.mkdtemp(prefix="chardsoft-test-")
 
-for name, folder in (("CHAOS_DEFAULTS_DIR", "etc"), ("CHAOS_STATE_DIR", "var"), ("CHAOS_RUNTIME_DIR", "tmp")):
+for name, folder in (("CHARDSOFT_DEFAULTS_DIR", "etc"), ("CHARDSOFT_STATE_DIR", "var"), ("CHARDSOFT_RUNTIME_DIR", "tmp")):
     os.environ.setdefault(name, os.path.join(SANDBOX, folder))
 
-os.environ.setdefault("CHAOS_SKIP_STARTUP", "1")
+os.environ.setdefault("CHARDSOFT_SKIP_STARTUP", "1")
 
 loader = importlib.machinery.SourceFileLoader("root_helper", os.path.join(ROOT, "deploy", "root-helper"))
 spec = importlib.util.spec_from_loader("root_helper", loader)

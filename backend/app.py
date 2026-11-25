@@ -4182,10 +4182,10 @@ def start_setup_wifi():
 
 
 # The debug reloader imports this file twice; only the process that
-# serves requests runs the startup. CHAOS_SKIP_STARTUP is for tools
+# serves requests runs the startup. CHARDSOFT_SKIP_STARTUP is for tools
 # and tests that only need the app object.
 if (
-        os.getenv("CHAOS_SKIP_STARTUP") != "1"
+        os.getenv("CHARDSOFT_SKIP_STARTUP") != "1"
         and not (
                 __name__ == "__main__"
                 and os.getenv("WERKZEUG_RUN_MAIN") != "true"

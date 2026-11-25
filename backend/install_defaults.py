@@ -18,7 +18,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Only the built-in defaults are needed; do not apply any config.
-os.environ["CHAOS_SKIP_STARTUP"] = "1"
+os.environ["CHARDSOFT_SKIP_STARTUP"] = "1"
 
 # Importing the app creates its folders and session key. This runs as
 # root: point them at a throwaway folder, so /var/lib/chaos-router-os
@@ -27,8 +27,8 @@ os.environ["CHAOS_SKIP_STARTUP"] = "1"
 _SCRATCH = tempfile.mkdtemp(prefix="chaos-install-defaults-")
 atexit.register(shutil.rmtree, _SCRATCH, ignore_errors=True)
 
-os.environ["CHAOS_STATE_DIR"] = os.path.join(_SCRATCH, "state")
-os.environ["CHAOS_RUNTIME_DIR"] = os.path.join(_SCRATCH, "run")
+os.environ["CHARDSOFT_STATE_DIR"] = os.path.join(_SCRATCH, "state")
+os.environ["CHARDSOFT_RUNTIME_DIR"] = os.path.join(_SCRATCH, "run")
 os.environ["SECRET_KEY"] = "install-defaults-only"
 
 import app

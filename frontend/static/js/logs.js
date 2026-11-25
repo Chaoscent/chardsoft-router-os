@@ -14,7 +14,7 @@ window.Page.logs = {
         "logLimitInput"
     ],
 
-    PREFS_KEY: "chaos-log-filters",
+    PREFS_KEY: "chardsoft-log-filters",
 
     LEVEL_BADGES: {
         error: "blocked",
@@ -26,7 +26,7 @@ window.Page.logs = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -235,7 +235,7 @@ window.Page.logs = {
 
     async clear() {
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Clear router events",
             subtitle: "All router events are deleted. System logs are not affected.",
             confirmText: "Clear"
@@ -280,7 +280,7 @@ window.Page.logs = {
         if (!prefs.limit) logLimitInput.value = "200";
 
         this.selects.forEach(id => {
-            ChaosSelect.enhance(document.getElementById(id));
+            ChardsoftSelect.enhance(document.getElementById(id));
         });
 
         logSourceInput.onchange = () => this.onFilterChange();
@@ -312,7 +312,7 @@ window.Page.logs = {
         this.timer = null;
         this.live = false;
 
-        ChaosModal.close();
+        ChardsoftModal.close();
 
     }
 

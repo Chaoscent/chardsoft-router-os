@@ -18,7 +18,7 @@ Chardsoft Router OS combines a UniFi-inspired interface with MikroTik-style navi
 
 ## Why?
 
-Chardsoft Router OS exists because of **Chaos Router**.
+Chardsoft Router OS exists because of **Chardsoft Router**.
 
 My TP-Link M850 got hot enough to warp my SIM card. Instead of accepting that I'd have to replace the SIM every few months,
 or buying another 5G router with Wi-Fi 6E, hoping it wouldn't melt my SIM too,
@@ -78,7 +78,7 @@ Install on Raspberry Pi OS Lite (64-bit), logged in as your normal user:
 curl -fsSL https://raw.githubusercontent.com/chaoscent/chardsoft-router-os/dev/core/install.sh | sudo bash
 ```
 
-The installer sets up the packages, the app, the default settings and the service, asks for your Wi-Fi country, and finishes with a QR code for the setup Wi-Fi. Scan it with your phone and the setup page opens. Running it again updates an existing install; your settings are kept. The country has no default: the installer lists every country with its code and you type yours. A Quectel modem in MBIM mode is switched to QMI mode (in MBIM mode Linux drops all received mobile data); set `CHAOS_MODEM_MODE=keep` to leave it, and switch back with `sudo /opt/chaos-router-os/deploy/modem-usb-mode.sh mbim`. Options: `--country US`, `--dir PATH`, `--yes` (needs `--country` unless the system already has one).
+The installer sets up the packages, the app, the default settings and the service, asks for your Wi-Fi country, and finishes with a QR code for the setup Wi-Fi. Scan it with your phone and the setup page opens. Running it again updates an existing install; your settings are kept. The country has no default: the installer lists every country with its code and you type yours. A Quectel modem in MBIM mode is switched to QMI mode (in MBIM mode Linux drops all received mobile data); set `CHARDSOFT_MODEM_MODE=keep` to leave it, and switch back with `sudo /opt/chaos-router-os/deploy/modem-usb-mode.sh mbim`. Options: `--country US`, `--dir PATH`, `--yes` (needs `--country` unless the system already has one).
 
 Short form: `curl -fsSL https://chardsoft.com/router-os/core | sudo bash`.
 
@@ -95,9 +95,9 @@ It removes the Apps Addon with all apps (and Docker, if the addon installed it),
 
 ### Hardware Edition
 
-**Core + Chaos Router hardware features.**
+**Core + Chardsoft Router hardware features.**
 
-Compatible only with the Chaos Router hardware.
+Compatible only with the Chardsoft Router hardware.
 
 Adds:
 
@@ -108,7 +108,7 @@ Adds:
 * Hardware-specific dashboard widgets
 * GPIO services
 
-Planned Install Command (not recommended if you´re not using Chaos Router Hardware):
+Planned Install Command (not recommended if you´re not using Chardsoft Router Hardware):
 
 ```bash
 curl -fsSL chardsoft.com/router-os/hardware-edition | sudo bash
@@ -234,7 +234,7 @@ python backend/app.py
 
 The dashboard runs on port `5000` (on the router, Caddy serves it on ports 80 and 443; see below). There is no default login: on first start every page leads to `/setup`, where you create the admin account.
 
-While the router is not set up, the app also starts a setup Wi-Fi (WPA2, 10.42.0.1/24) with a captive portal. Show its name, password and QR code with `python backend/setup_wifi.py`. Set `CHAOS_SETUP_WIFI=0` to keep it off during development.
+While the router is not set up, the app also starts a setup Wi-Fi (WPA2, 10.42.0.1/24) with a captive portal. Show its name, password and QR code with `python backend/setup_wifi.py`. Set `CHARDSOFT_SETUP_WIFI=0` to keep it off during development.
 
 Write the default settings to `/etc/chaos-router-os` (the installer will do this later):
 
@@ -242,7 +242,7 @@ Write the default settings to `/etc/chaos-router-os` (the installer will do this
 sudo .venv/bin/python backend/install_defaults.py
 ```
 
-For development and tests, the three config folders can be moved with `CHAOS_DEFAULTS_DIR`, `CHAOS_STATE_DIR` and `CHAOS_RUNTIME_DIR`.
+For development and tests, the three config folders can be moved with `CHARDSOFT_DEFAULTS_DIR`, `CHARDSOFT_STATE_DIR` and `CHARDSOFT_RUNTIME_DIR`.
 
 ### Run as a service (starts at boot)
 
@@ -370,8 +370,8 @@ Chardsoft Router OS is **open source** under the [Apache License 2.0](LICENSE): 
 | xterm.js (`frontend/static/vendor/xterm`) | MIT, its own license files |
 | IBM Plex fonts (`frontend/static/chardsoft/fonts`) | SIL Open Font License 1.1 |
 | Lucide icons (`frontend/static/chardsoft/icons`) | ISC |
-| Names "Chardsoft", "Chardsoft Router OS", "Chaos Router" and the logos | Not licensed (Apache 2.0, section 6) |
-| Chaos Router hardware (PCB, case) | Not public |
+| Names "Chardsoft", "Chardsoft Router OS", "Chardsoft Router" and the logos | Not licensed (Apache 2.0, section 6) |
+| Chardsoft Router hardware (PCB, case) | Not public |
 
 Contributions come under the same license, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

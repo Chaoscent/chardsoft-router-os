@@ -14,9 +14,9 @@
 # code. Safe to run again: an existing install is updated, settings stay.
 #
 # Options (also as environment variables):
-#   --country XX   Wi-Fi country code, e.g. US      (CHAOS_COUNTRY;
+#   --country XX   Wi-Fi country code, e.g. US      (CHARDSOFT_COUNTRY;
 #                  asked when not given, no default)
-#   --dir PATH     where to clone the app            (CHAOS_DIR, default /opt/chaos-router-os)
+#   --dir PATH     where to clone the app            (CHARDSOFT_DIR, default /opt/chaos-router-os)
 #   --user NAME    the account the app runs as (default: the one that
 #                  called sudo; the updater passes it)
 #   --yes          no questions, use the defaults (needs --country
@@ -24,10 +24,10 @@
 
 set -euo pipefail
 
-REPO=${CHAOS_REPO:-https://github.com/chaoscent/chardsoft-router-os}
-BRANCH=${CHAOS_BRANCH:-dev/core}
-INSTALL_DIR=${CHAOS_DIR:-/opt/chaos-router-os}
-COUNTRY=${CHAOS_COUNTRY:-}
+REPO=${CHARDSOFT_REPO:-https://github.com/chaoscent/chardsoft-router-os}
+BRANCH=${CHARDSOFT_BRANCH:-dev/core}
+INSTALL_DIR=${CHARDSOFT_DIR:-/opt/chaos-router-os}
+COUNTRY=${CHARDSOFT_COUNTRY:-}
 ASSUME_YES=0
 APP_USER_ARG=""
 
@@ -561,10 +561,10 @@ setup_sudo() {
 
 # Quectel modems in MBIM mode can drop every received packet on Linux
 # (cdc_mbim): mobile data "connects" but nothing comes back. QMI is
-# what Quectel recommends for Linux. CHAOS_MODEM_MODE=keep leaves it.
+# what Quectel recommends for Linux. CHARDSOFT_MODEM_MODE=keep leaves it.
 modem_mode() {
 
-    [[ ${CHAOS_MODEM_MODE:-auto} == keep ]] && return 0
+    [[ ${CHARDSOFT_MODEM_MODE:-auto} == keep ]] && return 0
 
     local mode
     mode=$("$INSTALL_DIR/deploy/modem-usb-mode.sh" status 2>/dev/null || echo none)

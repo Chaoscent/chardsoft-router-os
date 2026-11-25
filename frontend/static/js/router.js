@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
             setNavOpen(false);
 
-            ChaosModal.notice({
+            ChardsoftModal.notice({
                 title: `${link.textContent.trim()} is not available on mobile`,
                 subtitle: link.dataset.mobileTitle
                     ? `${link.dataset.mobileTitle}. Open the dashboard on a computer to use it.`

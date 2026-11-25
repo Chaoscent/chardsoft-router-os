@@ -105,7 +105,7 @@ DEFAULT_SETTINGS = {
 
 DEFAULT_NETWORK = {
     "enabled": False,
-    "ssid": "Chaos Router",
+    "ssid": "Chardsoft Router",
     "password": "",
     "security": "wpa2",
     "band": "2.4",

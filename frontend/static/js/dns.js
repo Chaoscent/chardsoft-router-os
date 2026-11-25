@@ -18,7 +18,7 @@ window.Page.dns = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -176,7 +176,7 @@ window.Page.dns = {
         this.updateUpstreamFields();
 
         this.selects.forEach(id => {
-            ChaosSelect.refresh(document.getElementById(id));
+            ChardsoftSelect.refresh(document.getElementById(id));
         });
 
     },
@@ -452,7 +452,7 @@ window.Page.dns = {
     init() {
 
         this.selects.forEach(id => {
-            ChaosSelect.enhance(document.getElementById(id));
+            ChardsoftSelect.enhance(document.getElementById(id));
         });
 
         dnsUpstreamInput.onchange = () => this.updateUpstreamFields();

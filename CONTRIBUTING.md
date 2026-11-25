@@ -4,7 +4,7 @@ Contributions are welcome: bug reports, ideas and code.
 
 ## License of contributions
 
-Chardsoft Router OS is open source under the [Apache License 2.0](LICENSE). Everything you contribute, for example as a pull request, comes under the same license (section 5 of the license): everyone, including the project, may use, change and share it, also in commercial products such as routers built on Chaos Router hardware.
+Chardsoft Router OS is open source under the [Apache License 2.0](LICENSE). Everything you contribute, for example as a pull request, comes under the same license (section 5 of the license): everyone, including the project, may use, change and share it, also in commercial products such as routers built on Chardsoft Router hardware.
 
 By submitting a contribution you confirm that:
 

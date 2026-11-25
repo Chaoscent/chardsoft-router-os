@@ -118,7 +118,7 @@ window.Page.routes = {
         routeInterfaceInput.replaceChildren(...options.map(([value, label]) => new Option(label, value)));
         routeInterfaceInput.value = options.some(o => o[0] === current) ? current : "";
 
-        ChaosSelect.refresh(routeInterfaceInput);
+        ChardsoftSelect.refresh(routeInterfaceInput);
 
     },
 
@@ -147,7 +147,7 @@ window.Page.routes = {
         routeInterfaceInput.value = "";
         routeEnabledInput.value = "true";
 
-        [routeInterfaceInput, routeEnabledInput].forEach(s => ChaosSelect.refresh(s));
+        [routeInterfaceInput, routeEnabledInput].forEach(s => ChardsoftSelect.refresh(s));
 
         routeFormTitle.textContent = "Add route";
         routeSubmit.textContent = "Add route";
@@ -167,7 +167,7 @@ window.Page.routes = {
         routeCommentInput.value = route.comment;
         routeEnabledInput.value = String(route.enabled);
 
-        [routeInterfaceInput, routeEnabledInput].forEach(s => ChaosSelect.refresh(s));
+        [routeInterfaceInput, routeEnabledInput].forEach(s => ChardsoftSelect.refresh(s));
 
         routeFormTitle.textContent = `Edit route to ${route.destination}`;
         routeSubmit.textContent = "Save route";
@@ -254,7 +254,7 @@ window.Page.routes = {
 
     async remove(route) {
 
-        const go = await ChaosModal.confirm({
+        const go = await ChardsoftModal.confirm({
             title: `Delete the route to ${route.destination}?`,
             subtitle: "Traffic for this network then follows the router's other routes again.",
             confirmText: "Delete"
@@ -338,7 +338,7 @@ window.Page.routes = {
 
     init() {
 
-        [routeInterfaceInput, routeEnabledInput].forEach(s => ChaosSelect.enhance(s));
+        [routeInterfaceInput, routeEnabledInput].forEach(s => ChardsoftSelect.enhance(s));
 
         routeSubmit.onclick = () => this.submit();
         routeCancel.onclick = () => { this.resetForm(); routeStatus.textContent = ""; };

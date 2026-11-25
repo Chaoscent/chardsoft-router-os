@@ -532,7 +532,7 @@ def install_file(source, target, mode, parents):
     if os.path.islink(target):
         os.unlink(target)
 
-    fd, tmp = tempfile.mkstemp(dir=folder, prefix=".chaos-")
+    fd, tmp = tempfile.mkstemp(dir=folder, prefix=".chardsoft-")
 
     try:
 

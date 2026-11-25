@@ -18,10 +18,10 @@ sys.path.insert(0, os.path.join(ROOT, "backend"))
 
 SANDBOX = tempfile.mkdtemp(prefix="chardsoft-test-")
 
-for name, folder in (("CHAOS_DEFAULTS_DIR", "etc"), ("CHAOS_STATE_DIR", "var"), ("CHAOS_RUNTIME_DIR", "tmp")):
+for name, folder in (("CHARDSOFT_DEFAULTS_DIR", "etc"), ("CHARDSOFT_STATE_DIR", "var"), ("CHARDSOFT_RUNTIME_DIR", "tmp")):
     os.environ.setdefault(name, os.path.join(SANDBOX, folder))
 
-os.environ.setdefault("CHAOS_SKIP_STARTUP", "1")
+os.environ.setdefault("CHARDSOFT_SKIP_STARTUP", "1")
 
 from services import config, guest, wifi  # noqa: E402
 
@@ -108,7 +108,7 @@ class GuestSettingsTests(Radios):
 
     def test_defaults_for_a_new_guest_network(self):
         net = wifi.get_network("wlan1")
-        self.assertEqual(net["guest"]["ssid"], "Chaos Router Guest")
+        self.assertEqual(net["guest"]["ssid"], "Chardsoft Router Guest")
         self.assertFalse(net["guest"]["enabled"])
         self.assertNotEqual(net["guest"]["address"], net["address"])
 

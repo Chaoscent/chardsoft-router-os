@@ -48,7 +48,7 @@ window.Page.tools = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value ?? "");
+        return ChardsoftSelect.escape(value ?? "");
 
     },
 
@@ -71,7 +71,7 @@ window.Page.tools = {
             ...data.interfaces.map(name => new Option(name, name))
         );
 
-        ChaosSelect.refresh(toolInterface);
+        ChardsoftSelect.refresh(toolInterface);
 
         this.traceroute = data.traceroute;
         this.iperf = data.iperf;
@@ -407,7 +407,7 @@ window.Page.tools = {
 
     init() {
 
-        [toolFamily, toolInterface, toolDirection].forEach(select => ChaosSelect.enhance(select));
+        [toolFamily, toolInterface, toolDirection].forEach(select => ChardsoftSelect.enhance(select));
 
         speedServerButton.onclick = () => this.toggleServer();
 

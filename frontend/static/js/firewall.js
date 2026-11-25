@@ -32,7 +32,7 @@ window.Page.firewall = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -147,7 +147,7 @@ window.Page.firewall = {
                 select.value = value;
             }
 
-            ChaosSelect.refresh(select);
+            ChardsoftSelect.refresh(select);
 
         });
 
@@ -172,7 +172,7 @@ window.Page.firewall = {
         fwInterfaceInput.value =
             this.data.interfaces.includes(current) ? current : "";
 
-        ChaosSelect.refresh(fwInterfaceInput);
+        ChardsoftSelect.refresh(fwInterfaceInput);
 
     },
 
@@ -286,7 +286,7 @@ window.Page.firewall = {
 
         if (!enable) {
 
-            const confirmed = await ChaosModal.confirm({
+            const confirmed = await ChardsoftModal.confirm({
                 title: "Remove essential rules?",
                 subtitle: "Unless your own rules allow it, LAN devices lose DHCP, DNS and internet access, and this page may become unreachable while the firewall is on.",
                 confirmText: "Remove"
@@ -363,7 +363,7 @@ window.Page.firewall = {
 
         }
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
 
             title: enable ? "Enable firewall" : "Disable firewall",
 
@@ -492,7 +492,7 @@ window.Page.firewall = {
             : `${wan} (modem)`;
 
         [routeForwardingInput, routeNatInput, routeIpv6Input, routeClatInput]
-            .forEach(select => ChaosSelect.refresh(select));
+            .forEach(select => ChardsoftSelect.refresh(select));
 
         if (!routeStatus.dataset.keep) {
             routeStatus.textContent = this.describeRouting();
@@ -544,7 +544,7 @@ window.Page.firewall = {
             (!nat && this.routing.settings.nat)
         ) {
 
-            const ok = await ChaosModal.confirm({
+            const ok = await ChardsoftModal.confirm({
                 title: "Turn off internet sharing?",
                 subtitle: "LAN devices and VPN clients will lose internet access. The dashboard stays reachable.",
                 confirmText: "Turn off"
@@ -619,7 +619,7 @@ window.Page.firewall = {
 
         body.innerHTML = `<code class="modal-code">ufw ${this.escape(rule.spec)}</code>`;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: "Delete rule",
             subtitle: "This rule will be removed immediately.",
             body: body,
@@ -657,7 +657,7 @@ window.Page.firewall = {
 
         fwDirectionInput.disabled = limit;
 
-        ChaosSelect.refresh(fwDirectionInput);
+        ChardsoftSelect.refresh(fwDirectionInput);
 
     },
 
@@ -665,7 +665,7 @@ window.Page.firewall = {
     init() {
 
         this.selects.forEach(id => {
-            ChaosSelect.enhance(document.getElementById(id));
+            ChardsoftSelect.enhance(document.getElementById(id));
         });
 
         fwToggle.onclick = () => this.toggle();
@@ -689,7 +689,7 @@ window.Page.firewall = {
 
     destroy() {
 
-        ChaosModal.close();
+        ChardsoftModal.close();
 
     }
 

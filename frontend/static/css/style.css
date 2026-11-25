@@ -448,7 +448,7 @@ main{
 }
 
 /* Open dropdowns stay above the next box. */
-.card:has(.chaos-select.open){
+.card:has(.chardsoft-select.open){
     z-index:10;
 }
 
@@ -954,15 +954,15 @@ select.setting-input{
 /* Dropdown (select.js)                                      */
 /* ========================================================= */
 
-.chaos-select{
+.chardsoft-select{
     position:relative;
     width:100%;
     min-width:0;
 }
 
 /* The native select stays the value; select.js shows this instead. */
-.chaos-select > select,
-.chaos-select .interface-mode-select{
+.chardsoft-select > select,
+.chardsoft-select .interface-mode-select{
     position:absolute;
     width:1px;
     height:1px;
@@ -971,7 +971,7 @@ select.setting-input{
     overflow:hidden;
 }
 
-.chaos-select-trigger{
+.chardsoft-select-trigger{
     display:flex;
     align-items:center;
     justify-content:space-between;
@@ -987,40 +987,40 @@ select.setting-input{
     text-align:left;
 }
 
-.chaos-select-trigger:hover:not(:disabled){
+.chardsoft-select-trigger:hover:not(:disabled){
     border-color:var(--color-text-muted);
 }
 
-.chaos-select.open .chaos-select-trigger{
+.chardsoft-select.open .chardsoft-select-trigger{
     border-color:var(--color-focus);
     outline:var(--hairline) solid var(--color-focus);
 }
 
-.chaos-select-trigger:disabled{
+.chardsoft-select-trigger:disabled{
     color:var(--color-text-disabled);
     background:var(--color-panel);
     border-color:var(--color-border);
 }
 
-.chaos-select-value{
+.chardsoft-select-value{
     min-width:0;
     overflow:hidden;
     text-overflow:ellipsis;
     white-space:nowrap;
 }
 
-.chaos-select-chevron{
+.chardsoft-select-chevron{
     display:flex;
     flex:none;
     color:var(--color-text-muted);
 }
 
-.chaos-select-chevron svg{
+.chardsoft-select-chevron svg{
     width:14px;
     height:14px;
 }
 
-.chaos-select-menu{
+.chardsoft-select-menu{
     position:absolute;
     top:calc(100% + 1px);
     left:0;
@@ -1036,11 +1036,11 @@ select.setting-input{
     box-shadow:var(--shadow-popup);
 }
 
-.chaos-select.open .chaos-select-menu{
+.chardsoft-select.open .chardsoft-select-menu{
     display:block;
 }
 
-.chaos-select-option{
+.chardsoft-select-option{
     display:flex;
     align-items:center;
     justify-content:space-between;
@@ -1055,21 +1055,21 @@ select.setting-input{
     text-align:left;
 }
 
-.chaos-select-option:hover:not(:disabled){
+.chardsoft-select-option:hover:not(:disabled){
     background:var(--color-accent);
     color:var(--color-accent-text);
 }
 
-.chaos-select-option:disabled{
+.chardsoft-select-option:disabled{
     color:var(--color-text-disabled);
 }
 
-.chaos-select-check{
+.chardsoft-select-check{
     visibility:hidden;
     font-size:var(--text-sm);
 }
 
-.chaos-select-option.selected .chaos-select-check{
+.chardsoft-select-option.selected .chardsoft-select-check{
     visibility:visible;
 }
 
@@ -2043,7 +2043,7 @@ td.mono{
     font-weight:var(--weight-regular);
 }
 
-.graph-select .chaos-select-trigger{
+.graph-select .chardsoft-select-trigger{
     height:var(--control-height-sm);
     font-size:var(--text-sm);
 }

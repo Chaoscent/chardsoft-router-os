@@ -1,15 +1,15 @@
 /*
  * Shared confirmation dialog (#confirmModal in base.html).
  *
- * ChaosModal.confirm({ title, subtitle, body, confirmText })
+ * ChardsoftModal.confirm({ title, subtitle, body, confirmText })
  * resolves to true when confirmed, false otherwise.
  * `body` is an optional DOM node shown inside the dialog.
  *
- * ChaosModal.notice({ title, subtitle, body, confirmText }) only informs:
+ * ChardsoftModal.notice({ title, subtitle, body, confirmText }) only informs:
  * one button (OK unless confirmText says otherwise).
  */
 
-window.ChaosModal = {
+window.ChardsoftModal = {
 
     confirm({ title, subtitle, body, confirmText }) {
 

@@ -7,7 +7,7 @@
  * them by itself when the countdown ends.
  */
 
-window.ChaosApply = {
+window.ChardsoftApply = {
 
     pending: null,
     deadline: 0,
@@ -15,7 +15,7 @@ window.ChaosApply = {
     tickTimer: null,
     busy: false,
 
-    SEEN_KEY: "chaos-last-revert-seen",
+    SEEN_KEY: "chardsoft-last-revert-seen",
 
 
     async check() {
@@ -245,4 +245,4 @@ window.ChaosApply = {
 };
 
 
-document.addEventListener("DOMContentLoaded", () => ChaosApply.init());
+document.addEventListener("DOMContentLoaded", () => ChardsoftApply.init());

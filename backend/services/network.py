@@ -171,7 +171,7 @@ def run_command(cmd, timeout=None):
 # -------------------------------------------------------------------
 
 # Seconds a service must stay up after a restart to count as working.
-SETTLE_SECONDS = float(os.getenv("CHAOS_SETTLE_SECONDS", "2"))
+SETTLE_SECONDS = float(os.getenv("CHARDSOFT_SETTLE_SECONDS", "2"))
 
 
 def unit_stays_active(unit):

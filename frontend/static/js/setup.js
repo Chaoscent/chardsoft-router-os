@@ -390,9 +390,9 @@ const Setup = {
 
         country.value = wifi.country || "DE";
 
-        ChaosSelect.enhance(country);
+        ChardsoftSelect.enhance(country);
 
-        this.$("setupSsid").value = wifi.ssid || "Chaos Router";
+        this.$("setupSsid").value = wifi.ssid || "Chardsoft Router";
 
         this.$("setupWifiEnabled").onchange = () => {
             this.$("setupWifiFields").classList.toggle("hidden", !this.$("setupWifiEnabled").checked);

@@ -1,7 +1,7 @@
 """
 Caddy in front of the dashboard (deploy/Caddyfile).
 
-The service runs gunicorn on CHAOS_BIND:CHAOS_PORT. With Caddy that is
+The service runs gunicorn on CHARDSOFT_BIND:CHARDSOFT_PORT. With Caddy that is
 127.0.0.1:5000 and Caddy serves ports 80 (HTTP) and 443 (HTTPS) on
 every address; without Caddy (development) the app listens on
 0.0.0.0:5000 itself.
@@ -19,9 +19,9 @@ import socket
 
 import psutil
 
-APP_PORT = os.getenv("CHAOS_PORT", "5000")
+APP_PORT = os.getenv("CHARDSOFT_PORT", "5000")
 
-BIND = os.getenv("CHAOS_BIND", "0.0.0.0")
+BIND = os.getenv("CHARDSOFT_BIND", "0.0.0.0")
 
 LOCALHOST = ("127.0.0.1", "::1")
 
@@ -31,7 +31,7 @@ BEHIND_CADDY = BIND in LOCALHOST or BIND == "localhost"
 # Root certificate of Caddy's local CA (Debian's caddy package keeps its
 # data in /var/lib/caddy). Overridable for development.
 ROOT_CA = os.getenv(
-    "CHAOS_CADDY_CA",
+    "CHARDSOFT_CADDY_CA",
     "/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt"
 )
 

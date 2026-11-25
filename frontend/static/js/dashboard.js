@@ -133,7 +133,7 @@ window.Page.dashboard = {
         const result = await this.saveLayout(layout);
 
         if (result !== true) {
-            ChaosModal.notice({ title: "Dashboard not saved", subtitle: result });
+            ChardsoftModal.notice({ title: "Dashboard not saved", subtitle: result });
             return false;
         }
 
@@ -276,7 +276,7 @@ window.Page.dashboard = {
         item.graph.svg.setAttribute("aria-label",
             `Download and upload on ${widget.interface || "the WAN"} over the last 60 seconds`);
 
-        ChaosSelect.enhance(item.select);
+        ChardsoftSelect.enhance(item.select);
 
         item.select.onchange = () => {
 
@@ -343,7 +343,7 @@ window.Page.dashboard = {
 
         select.value = value;
 
-        ChaosSelect.refresh(select);
+        ChardsoftSelect.refresh(select);
 
     },
 
@@ -664,7 +664,7 @@ window.Page.dashboard = {
     async runFix(action, button, result) {
 
         if (action.fix === "restart_modem") {
-            const go = await ChaosModal.confirm({
+            const go = await ChardsoftModal.confirm({
                 title: "Restart the modem?",
                 subtitle: "Mobile data is gone for about a minute while it restarts.",
                 confirmText: "Restart modem"
@@ -673,7 +673,7 @@ window.Page.dashboard = {
         }
 
         if (action.fix === "resume") {
-            const go = await ChaosModal.confirm({
+            const go = await ChardsoftModal.confirm({
                 title: "Go over the data limit?",
                 subtitle: "Devices get the internet again until the next billing period. Your carrier may charge extra or slow the connection down.",
                 confirmText: "Resume anyway"
@@ -973,7 +973,7 @@ window.Page.dashboard = {
         this.endDrag(true);
 
         if (this.draft.every(w => w.hidden)) {
-            ChaosModal.notice({ title: "Nothing to show", subtitle: "Show at least one widget." });
+            ChardsoftModal.notice({ title: "Nothing to show", subtitle: "Show at least one widget." });
             return;
         }
 
@@ -984,7 +984,7 @@ window.Page.dashboard = {
         doneEditBtn.disabled = false;
 
         if (result !== true) {
-            ChaosModal.notice({ title: "Dashboard not saved", subtitle: result });
+            ChardsoftModal.notice({ title: "Dashboard not saved", subtitle: result });
             return;
         }
 
@@ -1586,7 +1586,7 @@ window.Page.dashboard = {
 
                 const select = interfaceBox.querySelector("select");
 
-                ChaosSelect.enhance(select);
+                ChardsoftSelect.enhance(select);
                 this.fillSelect(select, this.interfaceOptions(widget.interface), widget.interface);
 
                 select.onchange = () => { widget.interface = select.value; };
@@ -1602,7 +1602,7 @@ window.Page.dashboard = {
                 ? this.WIDTHS[widget.type]
                 : [...this.WIDTHS[widget.type], widget.width].sort((a, b) => a - b);
 
-            ChaosSelect.enhance(width);
+            ChardsoftSelect.enhance(width);
             this.fillSelect(width, widths.map(w => ({ value: String(w), label: this.WIDTH_LABELS[w] })), String(widget.width));
 
             width.onchange = () => { widget.width = Number(width.value); };

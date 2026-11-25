@@ -9,7 +9,7 @@ window.Page.clients = {
 
     escape(value) {
 
-        return ChaosSelect.escape(value);
+        return ChardsoftSelect.escape(value);
 
     },
 
@@ -456,7 +456,7 @@ window.Page.clients = {
                    you unblock it, whichever address it uses.
                </p>`;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: `Block ${client.hostname}?`,
             subtitle: client.mac,
             body: body,
@@ -528,7 +528,7 @@ window.Page.clients = {
                     : "It keeps its address and can still reach the router."}
             </p>`;
 
-        const confirmed = await ChaosModal.confirm({
+        const confirmed = await ChardsoftModal.confirm({
             title: `Pause the internet for ${client.hostname}?`,
             subtitle: client.mac,
             body,
