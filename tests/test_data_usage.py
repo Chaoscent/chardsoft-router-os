@@ -258,6 +258,22 @@ class CheckTests(unittest.TestCase):
         self.assertIn("for your devices", result["message"])
         self.assertEqual(result["action"]["href"], "#/dns")
 
+    def test_devices_resolve_reads_dns_query(self):
+        # dns_query's own answer format (the rcode by name).
+        answers = {
+            "NOERROR": {"rcode": "NOERROR", "answers": [{"type": "A", "value": "1.1.1.1", "ttl": 60}]},
+            "REFUSED": {"rcode": "REFUSED", "answers": []},
+            "timeout": {"rcode": None, "answers": [], "error": "timed out"},
+        }
+        from services import dhcp, dns
+        for name, expected in (("NOERROR", True), ("REFUSED", False), ("timeout", False)):
+            with mock.patch.object(dns, "dns_query", return_value=answers[name]), \
+                 mock.patch.object(dns, "get_dns_settings", return_value={"enabled": True}), \
+                 mock.patch.object(dhcp, "has_dnsmasq", return_value=True):
+                self.assertIs(ic.devices_resolve(), expected, name)
+        with mock.patch.object(dns, "get_dns_settings", return_value={"enabled": False}):
+            self.assertIsNone(ic.devices_resolve())
+
     def test_no_dns_server_for_devices(self):
         self.assertEqual(self.check(lan_dns=None)["verdict"], "online")
 

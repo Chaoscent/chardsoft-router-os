@@ -71,7 +71,8 @@ def devices_resolve(name=DNS_NAME):
 
     answer = dns.dns_query(name, "A", server="127.0.0.1", timeout=TIMEOUT)
 
-    return answer["rcode"] == 0 and bool(answer["answers"])
+    # dns_query names the rcode ("NOERROR", "REFUSED", ...).
+    return answer["rcode"] == "NOERROR" and bool(answer["answers"])
 
 
 def step(id, label, ok, detail, action=None):
