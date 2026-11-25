@@ -1186,7 +1186,13 @@ window.Page.dashboard = {
         const element = item.element;
         const rect = element.getBoundingClientRect();
 
-        item.grip.setPointerCapture(event.pointerId);
+        // Captured by the grid, not the handle: moving the widget in the
+        // page takes the handle out of the document for a moment, and
+        // the browser then drops its capture (the widget fell from the
+        // pointer). The grid never moves.
+        const capture = dashboardGrid;
+
+        capture.setPointerCapture(event.pointerId);
 
         // The widget lifts only once the pointer moves: a click or a tap
         // on the handle changes nothing.
@@ -1197,6 +1203,7 @@ window.Page.dashboard = {
             startX: event.clientX,
             startY: event.clientY,
             pointerId: event.pointerId,
+            capture,
             offsetX: event.clientX - rect.left,
             offsetY: event.clientY - rect.top,
             x: event.clientX,
@@ -1221,7 +1228,7 @@ window.Page.dashboard = {
         };
 
         for (const [name, listener] of Object.entries(drag.listeners)) {
-            item.grip.addEventListener(name, listener);
+            capture.addEventListener(name, listener);
         }
 
         drag.frame = requestAnimationFrame(() => this.autoScroll());
@@ -1356,10 +1363,10 @@ window.Page.dashboard = {
         const { item } = drag;
 
         for (const [name, listener] of Object.entries(drag.listeners)) {
-            item.grip.removeEventListener(name, listener);
+            drag.capture.removeEventListener(name, listener);
         }
 
-        if (item.grip.hasPointerCapture?.(drag.pointerId)) item.grip.releasePointerCapture(drag.pointerId);
+        if (drag.capture.hasPointerCapture?.(drag.pointerId)) drag.capture.releasePointerCapture(drag.pointerId);
 
         // Only a click: nothing moved.
         if (!drag.ghost) return;
