@@ -93,7 +93,7 @@
 
                     <div class="setting-field">
                         <label for="customName">Name</label>
-                        <input id="customName" class="setting-input" maxlength="60" autocomplete="off" placeholder="e.g. Home Assistant">
+                        <input id="customName" data-enter="customCheck" class="setting-input" maxlength="60" autocomplete="off" placeholder="e.g. Home Assistant">
                     </div>
 
                     <div class="setting-field">
@@ -107,13 +107,13 @@
 
                     <div class="setting-field">
                         <label for="customImage">Image</label>
-                        <input id="customImage" class="setting-input" autocomplete="off" spellcheck="false"
+                        <input id="customImage" data-enter="customCheck" class="setting-input" autocomplete="off" spellcheck="false"
                                placeholder="e.g. ghcr.io/home-assistant/home-assistant:stable">
                     </div>
 
                     <div class="setting-field">
                         <label for="customPort">Web port inside the app</label>
-                        <input id="customPort" class="setting-input" inputmode="numeric" maxlength="5"
+                        <input id="customPort" data-enter="customCheck" class="setting-input" inputmode="numeric" maxlength="5"
                                placeholder="e.g. 8080 (empty: no web page)">
                     </div>
 
@@ -143,14 +143,14 @@
 
                         <div class="setting-field">
                             <label for="customService">Service with the web page</label>
-                            <input id="customService" class="setting-input" list="customServices" autocomplete="off"
+                            <input id="customService" data-enter="customCheck" class="setting-input" list="customServices" autocomplete="off"
                                    placeholder="Only needed with several services">
                             <datalist id="customServices"></datalist>
                         </div>
 
                         <div class="setting-field">
                             <label for="customComposePort">Its web port inside</label>
-                            <input id="customComposePort" class="setting-input" inputmode="numeric" maxlength="5"
+                            <input id="customComposePort" data-enter="customCheck" class="setting-input" inputmode="numeric" maxlength="5"
                                    placeholder="e.g. 8080 (empty: no web page)">
                         </div>
 
