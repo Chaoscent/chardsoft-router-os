@@ -3402,6 +3402,37 @@ def apps_addon_install_api():
 
 
 
+@app.route("/api/apps/custom/check", methods=["POST"])
+
+@login_required
+
+def apps_custom_check_api():
+
+        ok, result = router_apps.check_custom(request.get_json(silent=True))
+
+        if not ok:
+                return jsonify({"success": False, "message": result}), 400
+
+        return jsonify({"success": True, **result})
+
+
+
+
+@app.route("/api/apps/custom/add", methods=["POST"])
+
+@login_required
+
+def apps_custom_add_api():
+
+        data = request.get_json(silent=True) or {}
+
+        ok, message = router_apps.add_custom(data.get("app"), accept_risks=data.get("accept_risks") is True)
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
+
+
+
+
 @app.route("/api/apps/<app_id>/<action>", methods=["POST"])
 
 @login_required

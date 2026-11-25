@@ -470,7 +470,16 @@ The addon lives on the branch `dev/apps` and installs into `/opt/chardsoft-route
 - **Router-friendly Docker settings:**
   - `ip-forward-no-drop`: Docker doesn't block forwarding.
   - Its own address pool, 172.31.0.0/16.
-- **The App Manager** `chardsoft-apps` (`/usr/local/bin/chardsoft-apps`). It is the only thing the app may run for apps (one sudoers rule), and only for apps in the catalog.
+- **The App Manager** `chardsoft-apps` (`/usr/local/bin/chardsoft-apps`). It is the only thing the app may run for apps (one sudoers rule): catalog apps, and the admin's own apps.
+
+## Own apps
+
+The Apps page also adds any image as an app, from a form (image, web port, folders, variables) or a pasted compose file. The dashboard writes the definition to a file in its runtime folder and hands it to the App Manager (`check-custom`, then `add` as a job); the App Manager does all the checking, so nothing the dashboard sends can skip it.
+
+- Docker Compose normalizes the file (`config --format json`); the App Manager checks that model before every start and adds the web port on 127.0.0.1 (9200 and up), where Caddy sends the app's name.
+- **Refused:** building images, and ports the router uses (22, 53, 67, 68, 80, 443, 546, 547, 5000, 5353).
+- **Warned, installed only when accepted** (`add --accept-risks`, after a confirmation with a checkbox on the page): privileged, host network, host namespaces, `cap_add`, devices, folders outside the app's folder, `security_opt` that turn protections off, and ports published beyond 127.0.0.1 (Docker opens those past ufw). Risks not accepted at `add` stop a later start, too. The accepted list is shown on the app.
+- The router never depends on these apps, like on any app. The router admin is trusted: whoever has the dashboard has the web shell too.
 
 ## Catalog
 

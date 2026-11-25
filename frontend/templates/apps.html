@@ -43,7 +43,7 @@
             <span>Apps Addon</span>
 
             <p class="setting-hint">
-                Run apps like Nextcloud, Jellyfin or Vaultwarden on the router,
+                Run apps like Nextcloud, Jellyfin or Vaultwarden, or any Docker image of your own, on the router,
                 each reached by its own name in your network. The addon installs
                 Docker Engine, Docker Compose and the App Manager. It takes a few
                 minutes and needs internet. The router itself never depends on it.
@@ -70,6 +70,110 @@
             <div id="appsGrid" class="apps-grid"></div>
 
             <p id="appsNamesHint" class="setting-hint apps-names-hint"></p>
+
+
+            <!-- The admin's own app: an image, or a compose file -->
+
+            <div id="appsCustom" class="card apps-custom">
+
+                <span>Add your own app</span>
+
+                <p class="setting-hint">
+                    Any Docker image, from Docker Hub or another registry. It gets its own name like the
+                    apps above. The router checks it first and lists settings that could harm the router
+                    before anything runs.
+                </p>
+
+                <div class="tool-tabs" role="group" aria-label="Kind of app">
+                    <button class="secondary-btn" type="button" data-custom-mode="form" aria-pressed="true">Image</button>
+                    <button class="secondary-btn" type="button" data-custom-mode="compose" aria-pressed="false">Compose file</button>
+                </div>
+
+                <div class="settings-grid">
+
+                    <div class="setting-field">
+                        <label for="customName">Name</label>
+                        <input id="customName" class="setting-input" maxlength="60" autocomplete="off" placeholder="e.g. Home Assistant">
+                    </div>
+
+                    <div class="setting-field">
+                        <label>Address</label>
+                        <div id="customAddress" class="setting-input setting-readonly">--</div>
+                    </div>
+
+                </div>
+
+                <div id="customForm" class="settings-grid">
+
+                    <div class="setting-field">
+                        <label for="customImage">Image</label>
+                        <input id="customImage" class="setting-input" autocomplete="off" spellcheck="false"
+                               placeholder="e.g. ghcr.io/home-assistant/home-assistant:stable">
+                    </div>
+
+                    <div class="setting-field">
+                        <label for="customPort">Web port inside the app</label>
+                        <input id="customPort" class="setting-input" inputmode="numeric" maxlength="5"
+                               placeholder="e.g. 8080 (empty: no web page)">
+                    </div>
+
+                    <div class="setting-field">
+                        <label for="customVolumes">Folders to keep (one per line)</label>
+                        <textarea id="customVolumes" class="setting-textarea" rows="3" spellcheck="false"
+                                  placeholder="/config"></textarea>
+                    </div>
+
+                    <div class="setting-field">
+                        <label for="customEnv">Variables (NAME=value, one per line)</label>
+                        <textarea id="customEnv" class="setting-textarea" rows="3" spellcheck="false"
+                                  placeholder="PUID=1000"></textarea>
+                    </div>
+
+                </div>
+
+                <div id="customCompose" class="hidden">
+
+                    <div class="setting-field">
+                        <label for="customComposeText">Compose file</label>
+                        <textarea id="customComposeText" class="setting-textarea apps-compose" rows="12" spellcheck="false"
+                                  placeholder="services:&#10;  app:&#10;    image: ...&#10;    volumes:&#10;      - ./data:/data"></textarea>
+                    </div>
+
+                    <div class="settings-grid">
+
+                        <div class="setting-field">
+                            <label for="customService">Service with the web page</label>
+                            <input id="customService" class="setting-input" list="customServices" autocomplete="off"
+                                   placeholder="Only needed with several services">
+                            <datalist id="customServices"></datalist>
+                        </div>
+
+                        <div class="setting-field">
+                            <label for="customComposePort">Its web port inside</label>
+                            <input id="customComposePort" class="setting-input" inputmode="numeric" maxlength="5"
+                                   placeholder="e.g. 8080 (empty: no web page)">
+                        </div>
+
+                    </div>
+
+                    <p class="setting-hint">
+                        Relative folders (./data) are kept in the app's own folder on the router.
+                        Variables you can use: CHARDSOFT_HOST (the app's name), CHARDSOFT_DATA, TZ.
+                        The web port is reached through the router's name; you do not need to publish it.
+                    </p>
+
+                </div>
+
+                <div id="customResult" class="apps-custom-result hidden"></div>
+
+                <div class="setting-row">
+                    <button id="customCheck" class="secondary-btn">Check</button>
+                    <button id="customAdd" class="save-btn">Add app</button>
+                </div>
+
+                <div id="customStatus" class="setting-status"></div>
+
+            </div>
 
         </div>
 

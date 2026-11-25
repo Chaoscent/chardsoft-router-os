@@ -41,6 +41,11 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   (signal per section, "lte, 5gnr" → "5G NSA", SIM state); the active band
   (`sudo qmicli -p -d /dev/cdc-wdm0 --nas-get-rf-band-info`, the Modem page
   shows e.g. "B3 + n78").
+- [ ] **Own apps on the Pi** (Apps page, "Add your own app"): an image from
+  the form (e.g. `traefik/whoami`, web port 80, a folder), a compose file
+  with two services, one with risky settings (the warning, the checkbox,
+  the accepted list on the app), stop/start/update/logs/remove. Page
+  layout on a phone.
 - [ ] **SIM PIN on a real SIM** (when home, phone and PUK at hand): turn the
   PIN on from the Modem page, reboot (the saved PIN unlocks the SIM, one
   Logs entry), change it, enter a wrong one by hand (attempts count down),

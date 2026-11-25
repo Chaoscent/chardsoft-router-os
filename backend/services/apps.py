@@ -38,7 +38,7 @@ import time
 
 import psutil
 
-from services.config import load_system, save_system, system_path
+from services.config import load_system, save_system, system_path, RUNTIME_DIR
 from services.network import run_command, privileged
 from services.logs import log_event
 
@@ -67,6 +67,7 @@ APPS_RECORD = "apps"
 ACTIONS = ("install", "start", "stop", "restart", "update", "remove")
 
 ACTION_LABELS = {
+    "add": "Adding",
     "install": "Installing",
     "start": "Starting",
     "stop": "Stopping",
@@ -243,6 +244,41 @@ def get_apps():
             }
         })
 
+    known = {entry.get("id") for entry in catalog}
+
+    # The admin's own apps (compose file or form), after the catalog.
+    for app_id, installed in sorted(status.items()):
+
+        if app_id in known or not installed.get("custom"):
+            continue
+
+        host = installed.get("host") or app_host(app_id)
+        images = [str(i) for i in installed.get("images") or []]
+
+        apps.append({
+            "id": app_id,
+            "name": installed.get("name") or app_id,
+            "description": ", ".join(images),
+            "category": "Your app",
+            "custom": True,
+            "website": "",
+            "download_mb": None,
+            "min_ram_mb": None,
+            "low_ram": False,
+            "https": False,
+            # Settings that can harm the router, accepted when it was added.
+            "risks": [str(r) for r in installed.get("accepted") or []],
+            "web": isinstance(installed.get("port"), int),
+            "first_steps": "",
+            "installed": True,
+            "state": installed["state"],
+            "host": host,
+            "urls": {
+                "http": f"http://{host}/",
+                "https": f"https://{host}/"
+            }
+        })
+
     return {
         "addon": addon,
         "apps": apps,
@@ -269,7 +305,7 @@ def job_view():
         }
 
 
-def _run_job(job, cmd, after):
+def _run_job(job, cmd, after, cleanup=None):
 
     def add(line):
         line = ANSI_RE.sub("", line).rstrip()
@@ -295,6 +331,9 @@ def _run_job(job, cmd, after):
     except OSError as e:
         add(f"Error: {e}")
 
+    if cleanup:
+        cleanup()
+
     if success and after:
         try:
             after()
@@ -315,7 +354,7 @@ def _run_job(job, cmd, after):
     )
 
 
-def start_job(action, app_id, name, cmd, after=None):
+def start_job(action, app_id, name, cmd, after=None, cleanup=None):
 
     global _job
 
@@ -338,7 +377,7 @@ def start_job(action, app_id, name, cmd, after=None):
 
         job = _job
 
-    threading.Thread(target=_run_job, args=(job, cmd, after), daemon=True).start()
+    threading.Thread(target=_run_job, args=(job, cmd, after, cleanup), daemon=True).start()
 
     return True, f"{ACTION_LABELS[action]} {name or 'the Apps Addon'}..."
 
@@ -368,6 +407,11 @@ def run_action(action, app_id, delete_data=False):
     ok, catalog = cli_json("catalog")
     entry = next((a for a in catalog if a.get("id") == app_id), None) if ok else None
 
+    # The admin's own apps: everything but installing (that is "add").
+    if not entry and action != "install":
+        ok, status = cli_json("status")
+        entry = next((a for a in status if a.get("id") == app_id and a.get("custom")), None) if ok else None
+
     if not entry:
         return False, "Unknown app."
 
@@ -383,6 +427,124 @@ def run_action(action, app_id, delete_data=False):
     after = sync_integration if action in ("install", "remove") else None
 
     return start_job(action, app_id, entry.get("name", app_id), cmd, after)
+
+
+# -------------------------------------------------------------------
+# The admin's own apps
+# -------------------------------------------------------------------
+
+def custom_id(name):
+    """The app's id (and so its address) from its name: "My App" -> "my-app"."""
+
+    return re.sub(r"[^a-z0-9]+", "-", str(name or "").lower()).strip("-")[:31].strip("-")
+
+
+def custom_definition(data):
+    """
+    The definition the App Manager reads, from the page's form. The App
+    Manager checks every field; this only shapes it.
+    """
+
+    data = data if isinstance(data, dict) else {}
+
+    name = str(data.get("name") or "").strip()[:60]
+    app_id = custom_id(data.get("id") or name)
+
+    definition = {"id": app_id, "name": name or app_id, "mode": data.get("mode")}
+
+    if data.get("mode") == "form":
+
+        env = {}
+
+        for item in data.get("env") or []:
+            if isinstance(item, dict) and str(item.get("key") or "").strip():
+                env[str(item["key"]).strip()] = str(item.get("value") or "")
+
+        definition.update(
+            image=str(data.get("image") or "").strip(),
+            port=data.get("port"),
+            volumes=[str(v) for v in data.get("volumes") or [] if str(v).strip()],
+            env=env
+        )
+
+    else:
+
+        definition.update(
+            compose=str(data.get("compose") or ""),
+            service=str(data.get("service") or "").strip(),
+            port=data.get("port")
+        )
+
+    return definition
+
+
+def _definition_file(definition):
+
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+
+    fd, path = tempfile.mkstemp(prefix="custom-app-", suffix=".json", dir=str(RUNTIME_DIR))
+
+    with os.fdopen(fd, "w") as f:
+        json.dump(definition, f)
+
+    return path
+
+
+def check_custom(data):
+    """
+    (True, {"id", "host", "errors", "warnings", "services", "images",
+    "route"}) or (False, message).
+    """
+
+    if not addon_installed():
+        return False, "The Apps Addon is not installed."
+
+    definition = custom_definition(data)
+
+    if not APP_ID_RE.fullmatch(definition["id"]):
+        return False, "Give the app a name (letters or digits)."
+
+    path = _definition_file(definition)
+
+    try:
+        ok, result = cli_json("check-custom", path)
+    finally:
+        os.unlink(path)
+
+    if not ok:
+        return False, result
+
+    return True, {**result, "id": definition["id"], "host": app_host(definition["id"])}
+
+
+def add_custom(data, accept_risks=False):
+    """Installs the admin's own app as a job (checked again by the App Manager)."""
+
+    if not addon_installed():
+        return False, "The Apps Addon is not installed."
+
+    definition = custom_definition(data)
+
+    if not APP_ID_RE.fullmatch(definition["id"]):
+        return False, "Give the app a name (letters or digits)."
+
+    path = _definition_file(definition)
+
+    cmd = [CLI, "add", path, "--host", app_host(definition["id"])]
+
+    if accept_risks:
+        cmd.append("--accept-risks")
+
+    ok, message = start_job(
+        "add", definition["id"], definition["name"], cmd,
+        after=sync_integration,
+        cleanup=lambda: os.path.exists(path) and os.unlink(path)
+    )
+
+    if not ok:
+        os.unlink(path)
+
+    return ok, message
 
 
 # -------------------------------------------------------------------

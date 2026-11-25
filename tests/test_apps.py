@@ -1,5 +1,6 @@
 """
-Apps page: the board-memory warning for apps that need more RAM.
+Apps page: the board-memory warning for apps that need more RAM, and
+the admin's own apps.
 
     cd backend && ../.venv/bin/python -m unittest discover -s ../tests
 """
@@ -73,6 +74,66 @@ class CatalogTests(unittest.TestCase):
 
     def test_unknown_board_flags_nothing(self):
         self.assertFalse(any(a["low_ram"] for a in self.get_apps(None)["apps"]))
+
+
+class CustomAppTests(unittest.TestCase):
+
+    def test_id_from_name(self):
+        self.assertEqual(apps.custom_id("Home Assistant"), "home-assistant")
+        self.assertEqual(apps.custom_id("  --Ünïcode App!! "), "n-code-app")
+        self.assertEqual(apps.custom_id("x" * 40 + "-y"), "x" * 31)
+        self.assertEqual(apps.custom_id("!!!"), "")
+
+    def test_form_definition(self):
+        d = apps.custom_definition({
+            "name": "My App", "mode": "form", "image": " nginx ", "port": "80",
+            "volumes": ["/config", " "], "env": [{"key": "A", "value": "1"}, {"key": " ", "value": "x"}, "junk"]
+        })
+        self.assertEqual(d, {"id": "my-app", "name": "My App", "mode": "form", "image": "nginx",
+                             "port": "80", "volumes": ["/config"], "env": {"A": "1"}})
+
+    def test_compose_definition(self):
+        d = apps.custom_definition({"name": "Stack", "mode": "compose", "compose": "services: {}", "service": " web ", "port": 8080})
+        self.assertEqual(d["service"], "web")
+        self.assertEqual(d["compose"], "services: {}")
+        self.assertNotIn("image", d)
+
+    def test_listed_after_the_catalog(self):
+        status = [
+            {"id": "vaultwarden", "host": "vaultwarden.chardsoft-router.local", "port": 9102, "state": "running"},
+            {"id": "mqtt", "custom": True, "name": "MQTT", "port": None, "state": "running",
+             "images": ["eclipse-mosquitto:2"], "accepted": ["port 1883/tcp is opened ..."]},
+            {"id": "kuma", "custom": True, "name": "Kuma", "port": 9200, "state": "stopped",
+             "host": "kuma.chardsoft-router.local", "images": ["louislam/uptime-kuma:1"]},
+        ]
+        answers = {"version": {"addon": "1", "running": True}, "catalog": [{"id": "vaultwarden", "name": "Vaultwarden"}], "status": status}
+        with mock.patch.multiple(apps, addon_installed=lambda: True,
+                                 cli_json=lambda cmd: (True, answers[cmd]), board_ram_mb=lambda: 4096):
+            listed = apps.get_apps()["apps"]
+        self.assertEqual([a["id"] for a in listed], ["vaultwarden", "kuma", "mqtt"])
+        kuma, mqtt = listed[1], listed[2]
+        self.assertTrue(kuma["custom"] and kuma["web"] and kuma["installed"])
+        self.assertFalse(mqtt["web"])
+        self.assertEqual(mqtt["risks"], ["port 1883/tcp is opened ..."])
+        self.assertEqual(kuma["description"], "louislam/uptime-kuma:1")
+
+    def test_actions_reach_own_apps_but_not_install(self):
+        status = [{"id": "kuma", "custom": True, "name": "Kuma"}]
+        answers = {"catalog": [], "status": status}
+        started = []
+        with mock.patch.multiple(apps, addon_installed=lambda: True,
+                                 cli_json=lambda cmd: (True, answers[cmd]),
+                                 start_job=lambda *a, **k: started.append(a) or (True, "ok")):
+            self.assertTrue(apps.run_action("stop", "kuma")[0])
+            self.assertFalse(apps.run_action("install", "kuma")[0])
+            self.assertFalse(apps.run_action("stop", "unknown")[0])
+        self.assertEqual(started[0][3], [apps.CLI, "stop", "kuma"])
+
+    def test_nameless_app_is_refused_before_the_app_manager(self):
+        with mock.patch.multiple(apps, addon_installed=lambda: True,
+                                 cli_json=lambda *a: self.fail("must not run")):
+            self.assertFalse(apps.check_custom({"name": "!!", "mode": "form"})[0])
+            self.assertFalse(apps.add_custom({"name": "", "mode": "form"})[0])
 
 
 if __name__ == "__main__":
