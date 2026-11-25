@@ -121,6 +121,18 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   runs on the 5G HAT's USB hub and on the Pi's own ports; the disconnects
   on 2026-11-24 came from a USB-C power injector in between, not the HAT.
   Check that it stays connected under load (a phone downloading on 6 GHz).
+  Tested over SSH on 2026-11-25 (USB `authorized` 0/1 on the AXML): off
+  and cleaned up in under 12 s, on again in under 25 s, both notified.
+  Found then: the firewall had no DHCP/DNS rules for wlan1 (built at boot,
+  before the adapter came), so a phone would get no address; now synced by
+  the watcher. Check with a phone: it gets 10.43.0.x and opens websites;
+  `sudo iptables -S ufw-user-input | grep wlan1` lists DHCP and DNS.
+- [ ] **DNS for the devices:** found 2026-11-25: dnsmasq had no upstream
+  servers (Debian's `/run/dnsmasq/resolv.conf` never exists with openresolv)
+  and refused every lookup from the Wi-Fi. After the update:
+  `/etc/dnsmasq.d/chaos-router-upstream.conf` exists, a phone on each
+  network opens websites, the internet check says "Everything works", and
+  choosing Cloudflare on the DNS page still switches to it.
 - [ ] **Notifications:** a wrong password at the login, a new phone joining
   the Wi-Fi, pulling the cable behind a static route ("stopped working",
   then "works again") and a watchdog modem restart each show under the

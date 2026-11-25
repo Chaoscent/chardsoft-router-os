@@ -61,8 +61,11 @@ UPSTREAM_PRESETS = {
 
 DEFAULT_SETTINGS = {
     "enabled": True,
-    # "preset" (one of UPSTREAM_PRESETS), "custom" or "isp".
-    "upstream_mode": "preset",
+    # "preset" (one of UPSTREAM_PRESETS), "custom" or "isp". The router's
+    # own servers (modem / ISP) until others are chosen: what dnsmasq
+    # uses before the DNS page is first saved (install.sh), and no
+    # third party sees the devices' lookups unless asked to.
+    "upstream_mode": "isp",
     "upstream_preset": "cloudflare",
     "upstream_servers": [],
     "interfaces": ["eth0", "wlan0", "br0", "wg0", "ovpns0"],

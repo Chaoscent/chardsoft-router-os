@@ -229,9 +229,10 @@ MODEM_OK = {"state": "ready", "lock": None, "connection": "activated", "carrier"
 class CheckTests(unittest.TestCase):
 
     def check(self, modem_data=MODEM_OK, v4=True, v6=True, dns=True, enabled=True,
-              clat_wanted=False, clat_active=False, routed=True, usage_level="ok"):
+              clat_wanted=False, clat_active=False, routed=True, usage_level="ok", lan_dns=True):
         usage = {"level": usage_level, "limit": GB, "percent": 50, "period_end": "2026-12-01"}
-        with mock.patch.multiple(ic, ping=lambda f, t: v4 if f == "-4" else v6, resolves=lambda: dns), \
+        with mock.patch.multiple(ic, ping=lambda f, t: v4 if f == "-4" else v6, resolves=lambda: dns,
+                                 devices_resolve=lambda: lan_dns), \
              mock.patch.object(ic.network, "get_wan_interface", return_value="wwan0"), \
              mock.patch.object(ic.network, "get_ip", return_value="Unknown"), \
              mock.patch.object(ic.modem, "get_modem_data", return_value=modem_data), \
@@ -248,6 +249,17 @@ class CheckTests(unittest.TestCase):
         result = self.check()
         self.assertTrue(result["online"])
         self.assertEqual(result["verdict"], "online")
+
+    def test_devices_dns_without_answers(self):
+        # The router's own lookups work, dnsmasq has no upstream servers.
+        result = self.check(lan_dns=False)
+        self.assertFalse(result["online"])
+        self.assertEqual(result["verdict"], "dns")
+        self.assertIn("for your devices", result["message"])
+        self.assertEqual(result["action"]["href"], "#/dns")
+
+    def test_no_dns_server_for_devices(self):
+        self.assertEqual(self.check(lan_dns=None)["verdict"], "online")
 
     def test_mobile_data_off_offers_switching_it_on(self):
         result = self.check({**MODEM_OK, "connection": "deactivated"}, v4=False, v6=False, dns=False, enabled=False)

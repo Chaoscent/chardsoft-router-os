@@ -41,7 +41,20 @@ class GeneratedConfigs(unittest.TestCase):
     def test_dnsmasq(self):
         helper.check_dnsmasq(dhcp.render_dnsmasq_config(dhcp.DEFAULT_SETTINGS))
         helper.check_dnsmasq(dns.render_dns_config({**dns.DEFAULT_SETTINGS, "dnssec": True}))
+        helper.check_dnsmasq(dns.render_dns_config({**dns.DEFAULT_SETTINGS, "upstream_mode": "preset"}))
         helper.check_dnsmasq(setup_network.render_dnsmasq("wlan0"))
+
+    def test_dns_upstream(self):
+        # Default: the router's own servers (install.sh's resolv-file),
+        # never a third party unless chosen.
+        default = dns.render_dns_config(dns.DEFAULT_SETTINGS).splitlines()
+        self.assertNotIn("no-resolv", default)
+        self.assertFalse([line for line in default if line.startswith("server=")])
+        self.assertEqual(dns.describe_upstream(dns.DEFAULT_SETTINGS), "Modem / ISP")
+        # A preset replaces them.
+        preset = dns.render_dns_config({**dns.DEFAULT_SETTINGS, "upstream_mode": "preset"}).splitlines()
+        self.assertIn("no-resolv", preset)
+        self.assertIn("server=1.1.1.1", preset)
 
     def test_caddy(self):
         helper.check_caddy(apps.caddy_snippet("uptime-kuma", "uptime-kuma.chaos-router.local", 3001))

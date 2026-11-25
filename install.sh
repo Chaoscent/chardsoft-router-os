@@ -49,6 +49,10 @@ PACKAGES_RECORD=/etc/chaos-router-os/installed-packages
 # server (see keep_name_resolution).
 DNSMASQ_DROPIN=/etc/systemd/system/dnsmasq.service.d/chaos-router-os.conf
 
+# Where dnsmasq finds upstream servers for the devices while the DNS
+# page names none (see keep_name_resolution).
+DNSMASQ_UPSTREAM=/etc/dnsmasq.d/chaos-router-upstream.conf
+
 # DNS servers that worked before the install (restored if needed).
 SAVED_NAMESERVERS=""
 
@@ -244,6 +248,18 @@ keep_name_resolution() {
         "# router's own DNS server (no start-resolvconf)." \
         "[Service]" \
         "ExecStartPost=" > "$DNSMASQ_DROPIN"
+
+    # Debian starts dnsmasq with -r /run/dnsmasq/resolv.conf, a file only
+    # the resolvconf package writes. With openresolv (Raspberry Pi OS,
+    # NetworkManager) it never exists, so dnsmasq had no upstream
+    # servers and refused every lookup from the devices until servers
+    # were saved on the DNS page. It also reads the router's own
+    # servers (modem / ISP) now; servers saved on the DNS page replace
+    # them (no-resolv). Its own addresses in there are skipped.
+    printf '%s\n' \
+        "# Chardsoft Router OS: the router's own DNS servers (modem / ISP)" \
+        "# for the devices, unless the DNS page names others." \
+        "resolv-file=/etc/resolv.conf" > "$DNSMASQ_UPSTREAM"
 
     systemctl daemon-reload
 

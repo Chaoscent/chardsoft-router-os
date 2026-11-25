@@ -11,7 +11,7 @@ link to the page where it is fixed. Only reads, except for fix().
     sharing      forwarding and NAT are on (Firewall page)
     data_limit   the data limit has not stopped the LAN
     reach        a ping over IPv4 or IPv6 gets an answer
-    dns          the router can look up names
+    dns          the router, and its DNS server for the devices, find names
     clat         IPv4 for devices on an IPv6-only plan
     lan_routing  devices' traffic leaves through the WAN
 """
@@ -54,6 +54,24 @@ def resolves(name=DNS_NAME):
         return False
 
     return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def devices_resolve(name=DNS_NAME):
+    """
+    Whether the DNS server the devices use (dnsmasq; DHCP hands out the
+    router's address) finds names. It has its own upstream servers, so
+    the router's own lookups working says nothing about it. None when
+    the router serves no DNS.
+    """
+
+    from services import dhcp, dns
+
+    if not dns.get_dns_settings()["enabled"] or not dhcp.has_dnsmasq():
+        return None
+
+    answer = dns.dns_query(name, "A", server="127.0.0.1", timeout=TIMEOUT)
+
+    return answer["rcode"] == 0 and bool(answer["answers"])
 
 
 def step(id, label, ok, detail, action=None):
@@ -118,12 +136,13 @@ def run_check():
     is_modem = wan == network.MODEM_INTERFACE
 
     # The slow parts at once: two pings, a lookup, the modem.
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         v4 = pool.submit(ping, "-4", PING_TARGETS["-4"])
         v6 = pool.submit(ping, "-6", PING_TARGETS["-6"])
         dns = pool.submit(resolves)
+        lan_dns = pool.submit(devices_resolve)
         modem_data = pool.submit(modem.get_modem_data) if is_modem else None
-        v4, v6, dns = v4.result(), v6.result(), dns.result()
+        v4, v6, dns, lan_dns = v4.result(), v6.result(), dns.result(), lan_dns.result()
         modem_data = modem_data.result() if modem_data else None
 
     steps = []
@@ -170,9 +189,17 @@ def run_check():
     else:
         steps.append(step("reach", "Reach the internet", False, "No answer from the internet."))
 
-    steps.append(step("dns", "Names (DNS)", dns,
-                      "Names are found." if dns else "Names cannot be looked up, so websites do not open.",
-                      None if dns or not (v4 or v6) else link("DNS page", "#/dns")))
+    if dns and lan_dns is False:
+        # The router finds names, the DNS server it gives its devices
+        # does not (no upstream servers, or they do not answer).
+        steps.append(step("dns", "Names (DNS)", False,
+                          "The router finds names, but its DNS server for your devices does not, "
+                          "so websites do not open on them. Check the upstream servers.",
+                          link("DNS page", "#/dns")))
+    else:
+        steps.append(step("dns", "Names (DNS)", dns,
+                          "Names are found." if dns else "Names cannot be looked up, so websites do not open.",
+                          None if dns or not (v4 or v6) else link("DNS page", "#/dns")))
 
     # 5. IPv4 for devices on an IPv6-only plan.
     wanted = clat.is_wanted(wan) if wan else None

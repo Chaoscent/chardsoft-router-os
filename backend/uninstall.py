@@ -40,7 +40,8 @@ DNSMASQ_FILES = (
     "/etc/dnsmasq.d/chaos-router-dhcp.conf",
     "/etc/dnsmasq.d/chaos-router-dns.conf",
     "/etc/dnsmasq.d/chaos-router-setup.conf",
-    "/etc/dnsmasq.d/chaos-router-apps.conf"
+    "/etc/dnsmasq.d/chaos-router-apps.conf",
+    "/etc/dnsmasq.d/chaos-router-upstream.conf"
 )
 
 CADDY_APPS_DIR = "/etc/caddy/chaos-apps"
