@@ -265,7 +265,7 @@ window.Page.shell = {
         };
 
         shellPasswordInput.addEventListener("keydown", event => {
-            if (event.key === "Enter") { event.preventDefault(); shellOpen.click(); }
+            if (event.key === "Enter") shellOpen.click();
         });
 
         shellClose.onclick = () => this.disconnect();

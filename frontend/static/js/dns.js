@@ -464,7 +464,7 @@ window.Page.dns = {
         dnsLookup.onclick = () => this.lookup();
 
         dnsLookupNameInput.addEventListener("keydown", e => {
-            if (e.key === "Enter") { e.preventDefault(); this.lookup(); }
+            if (e.key === "Enter") this.lookup();
         });
 
         this.load();

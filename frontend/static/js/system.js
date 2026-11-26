@@ -1287,7 +1287,6 @@ window.Page.system = {
             (e) => {
 
                 if (e.key === "Enter") {
-                    e.preventDefault();
                     this.save();
                 }
 
