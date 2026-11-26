@@ -5,7 +5,10 @@ KNOWN_MODEMS = {
     "2c7c:0800": ("Quectel", "RM500Q/RM502Q"),
     "2c7c:0125": ("Quectel", "RG500Q"),
 
-    "2cb7:0007": ("Fibocom", "FM350"),
+    # IDs as in ModemManager's Fibocom rules. The L850-GL also comes
+    # Intel-branded (8087:095a).
+    "2cb7:0007": ("Fibocom", "L850-GL"),
+    "8087:095a": ("Fibocom", "L850-GL"),
     "2cb7:01a2": ("Fibocom", "FM160"),
 
     "1199:9071": ("Sierra Wireless", "EM7455"),

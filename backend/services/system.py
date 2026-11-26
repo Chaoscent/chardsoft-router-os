@@ -38,6 +38,8 @@ def set_hostname(hostname):
 
         subprocess.run(privileged(["hostnamectl", "set-hostname", hostname]), check=True, capture_output=True)
 
+        sync_hosts_file(hostname)
+
         return True, hostname
 
     except Exception:
@@ -55,6 +57,20 @@ def set_hostname(hostname):
             "Permission denied. "
             "Hostname changes require elevated privileges."
         )
+
+
+def sync_hosts_file(hostname):
+    """
+    The new name on the 127.0.1.1 line of /etc/hosts: hostnamectl leaves
+    the old one there, and sudo then warns "unable to resolve host".
+    """
+
+    ok, output = run_command(privileged(["hosts-name", hostname]))
+
+    if not ok:
+        print(f"[hostname] /etc/hosts not updated: {output}")
+
+    return ok
 
 
 def get_ip():

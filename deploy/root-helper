@@ -781,6 +781,58 @@ def cmd_hostname(args):
     return [find_tool("hostname"), *args]
 
 
+HOSTS_FILE = "/etc/hosts"
+
+
+def hosts_with_name(text, name):
+    """/etc/hosts with the 127.0.1.1 line naming this machine (added if missing)."""
+
+    lines = text.splitlines()
+    line = f"127.0.1.1\t{name}"
+
+    for i, current in enumerate(lines):
+        if current.split()[:1] == ["127.0.1.1"]:
+            lines[i] = line
+            break
+    else:
+        lines.append(line)
+
+    return "\n".join(lines) + "\n"
+
+
+def cmd_hosts_name(args):
+    """The machine's own name in /etc/hosts, after hostnamectl (sudo and
+    other tools look it up there). Only the 127.0.1.1 line changes."""
+
+    if len(args) != 1 or not HOSTNAME.fullmatch(args[0]):
+        refuse("hosts-name: only a valid name.")
+
+    try:
+        with open(HOSTS_FILE) as f:
+            text = f.read()
+    except FileNotFoundError:
+        text = "127.0.0.1\tlocalhost\n"
+
+    wanted = hosts_with_name(text, args[0])
+
+    if wanted == text:
+        return None
+
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(HOSTS_FILE), prefix=".chardsoft-")
+
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(wanted)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, HOSTS_FILE)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+    return None
+
+
 def cmd_date(args):
 
     # The clock from the modem's GNSS (services/gnss.py): UTC seconds only.
@@ -974,6 +1026,7 @@ def plan(argv):
         "qmicli": lambda: cmd_qmicli(args),
         "hostnamectl": lambda: cmd_hostnamectl(args),
         "hostname": lambda: cmd_hostname(args),
+        "hosts-name": lambda: cmd_hosts_name(args),
         "date": lambda: cmd_date(args),
         "sysctl": lambda: cmd_sysctl(args),
         "ip": lambda: cmd_ip(args),

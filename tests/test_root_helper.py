@@ -11,6 +11,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -180,6 +181,32 @@ class Commands(unittest.TestCase):
                 except helper.Refused as error:
                     if "is not installed" not in str(error):
                         raise
+
+
+class HostsName(unittest.TestCase):
+
+    HOSTS = "127.0.0.1\tlocalhost\n::1\tlocalhost ip6-localhost\n127.0.1.1 chaos-router chaos-router\n"
+
+    def test_only_the_own_line_changes(self):
+        self.assertEqual(helper.hosts_with_name(self.HOSTS, "chardsoft-router"),
+                         "127.0.0.1\tlocalhost\n::1\tlocalhost ip6-localhost\n127.0.1.1\tchardsoft-router\n")
+
+    def test_missing_line_is_added(self):
+        self.assertTrue(helper.hosts_with_name("127.0.0.1 localhost\n", "x").endswith("127.0.1.1\tx\n"))
+
+    def test_file_is_written(self):
+        path = os.path.join(tempfile.mkdtemp(), "hosts")
+        with open(path, "w") as f:
+            f.write(self.HOSTS)
+        with mock.patch.object(helper, "HOSTS_FILE", path):
+            self.assertIsNone(helper.plan(["hosts-name", "chardsoft-router"]))
+        with open(path) as f:
+            self.assertIn("127.0.1.1\tchardsoft-router\n", f.read())
+
+    def test_bad_names_are_refused(self):
+        for argv in (["hosts-name", "a b"], ["hosts-name", "-x"], ["hosts-name"], ["hosts-name", "a", "b"]):
+            with self.subTest(argv=argv), self.assertRaises(helper.Refused):
+                helper.plan(argv)
 
 
 class Files(unittest.TestCase):

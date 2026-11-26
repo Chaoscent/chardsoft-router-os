@@ -330,6 +330,13 @@ install_packages() {
     apt-get update -q
     apt-get install -y -q "${PACKAGES[@]}"
 
+    # The tayga package starts its own NAT64 (tayga.service, an example
+    # config with a documentation prefix). The router only uses tayga for
+    # its CLAT (chardsoft-clat.service, its own config and interface).
+    if systemctl list-unit-files tayga.service >/dev/null 2>&1; then
+        systemctl disable --now tayga.service >/dev/null 2>&1 || true
+    fi
+
     # Add to the record (an update may install packages added later).
     mkdir -p "$(dirname "$PACKAGES_RECORD")"
     touch "$PACKAGES_RECORD"
@@ -341,6 +348,32 @@ install_packages() {
     fi
 
     find_modem
+    sync_hosts_name
+}
+
+
+# hostnamectl (the System page, or raspi-config before) leaves the old
+# name on the 127.0.1.1 line of /etc/hosts; sudo then warns "unable to
+# resolve host". Only that line changes.
+sync_hosts_name() {
+
+    local name
+    name=$(hostname 2>/dev/null || true)
+
+    [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || return 0
+    [[ -f /etc/hosts ]] || return 0
+
+    if awk -v n="$name" '$1 == "127.0.1.1" { for (i = 2; i <= NF; i++) if ($i == n) found = 1 } END { exit !found }' /etc/hosts; then
+        return 0
+    fi
+
+    if grep -q '^127\.0\.1\.1[[:space:]]' /etc/hosts; then
+        sed -i "s/^127\.0\.1\.1[[:space:]].*/127.0.1.1\t$name/" /etc/hosts
+    else
+        printf '127.0.1.1\t%s\n' "$name" >> /etc/hosts
+    fi
+
+    info "/etc/hosts: 127.0.1.1 is now $name"
 }
 
 
