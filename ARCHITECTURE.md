@@ -450,6 +450,8 @@ Chardsoft Router OS Hardware Edition
 | `dev/apps` | The Apps Addon |
 | `release/core`, `release/hardware-edition`, `release/apps` | Empty until the v1 release; from then on, only the newest full release |
 
+**Release channels:** the System page's Updates card switches between Stable (`release/<edition>`) and Development (`dev/<edition>`). The branch is kept in the install record (`/etc/chardsoft-router-os/install.json`, changed only by `deploy/update.sh channel`), and a rerun of the installer keeps it. Stable never installs a version older than the one running (`VERSION`, with `1.0.0-beta` < `1.0.0`): after switching from Development, the router stays put until Stable is newer, so settings are never downgraded. An empty release branch is reported as "no stable release yet".
+
 At v1, `VERSION` becomes `1.0.0`, the release branches are filled and the installers, the redirect on chardsoft.com and GitHub's default branch switch to `release/*` (see PLAN.md).
 
 **Current version:** `0.1.0-alpha`.

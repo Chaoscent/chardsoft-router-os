@@ -1021,6 +1021,17 @@ window.Page.system = {
 
         updateBranch.textContent = info.branch ? `· branch ${info.branch}` : "";
 
+        // Release channel: only for the installer's copy on dev/* or release/*.
+        const channels = Boolean(info.managed && info.channel);
+
+        updateChannelGroup.classList.toggle("hidden", !channels);
+        updateChannelHint.classList.toggle("hidden", !channels);
+
+        if (channels) {
+            updateChannelInput.value = info.channel;
+            ChardsoftSelect.refresh(updateChannelInput);
+        }
+
         updateCheck.disabled = !info.managed;
 
         if (!info.managed) {
@@ -1060,14 +1071,17 @@ window.Page.system = {
         }
 
         if (!data.update_available) {
-            updateStatus.textContent = "✓ Up to date.";
+            updateStatus.textContent = data.note || "✓ Up to date.";
             return;
         }
 
         const date = data.latest_date ? new Date(data.latest_date).toLocaleDateString() : "";
 
+        const version = data.latest_version && data.latest_version !== data.version
+            ? `${data.latest_version} ` : "";
+
         updateLatest.textContent =
-            `New: ${data.latest.slice(0, 7)}${date ? ` from ${date}` : ""}` +
+            `New: ${version}${data.latest.slice(0, 7)}${date ? ` from ${date}` : ""}` +
             (data.latest_message ? `: ${data.latest_message}` : "");
 
         updateLatest.classList.remove("hidden");
@@ -1132,6 +1146,72 @@ window.Page.system = {
     },
 
 
+    async changeChannel() {
+
+        const channel = updateChannelInput.value;
+        const previous = this.updateInfo?.channel;
+
+        const back = () => {
+            updateChannelInput.value = previous;
+            ChardsoftSelect.refresh(updateChannelInput);
+        };
+
+        if (!previous || channel === previous) return;
+
+        const body = document.createElement("div");
+
+        body.innerHTML = `
+            <label class="modal-field">
+                <span>Your password</span>
+                <input class="setting-input" type="password" autocomplete="current-password">
+            </label>
+            <p class="modal-note">
+                ${channel === "stable"
+                    ? "From now on the router only gets finished releases. If Stable is older than the version installed now, nothing changes until Stable is newer."
+                    : "From now on the router gets every change as soon as it is published. These are tested less and can break things."}
+                Nothing is installed until you choose Update now.
+            </p>
+        `;
+
+        const confirmed = await ChardsoftModal.confirm({
+            title: channel === "stable" ? "Switch to Stable" : "Switch to Development",
+            subtitle: "Change where updates come from?",
+            body,
+            confirmText: "Switch"
+        });
+
+        if (!confirmed) return back();
+
+        updateChannelInput.disabled = true;
+        updateStatus.textContent = "Changing the channel...";
+
+        let data;
+
+        try {
+            const res = await fetch("/api/system/update/channel", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ channel, password: body.querySelector("input").value })
+            });
+            data = await res.json();
+        } catch {
+            data = { success: false, message: "The router did not answer." };
+        }
+
+        updateChannelInput.disabled = false;
+
+        if (!data.success) {
+            back();
+            updateStatus.textContent = data.message;
+            return;
+        }
+
+        await this.loadUpdate();
+        await this.checkUpdate();
+
+    },
+
+
     /** Polls the update's progress; the app restarts in the middle. */
     followUpdate() {
 
@@ -1186,6 +1266,8 @@ window.Page.system = {
 
         updateCheck.onclick = () => this.checkUpdate();
         updateStart.onclick = () => this.startUpdate();
+        ChardsoftSelect.enhance(updateChannelInput);
+        updateChannelInput.addEventListener("change", () => this.changeChannel());
         this.loadUpdate();
 
         backupDownload.onclick = () => this.downloadBackup();

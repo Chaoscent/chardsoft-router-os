@@ -306,7 +306,12 @@ its reason, starting with `root-helper:`, in the page's message and the log).
   `/usr/local/libexec/chardsoft-router-os`.
 - Encrypted backups (optional password, AES-256-GCM, scrypt).
 - Updates from the System page (`deploy/update.sh`): settings backup, new
-  installer, health check, automatic rollback.
+  installer, health check, automatic rollback (the installer then keeps
+  the checked-out code instead of fetching the branch again).
+- Release channels on the System page: Stable (`release/<edition>`) and
+  Development (`dev/<edition>`), kept in the install record and kept by a
+  rerun of the installer. Stable never installs an older version than the
+  one running, and says so while `release/core` is still empty.
 - Web shell only over HTTPS behind Caddy (a warning without Caddy).
 - VPN kill switch for full-tunnel profiles.
 - MSS clamping; Avahi off the modem; DNS follows a new local domain at once;

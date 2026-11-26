@@ -364,6 +364,8 @@ from services.update import (
 
         start_update,
 
+        set_channel,
+
         get_update_status
 
 )
@@ -3699,6 +3701,28 @@ def update_start_api():
 
         if ok:
                 log_event("system", "Update started from the dashboard.")
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 409
+
+
+
+@app.route("/api/system/update/channel", methods=["POST"])
+
+@login_required
+
+def update_channel_api():
+
+        data = request.get_json(silent=True) or {}
+
+        denied = check_password_again(data.get("password"))
+
+        if denied:
+                return denied
+
+        ok, message = set_channel(data.get("channel"))
+
+        if ok:
+                log_event("system", f"Release channel set to {data.get('channel')}.")
 
         return jsonify({"success": ok, "message": message}), 200 if ok else 409
 

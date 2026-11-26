@@ -38,6 +38,16 @@ MANAGED=1
 # What and where was installed, for the updater (deploy/update.sh).
 INSTALL_RECORD=/etc/chardsoft-router-os/install.json
 
+# Running it again keeps the release channel chosen on the System page.
+if [[ -z ${CHARDSOFT_BRANCH:-} && -f $INSTALL_RECORD ]]; then
+    recorded=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("branch", ""))' "$INSTALL_RECORD" 2>/dev/null || true)
+    [[ $recorded =~ ^(dev|release)/[a-z-]+$ ]] && BRANCH=$recorded
+    unset recorded
+fi
+
+# Set by the updater: install the code already checked out, no fetch.
+KEEP_CODE=${CHARDSOFT_KEEP_CODE:-0}
+
 STATE_DIR=/var/lib/chardsoft-router-os
 SUDOERS_FILE=/etc/sudoers.d/chardsoft-router-os
 
@@ -480,6 +490,11 @@ get_code() {
         old="$INSTALL_DIR.user-owned-$(date +%Y%m%d-%H%M%S)"
         warn "$INSTALL_DIR belongs to $APP_USER; moving it to $old and getting a fresh copy."
         mv "$INSTALL_DIR" "$old"
+    fi
+
+    if [[ -d $INSTALL_DIR/.git && $KEEP_CODE == 1 ]]; then
+        info "Installing the version checked out in $INSTALL_DIR"
+        return
     fi
 
     if [[ -d $INSTALL_DIR/.git ]]; then

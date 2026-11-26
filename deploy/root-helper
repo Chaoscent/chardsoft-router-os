@@ -919,7 +919,7 @@ def cmd_apps(args):
 
 
 SCRIPTS = {
-    "update.sh": [["start"]],
+    "update.sh": [["start"], ["channel", "stable"], ["channel", "development"]],
     "install-apps.sh": [[""], []],
     "remove-apps.sh": [[], ["--delete-data"], ["--purge"]],
     "modem-usb-mode.sh": [["status"], ["qmi"], ["mbim"], ["auto"]],

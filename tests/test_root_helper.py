@@ -149,6 +149,8 @@ class Commands(unittest.TestCase):
         ("find", helper.PKI_DIR, "-exec", "sh", ";"),
         ("/opt/x/deploy/modem-usb-mode.sh", "foo"),
         ("/opt/x/deploy/remove-apps.sh", "--yes"),
+        ("/opt/x/deploy/update.sh", "channel", "nightly"),
+        ("/opt/x/deploy/update.sh", "run"),
         ("/opt/x/deploy/remove-apps.sh", "--delete-data", "--purge"),
     ]
 

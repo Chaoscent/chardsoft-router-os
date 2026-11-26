@@ -365,6 +365,34 @@
                     <span id="updateBranch"></span>
                 </p>
 
+                <div id="updateChannelGroup" class="setting-group hidden">
+
+                    <label for="updateChannelInput">
+                        Release channel
+                    </label>
+
+                    <select
+                        id="updateChannelInput"
+                        class="setting-input">
+
+                        <option value="stable">
+                            Stable: finished releases
+                        </option>
+
+                        <option value="development">
+                            Development: every change, can break
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <p id="updateChannelHint" class="setting-hint hidden">
+                    Stable is recommended for a router in use. Switching to
+                    Stable never installs an older version: you stay on this
+                    one until Stable is newer.
+                </p>
+
                 <p id="updateLatest" class="setting-hint hidden"></p>
 
                 <div class="setting-row">
