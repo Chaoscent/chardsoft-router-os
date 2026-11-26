@@ -2538,46 +2538,25 @@ td.mono{
 /* System page                                               */
 /* ========================================================= */
 
-/* One column on narrow screens. With room for two, account takes the
-   right column and maintenance goes under device, so no gap opens under
-   the shorter column; with room for three, one each. */
-
-.system-layout{
-    container-type:inline-size;
-}
+/* One row per section (device, account, maintenance): the title across
+   the page, the section's cards side by side below it, as many as fit. */
 
 .system-columns{
-    display:grid;
-    grid-template-columns:minmax(0,1fr);
-    align-items:start;
-    gap:var(--space-4);
-}
-
-@container (min-width:856px){
-    .system-columns{
-        grid-template-columns:repeat(2,minmax(0,1fr));
-        grid-template-rows:auto 1fr;
-    }
-    .system-device{ grid-column:1; grid-row:1; }
-    .system-account{ grid-column:2; grid-row:1 / span 2; }
-    .system-maintenance{ grid-column:1; grid-row:2; }
-}
-
-@container (min-width:1292px){
-    .system-columns{
-        grid-template-columns:repeat(3,minmax(0,1fr));
-        grid-template-rows:auto;
-    }
-    .system-device,
-    .system-account,
-    .system-maintenance{ grid-column:auto; grid-row:auto; }
+    display:flex;
+    flex-direction:column;
+    gap:var(--space-6, 24px);
 }
 
 .system-column{
-    display:flex;
-    flex-direction:column;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));
+    align-items:start;
     gap:var(--space-4);
     min-width:0;
+}
+
+.system-column > .system-column-title{
+    grid-column:1 / -1;
 }
 
 .system-column-title{
