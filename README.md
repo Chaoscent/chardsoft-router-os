@@ -89,7 +89,13 @@ sudo /opt/chardsoft-router-os/uninstall.sh            # asks for confirmation
 sudo /opt/chardsoft-router-os/uninstall.sh --dry-run  # only shows what it would do
 ```
 
-It removes the Apps Addon with all apps (and Docker, if the addon installed it), switches off and deletes everything Chardsoft Router OS set up (Wi-Fi, DHCP, DNS, VPNs, firewall rules, NAT, LAN bridge, Caddy routes, mDNS names), purges the packages the installer installed, and deletes all its files. It keeps eth0's address settings (so SSH over eth0 stays), the hostname, the Wi-Fi country and the system journal. A dropped SSH connection doesn't stop it halfway (log: `/tmp/chardsoft-router-os-uninstall.log`). Options: `--yes`, `--keep-packages`, `--all-packages` (for installs made before the installer recorded its packages).
+Lost your phone and the recovery codes for two-step login? On the router, turn it off (the password stays):
+
+```bash
+sudo -u "$(stat -c %U /var/lib/chardsoft-router-os)" /opt/chardsoft-router-os/.venv/bin/python /opt/chardsoft-router-os/backend/reset_2fa.py
+```
+
+The uninstaller removes the Apps Addon with all apps (and Docker, if the addon installed it), switches off and deletes everything Chardsoft Router OS set up (Wi-Fi, DHCP, DNS, VPNs, firewall rules, NAT, LAN bridge, Caddy routes, mDNS names), purges the packages the installer installed, and deletes all its files. It keeps eth0's address settings (so SSH over eth0 stays), the hostname, the Wi-Fi country and the system journal. A dropped SSH connection doesn't stop it halfway (log: `/tmp/chardsoft-router-os-uninstall.log`). Options: `--yes`, `--keep-packages`, `--all-packages` (for installs made before the installer recorded its packages).
 
 ---
 

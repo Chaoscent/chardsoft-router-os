@@ -578,6 +578,9 @@ Planned: offering a backup download before a reset. Today, download one on the S
   - The firewall allows the dashboard, SSH, DHCP and DNS only on LAN interfaces.
   - `X-Forwarded-For` is trusted only from Caddy (localhost).
 - **Apps:** the App Manager is root-owned, may only run catalog apps, and apps publish ports on 127.0.0.1 only.
+- **Two-step login (optional, System page):** after the password, a 6-digit code from an authenticator app (TOTP, RFC 6238, `services/totp.py`, standard library only) or one of 8 recovery codes (stored as hashes, each works once). A code is not accepted twice; wrong codes count towards the login lockout. Lost phone and codes: `backend/reset_2fa.py` on the router turns it off.
+- **Signed-in devices:** every login gets an id in the session cookie and an entry in `/var/lib/chardsoft-router-os/system/sessions.json` (device, address, times). A session whose entry is gone is signed out, so the System page can sign out one device or every device but this one; logout and a password change remove entries too.
+- **SSH (System page):** on or off, password login on or off (`/etc/ssh/sshd_config.d/00-chardsoft.conf`, checked with `sshd -t`), and the keys in `~/.ssh/authorized_keys` of the account the router runs as. Every change asks for the password. SSH is reloaded, never restarted, so open sessions stay; password login can only go off with a key there, and the last key cannot go while it is off.
 - **Web shell:** off by default, needs its own password per session, LAN only, and not offered on phones.
 - **Secrets on disk:** Wi-Fi passwords, VPN keys and the SIM PIN are stored with mode 600. The dashboard never sends the PIN or the mobile data password back.
 

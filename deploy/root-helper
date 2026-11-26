@@ -80,6 +80,7 @@ WRITABLE = (
     (NAT_SCRIPT, "nat-script"),
     ("/etc/caddy/chardsoft-apps/*.caddy", "caddy"),
     ("/etc/tayga/chardsoft-clat.conf", "tayga"),
+    ("/etc/ssh/sshd_config.d/00-chardsoft.conf", "sshd"),
 )
 
 # Folders the app may create.
@@ -424,6 +425,26 @@ def check_tayga(text):
                 refuse(f"tayga value not allowed: {word}")
 
 
+# SSH (services/ssh.py): password login on or off, nothing else. First
+# value wins in sshd, and 00- comes before the system's own drop-ins.
+SSHD_KEYS = {"PasswordAuthentication", "KbdInteractiveAuthentication"}
+
+
+def check_sshd(text):
+
+    for line in text.splitlines():
+
+        line = line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        words = line.split()
+
+        if len(words) != 2 or words[0] not in SSHD_KEYS or words[1] not in ("yes", "no"):
+            refuse(f"sshd setting not allowed: {line[:60]}")
+
+
 def check_content(kind, text, path):
 
     if kind == "hostapd":
@@ -442,6 +463,8 @@ def check_content(kind, text, path):
         check_pki(text, path)
     elif kind == "tayga":
         check_tayga(text)
+    elif kind == "sshd":
+        check_sshd(text)
 
 
 # -------------------------------------------------------------------
@@ -685,7 +708,7 @@ SYSTEMCTL_VERBS = {
 SYSTEMCTL_OPTIONS = {"--now", "--quiet", "-q", "--no-block", "--no-pager", "--all", "--plain", "--no-legend"}
 
 UNITS = re.compile(
-    r"(dnsmasq|hostapd|caddy|chardsoft-router-mdns|chardsoft-router-os|chardsoft-clat|NetworkManager|ModemManager|avahi-daemon|ufw"
+    r"(ssh|dnsmasq|hostapd|caddy|chardsoft-router-mdns|chardsoft-router-os|chardsoft-clat|NetworkManager|ModemManager|avahi-daemon|ufw"
     rf"|chardsoft-hostapd@{IFACE}|wg-quick@{IFACE}|openvpn-server@{NAME}|openvpn-client@{NAME}"
     r")(\.service)?"
 )
@@ -709,6 +732,11 @@ def cmd_systemctl(args):
         refuse(f"systemctl {verb} takes no unit.")
 
     for unit in units:
+
+        # SSH (System page): status, reload after a setting, on or off.
+        # Never restart or stop it: that would end the sessions.
+        if unit in ("ssh", "ssh.service") and verb not in ("is-active", "is-enabled", "reload", "enable", "disable"):
+            refuse(f"systemctl {verb} is not allowed for ssh.")
 
         # list-units filters by pattern, e.g. chardsoft-hostapd@*.
         if verb == "list-units" and re.fullmatch(r"[A-Za-z0-9_.@*-]+", unit):
@@ -763,6 +791,15 @@ def cmd_mmcli(args):
 
 
 HOSTNAME = re.compile(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+
+
+def cmd_sshd(args):
+
+    # Only check the config (-t) or print the settings in effect (-T).
+    if args not in (["-t"], ["-T"]):
+        refuse("sshd: only -t or -T.")
+
+    return [find_tool("sshd"), *args]
 
 
 def cmd_hostnamectl(args):
@@ -1027,6 +1064,7 @@ def plan(argv):
         "hostnamectl": lambda: cmd_hostnamectl(args),
         "hostname": lambda: cmd_hostname(args),
         "hosts-name": lambda: cmd_hosts_name(args),
+        "sshd": lambda: cmd_sshd(args),
         "date": lambda: cmd_date(args),
         "sysctl": lambda: cmd_sysctl(args),
         "ip": lambda: cmd_ip(args),

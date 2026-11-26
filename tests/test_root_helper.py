@@ -152,6 +152,10 @@ class Commands(unittest.TestCase):
         ("/opt/x/deploy/remove-apps.sh", "--yes"),
         ("/opt/x/deploy/update.sh", "channel", "nightly"),
         ("/opt/x/deploy/update.sh", "run"),
+        ("systemctl", "restart", "ssh"),
+        ("systemctl", "stop", "ssh.service"),
+        ("sshd", "-f", "/tmp/x"),
+        ("sshd", "-D"),
         ("/opt/x/deploy/remove-apps.sh", "--delete-data", "--purge"),
     ]
 
@@ -181,6 +185,15 @@ class Commands(unittest.TestCase):
                 except helper.Refused as error:
                     if "is not installed" not in str(error):
                         raise
+
+
+class SshdConfig(unittest.TestCase):
+
+    def test_only_password_login(self):
+        helper.check_sshd("# x\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n")
+        for bad in ("PermitRootLogin yes", "PasswordAuthentication maybe", "Match all", "AuthorizedKeysCommand /tmp/x"):
+            with self.subTest(bad=bad), self.assertRaises(helper.Refused):
+                helper.check_sshd(bad)
 
 
 class HostsName(unittest.TestCase):

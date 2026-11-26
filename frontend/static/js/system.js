@@ -1293,6 +1293,493 @@ window.Page.system = {
     },
 
 
+    // ------------------------------------------------------------
+    // Account: two-step login, SSH, signed-in devices
+    // ------------------------------------------------------------
+
+    async postJson(url, body) {
+
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body ?? {})
+            });
+            return await res.json();
+        } catch {
+            return { success: false, message: "The router did not answer." };
+        }
+
+    },
+
+
+    /** The router password for a change, or null when cancelled. */
+    async askPassword({ title, subtitle, note, confirmText }) {
+
+        const body = document.createElement("div");
+
+        body.innerHTML = `
+            <label class="modal-field">
+                <span>Your password</span>
+                <input class="setting-input" type="password" autocomplete="current-password">
+            </label>
+        `;
+
+        if (note) {
+            const p = document.createElement("p");
+            p.className = "modal-note";
+            p.textContent = note;
+            body.appendChild(p);
+        }
+
+        const confirmed = await ChardsoftModal.confirm({ title, subtitle, body, confirmText });
+
+        return confirmed ? body.querySelector("input").value : null;
+
+    },
+
+
+    // Two-step login --------------------------------------------------
+
+    async loadTwoFactor() {
+
+        let data;
+
+        try {
+            data = await (await fetch("/api/account/2fa")).json();
+        } catch {
+            return;
+        }
+
+        this.twoFactor = data;
+
+        twoFactorState.textContent = data.enabled ? "On" : "Off";
+        twoFactorRecovery.textContent = data.enabled
+            ? `· ${data.recovery_left} recovery code${data.recovery_left === 1 ? "" : "s"} left`
+            : "";
+
+        twoFactorToggle.textContent = data.enabled ? "Turn off" : "Turn on";
+        twoFactorToggle.classList.toggle("danger-btn", data.enabled);
+        twoFactorRecoveryButton.classList.toggle("hidden", !data.enabled);
+
+    },
+
+
+    showRecoveryCodes(codes, title) {
+
+        const body = document.createElement("div");
+
+        const note = document.createElement("p");
+        note.className = "modal-note";
+        note.textContent = "Each code signs you in once instead of the app code, e.g. when your phone is lost. Write them down or save them now: they are not shown again.";
+
+        const list = document.createElement("div");
+        list.className = "recovery-codes";
+
+        codes.forEach(code => {
+            const item = document.createElement("span");
+            item.textContent = code;
+            list.appendChild(item);
+        });
+
+        body.append(list, note);
+
+        return ChardsoftModal.notice({ title, subtitle: "Your recovery codes", body, confirmText: "I saved them" });
+
+    },
+
+
+    async toggleTwoFactor() {
+
+        twoFactorStatus.textContent = "";
+
+        if (this.twoFactor?.enabled) {
+
+            const password = await this.askPassword({
+                title: "Turn off two-step login",
+                subtitle: "Signing in needs only the password again.",
+                confirmText: "Turn off"
+            });
+
+            if (password === null) return;
+
+            const data = await this.postJson("/api/account/2fa/disable", { password });
+
+            twoFactorStatus.textContent = data.success ? "✓ Two-step login is off." : data.message;
+            this.loadTwoFactor();
+            return;
+
+        }
+
+        const password = await this.askPassword({
+            title: "Turn on two-step login",
+            subtitle: "Confirm with your password first.",
+            confirmText: "Continue"
+        });
+
+        if (password === null) return;
+
+        const setup = await this.postJson("/api/account/2fa/setup", { password });
+
+        if (!setup.success) {
+            twoFactorStatus.textContent = setup.message;
+            return;
+        }
+
+        let problem = "";
+
+        // Until a code from the app works (or the user cancels).
+        for (;;) {
+
+            const body = document.createElement("div");
+
+            // The router's own SVG (segno), never page input.
+            const qr = document.createElement("div");
+            qr.className = "two-factor-qr";
+            qr.innerHTML = setup.qr;
+            qr.querySelector("svg")?.setAttribute("role", "img");
+            qr.querySelector("svg")?.setAttribute("aria-label", "QR code for the authenticator app");
+
+            const manual = document.createElement("p");
+            manual.className = "modal-note";
+            manual.textContent = `No camera? Enter this key in the app: ${setup.secret.match(/.{1,4}/g).join(" ")}`;
+
+            const field = document.createElement("label");
+            field.className = "modal-field";
+            field.innerHTML = `
+                <span>Code from the app</span>
+                <input class="setting-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+            `;
+
+            body.append(qr, manual, field);
+
+            if (problem) {
+                const error = document.createElement("p");
+                error.className = "modal-note";
+                error.textContent = problem;
+                body.appendChild(error);
+            }
+
+            const confirmed = await ChardsoftModal.confirm({
+                title: "Scan with your authenticator app",
+                subtitle: "Then type the 6-digit code it shows.",
+                body,
+                confirmText: "Turn on"
+            });
+
+            if (!confirmed) {
+                twoFactorStatus.textContent = "Two-step login stays off.";
+                return;
+            }
+
+            const data = await this.postJson("/api/account/2fa/enable", { code: field.querySelector("input").value });
+
+            if (data.success) {
+                await this.showRecoveryCodes(data.recovery_codes, "Two-step login is on");
+                twoFactorStatus.textContent = "✓ Two-step login is on.";
+                this.loadTwoFactor();
+                return;
+            }
+
+            problem = data.message;
+
+        }
+
+    },
+
+
+    async newRecoveryCodes() {
+
+        const password = await this.askPassword({
+            title: "New recovery codes",
+            subtitle: "The old recovery codes stop working.",
+            confirmText: "Make new codes"
+        });
+
+        if (password === null) return;
+
+        const data = await this.postJson("/api/account/2fa/recovery", { password });
+
+        if (!data.success) {
+            twoFactorStatus.textContent = data.message;
+            return;
+        }
+
+        await this.showRecoveryCodes(data.recovery_codes, "New recovery codes");
+        this.loadTwoFactor();
+
+    },
+
+
+    // SSH ---------------------------------------------------------------
+
+    async loadSsh() {
+
+        try {
+            this.renderSsh(await (await fetch("/api/account/ssh")).json());
+        } catch {
+            sshState.textContent = "unknown";
+        }
+
+    },
+
+
+    renderSsh(status) {
+
+        this.ssh = status;
+
+        if (!status.installed) {
+            sshState.textContent = "not installed";
+            sshDetails.textContent = "";
+            [sshAddKey, sshPasswordToggle, sshToggle].forEach(b => b.disabled = true);
+            return;
+        }
+
+        sshState.textContent = status.active ? "On" : "Off";
+        sshDetails.textContent = `· port ${status.port}` + (status.active && !status.enabled ? " · not at boot" : "");
+
+        sshPasswordState.textContent = status.password_login === null ? "unknown"
+            : status.password_login ? "on" : "off (keys only)";
+
+        sshAccount.textContent = status.account;
+
+        sshToggle.textContent = status.active ? "Turn SSH off" : "Turn SSH on";
+        sshToggle.classList.toggle("danger-btn", status.active);
+
+        sshPasswordToggle.textContent = status.password_login === false
+            ? "Turn password login on" : "Turn password login off";
+
+        sshKeys.innerHTML = "";
+
+        if (!status.keys.length) {
+            const empty = document.createElement("li");
+            empty.textContent = "No keys yet: SSH only works with the password.";
+            sshKeys.appendChild(empty);
+        }
+
+        status.keys.forEach(key => {
+
+            const item = document.createElement("li");
+            const text = document.createElement("div");
+            const name = document.createElement("span");
+            const print = document.createElement("small");
+            const remove = document.createElement("button");
+
+            name.textContent = key.comment || key.type;
+            print.textContent = `${key.type} · ${key.fingerprint}`;
+
+            remove.className = "secondary-btn";
+            remove.textContent = "Remove";
+            remove.onclick = () => this.sshChange("remove-key", {
+                title: `Remove the key ${key.comment || ""}`.trim(),
+                subtitle: "It cannot sign in over SSH any more.",
+                confirmText: "Remove"
+            }, { fingerprint: key.fingerprint });
+
+            text.append(name, print);
+            item.append(text, remove);
+            sshKeys.appendChild(item);
+
+        });
+
+    },
+
+
+    /** One SSH change with the password; shows the new state. */
+    async sshChange(action, dialog, extra = {}) {
+
+        sshStatus.textContent = "";
+
+        const password = await this.askPassword(dialog);
+
+        if (password === null) return;
+
+        sshStatus.textContent = "Working...";
+
+        const data = await this.postJson("/api/account/ssh", { action, password, ...extra });
+
+        sshStatus.textContent = data.success ? `✓ ${data.message}` : data.message;
+
+        if (data.status) this.renderSsh(data.status);
+
+    },
+
+
+    async addSshKey() {
+
+        sshStatus.textContent = "";
+
+        const body = document.createElement("div");
+
+        body.innerHTML = `
+            <label class="modal-field">
+                <span>Public key (the line from the .pub file)</span>
+                <textarea class="setting-input" rows="4" spellcheck="false" placeholder="ssh-ed25519 AAAA... laptop"></textarea>
+            </label>
+            <label class="modal-field">
+                <span>Your password</span>
+                <input class="setting-input" type="password" autocomplete="current-password">
+            </label>
+        `;
+
+        const confirmed = await ChardsoftModal.confirm({
+            title: "Add an SSH key",
+            subtitle: `It can sign in as ${this.ssh?.account || "the router's account"}.`,
+            body,
+            confirmText: "Add key"
+        });
+
+        if (!confirmed) return;
+
+        sshStatus.textContent = "Working...";
+
+        const data = await this.postJson("/api/account/ssh", {
+            action: "add-key",
+            key: body.querySelector("textarea").value,
+            password: body.querySelector("input").value
+        });
+
+        sshStatus.textContent = data.success ? `✓ ${data.message}` : data.message;
+
+        if (data.status) this.renderSsh(data.status);
+
+    },
+
+
+    toggleSsh() {
+
+        const on = this.ssh?.active;
+
+        return this.sshChange(on ? "disable" : "enable", on ? {
+            title: "Turn SSH off",
+            subtitle: "No new SSH logins, also not after a reboot.",
+            note: "Open SSH sessions stay until they end. The dashboard keeps working, and you can turn SSH on here again.",
+            confirmText: "Turn off"
+        } : {
+            title: "Turn SSH on",
+            subtitle: "SSH runs now and after every reboot.",
+            confirmText: "Turn on"
+        });
+
+    },
+
+
+    togglePasswordLogin() {
+
+        const off = this.ssh?.password_login !== false;
+
+        return this.sshChange(off ? "password-off" : "password-on", off ? {
+            title: "Keys only",
+            subtitle: "SSH stops taking passwords; only the keys listed here get in.",
+            note: "Make sure your key works first. Open SSH sessions stay.",
+            confirmText: "Turn password login off"
+        } : {
+            title: "Turn password login on",
+            subtitle: "SSH takes the account's password again, besides keys.",
+            confirmText: "Turn on"
+        });
+
+    },
+
+
+    // Signed-in devices ---------------------------------------------------
+
+    async loadDevices() {
+
+        try {
+            this.devices = (await (await fetch("/api/account/devices")).json()).devices || [];
+        } catch {
+            return;
+        }
+
+        devicesCount.textContent = this.devices.length;
+        devicesSignOutOthers.disabled = this.devices.length < 2;
+
+    },
+
+
+    ago(seconds) {
+
+        const minutes = Math.max(0, Math.round((Date.now() / 1000 - seconds) / 60));
+
+        if (minutes < 1) return "just now";
+        if (minutes < 60) return `${minutes} min ago`;
+
+        return `${Math.round(minutes / 60)} h ago`;
+
+    },
+
+
+    async showDevices() {
+
+        await this.loadDevices();
+
+        const list = document.createElement("ul");
+        list.className = "device-list";
+
+        (this.devices || []).forEach(device => {
+
+            const item = document.createElement("li");
+            const text = document.createElement("div");
+            const name = document.createElement("span");
+            const info = document.createElement("small");
+
+            name.textContent = device.device + (device.current ? " (this device)" : "");
+            info.textContent = `${device.address || "unknown address"} · signed in ${new Date(device.created * 1000).toLocaleString()} · active ${this.ago(device.last_seen)}`;
+
+            text.append(name, info);
+            item.appendChild(text);
+
+            if (!device.current) {
+
+                const button = document.createElement("button");
+                button.className = "secondary-btn";
+                button.textContent = "Sign out";
+
+                button.onclick = async () => {
+                    button.disabled = true;
+                    const data = await this.postJson("/api/account/devices/sign-out", { id: device.id });
+                    if (data.success) item.remove();
+                    else { button.disabled = false; info.textContent = data.message; }
+                    this.loadDevices();
+                };
+
+                item.appendChild(button);
+            }
+
+            list.appendChild(item);
+
+        });
+
+        await ChardsoftModal.notice({
+            title: "Signed-in devices",
+            subtitle: "Browsers signed in to this dashboard. Devices sign out by themselves after the session times.",
+            body: list,
+            confirmText: "Close"
+        });
+
+    },
+
+
+    async signOutOthers() {
+
+        const confirmed = await ChardsoftModal.confirm({
+            title: "Sign out everywhere else",
+            subtitle: "Every other browser has to sign in again. This one stays signed in.",
+            confirmText: "Sign out the others"
+        });
+
+        if (!confirmed) return;
+
+        const data = await this.postJson("/api/account/devices/sign-out-others");
+
+        devicesStatus.textContent = data.success ? `✓ ${data.message}` : data.message;
+
+        this.loadDevices();
+
+    },
+
+
     init() {
 
         // Same dropdown look as every other page.
@@ -1310,6 +1797,18 @@ window.Page.system = {
         ChardsoftSelect.enhance(updateChannelInput);
         updateChannelInput.addEventListener("change", () => this.changeChannel());
         this.loadUpdate();
+
+        twoFactorToggle.onclick = () => this.toggleTwoFactor();
+        twoFactorRecoveryButton.onclick = () => this.newRecoveryCodes();
+        sshAddKey.onclick = () => this.addSshKey();
+        sshPasswordToggle.onclick = () => this.togglePasswordLogin();
+        sshToggle.onclick = () => this.toggleSsh();
+        devicesShow.onclick = () => this.showDevices();
+        devicesSignOutOthers.onclick = () => this.signOutOthers();
+
+        this.loadTwoFactor();
+        this.loadSsh();
+        this.loadDevices();
 
         backupDownload.onclick = () => this.downloadBackup();
         backupChoose.onclick = () => backupFileInput.click();

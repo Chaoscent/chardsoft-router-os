@@ -12,6 +12,8 @@ from services.config import (
 )
 
 from services import transaction
+from services import sessions
+from services import totp
 
 
 # users.json in /var/lib/chardsoft-router-os, created by /setup. There is
@@ -122,7 +124,7 @@ def password_stamp(username, users=None):
     return hashlib.sha256(entry["password"].encode()).hexdigest()[:16]
 
 
-def login_user(username):
+def login_user(username, address=None, agent=None):
     now = time.time()
 
     session.clear()
@@ -132,9 +134,44 @@ def login_user(username):
     session["created_at"] = now
     session["last_activity"] = now
 
+    # This device in the list of signed-in devices.
+    session["sid"] = sessions.add(
+        username, address, agent if agent is not None else request.headers.get("User-Agent"),
+        get_idle_timeout(), get_absolute_timeout()
+    )
+
 
 def logout_user():
+    sessions.remove(session.get("sid"))
     session.clear()
+
+
+def signed_in_devices():
+    return sessions.list_for(
+        session.get("user"), session.get("sid"), get_idle_timeout(), get_absolute_timeout()
+    )
+
+
+def sign_out_device(sid):
+    """Signs out one of the user's other devices."""
+
+    user = session.get("user")
+
+    if not sid or sid == session.get("sid"):
+        return False, "This is the device you are using: use Sign out."
+
+    if not sessions.check(sid, user):
+        return False, "That device is already signed out."
+
+    sessions.remove(sid)
+
+    return True, "Signed out."
+
+
+def sign_out_others():
+    """Every device of this user but this one; returns how many."""
+
+    return sessions.remove_user(session.get("user"), keep=session.get("sid"))
 
 
 def is_logged_in():
@@ -157,6 +194,11 @@ def is_logged_in():
         session.clear()
         return False
 
+    # Signed out from another device (or from before devices were listed).
+    if not sessions.check(session.get("sid"), session["user"]):
+        session.clear()
+        return False
+
     absolute_timeout = get_absolute_timeout()
     idle_timeout = get_idle_timeout()
 
@@ -174,6 +216,7 @@ def is_logged_in():
 def update_session_activity():
     if "user" in session:
         session["last_activity"] = time.time()
+        sessions.touch(session.get("sid"))
 
 
 def login_required(func):
@@ -220,6 +263,113 @@ def change_password(current_password, new_password):
     if not save_users(users):
         return False, "Password could not be saved"
 
+    # The new password signs out every device, this one too.
+    sessions.remove_user(username)
     session.clear()
 
     return True, "Password changed successfully"
+
+# -------------------------------------------------------------------
+# Two-step login (services/totp.py)
+# -------------------------------------------------------------------
+
+def second_factor(username):
+    """The user's two-step login record, or None when it is off."""
+
+    entry = load_users().get(username) or {}
+    record = entry.get("totp")
+
+    return record if isinstance(record, dict) and record.get("secret") else None
+
+
+def two_factor_status(username):
+
+    record = second_factor(username)
+
+    return {
+        "enabled": record is not None,
+        "recovery_left": len(record.get("recovery") or []) if record else 0
+    }
+
+
+def verify_second_factor(username, code):
+    """
+    True for a current code from the app (not used before) or an unused
+    recovery code (then spent). Only call after the password was right.
+    """
+
+    users = load_users()
+    entry = users.get(username) or {}
+    record = entry.get("totp")
+
+    if not isinstance(record, dict) or not record.get("secret"):
+        return False
+
+    step = totp.matching_step(record["secret"], code, record.get("last_step"))
+
+    if step is not None:
+        record["last_step"] = step
+        return save_users(users)
+
+    left = totp.use_recovery(record.get("recovery") or [], code)
+
+    if left is not None:
+        record["recovery"] = left
+        return save_users(users)
+
+    return False
+
+
+def enable_two_factor(username, secret, code):
+    """(True, recovery codes) once a code from the app proves the setup."""
+
+    step = totp.matching_step(secret, code)
+
+    if step is None:
+        return False, "Wrong code. Check the time on your phone and try the newest code."
+
+    users = load_users()
+
+    if username not in users:
+        return False, "User not found."
+
+    codes, hashes = totp.new_recovery_codes()
+
+    users[username]["totp"] = {"secret": secret, "last_step": step, "recovery": hashes, "since": int(time.time())}
+
+    if not save_users(users):
+        return False, "Two-step login could not be saved."
+
+    return True, codes
+
+
+def new_recovery_codes(username):
+
+    users = load_users()
+    record = (users.get(username) or {}).get("totp")
+
+    if not isinstance(record, dict):
+        return False, "Two-step login is off."
+
+    codes, hashes = totp.new_recovery_codes()
+    record["recovery"] = hashes
+
+    if not save_users(users):
+        return False, "The codes could not be saved."
+
+    return True, codes
+
+
+def disable_two_factor(username):
+
+    users = load_users()
+
+    if username not in users or "totp" not in users[username]:
+        return True, "Two-step login is off."
+
+    del users[username]["totp"]
+
+    if not save_users(users):
+        return False, "Two-step login could not be turned off."
+
+    return True, "Two-step login is off."

@@ -35,6 +35,10 @@
         <input id="password" class="setting-input" type="password" autocomplete="current-password" autofocus>
     </div>
 
+    <div id="codeField" class="setup-field hidden">
+        <label for="code">Code from your authenticator app</label>
+        <input id="code" class="setting-input" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="123456 or a recovery code">
+    </div>
     <div id="error" class="setup-error hidden" role="alert">Invalid username or password.</div>
 
     <div class="setup-actions">
@@ -65,26 +69,48 @@ async function login(){
             },
             body:JSON.stringify({
                 username:username.value,
-                password:password.value
+                password:password.value,
+                code:code.value
             })
         });
     }catch(e){
         res = null;
     }
 
-    if(res && res.ok){
+    let data = null;
+
+    if(res){
+        try{
+            data = await res.json();
+        }catch{
+            data = null;
+        }
+    }
+
+    if(res && res.ok && data && data.success){
         location.href="/";
         return;
     }
 
-    let message = "Could not reach the router.";
+    const message = !res ? "Could not reach the router."
+        : (data && data.message) || "Invalid username or password.";
 
-    if(res){
-        try{
-            message = (await res.json()).message || "Invalid username or password.";
-        }catch{
-            message = "Invalid username or password.";
-        }
+    loginButton.disabled = false;
+    loginButton.classList.remove("busy");
+    loginButton.textContent = "Sign in";
+
+    // Password right, two-step login on: the code comes next.
+    if(data && data.need_code){
+
+        const first = codeField.classList.contains("hidden");
+
+        codeField.classList.remove("hidden");
+        username.readOnly = true;
+        password.readOnly = true;
+        code.value = "";
+        code.focus();
+
+        if(first) return;
     }
 
     error.textContent = message;

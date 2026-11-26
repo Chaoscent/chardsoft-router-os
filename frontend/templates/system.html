@@ -339,6 +339,87 @@
 
             </div>
 
+
+            <!-- Two-step login (TOTP) -->
+
+            <div class="card">
+
+                <span>Two-step login</span>
+
+                <p class="setting-hint">
+                    After the password, signing in also asks for a 6-digit code
+                    from an authenticator app on your phone (Aegis, Google
+                    Authenticator, 1Password, ...). Someone who learns your
+                    password still cannot get in. Lost your phone and the
+                    recovery codes? On the router, backend/reset_2fa.py turns it
+                    off (see the README).
+                </p>
+
+                <p class="setting-hint">
+                    Status: <strong id="twoFactorState">--</strong>
+                    <span id="twoFactorRecovery"></span>
+                </p>
+
+                <div class="setting-row">
+                    <button id="twoFactorRecoveryButton" class="secondary-btn hidden">New recovery codes</button>
+                    <button id="twoFactorToggle" class="save-btn">Turn on</button>
+                </div>
+
+                <div id="twoFactorStatus" class="setting-status"></div>
+
+            </div>
+
+
+            <!-- SSH access and keys (services/ssh.py) -->
+
+            <div class="card">
+
+                <span>SSH access</span>
+
+                <p class="setting-hint">
+                    SSH: <strong id="sshState">--</strong>
+                    <span id="sshDetails"></span>
+                </p>
+
+                <p class="setting-hint">
+                    Password login: <strong id="sshPasswordState">--</strong>.
+                    Keys sign in as <strong id="sshAccount">--</strong>.
+                </p>
+
+                <ul id="sshKeys" class="ssh-keys"></ul>
+
+                <div class="setting-row">
+                    <button id="sshAddKey" class="secondary-btn">Add key</button>
+                    <button id="sshPasswordToggle" class="secondary-btn">Turn password login off</button>
+                    <button id="sshToggle" class="save-btn">Turn SSH off</button>
+                </div>
+
+                <div id="sshStatus" class="setting-status"></div>
+
+            </div>
+
+
+            <!-- Signed-in devices -->
+
+            <div class="card">
+
+                <span>Signed-in devices</span>
+
+                <p class="setting-hint">
+                    Browsers signed in to this dashboard right now:
+                    <strong id="devicesCount">--</strong>. Sign out a device
+                    you do not use any more, or all of them but this one.
+                </p>
+
+                <div class="setting-row">
+                    <button id="devicesShow" class="secondary-btn">Show devices</button>
+                    <button id="devicesSignOutOthers" class="save-btn danger-btn">Sign out everywhere else</button>
+                </div>
+
+                <div id="devicesStatus" class="setting-status"></div>
+
+            </div>
+
         </div>
 
 

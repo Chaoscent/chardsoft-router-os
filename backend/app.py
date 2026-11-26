@@ -52,9 +52,35 @@ from auth import (
 
         set_session_timeouts,
 
-        change_password
+        change_password,
+
+        logout_user,
+
+        signed_in_devices,
+
+        sign_out_device,
+
+        sign_out_others,
+
+        second_factor,
+
+        two_factor_status,
+
+        verify_second_factor,
+
+        enable_two_factor,
+
+        new_recovery_codes,
+
+        disable_two_factor
 
 )
+
+from services import totp
+
+from services import ssh as ssh_access
+
+from services.qr import svg as qr_svg
 
 
 
@@ -856,7 +882,7 @@ def setup_complete_api():
 
 
         # Signed in right away: setup ends on the dashboard.
-        login_user(result["username"])
+        login_user(result["username"], get_viewer_ip())
 
         return jsonify({"success": True, "warning": result["warning"]})
 
@@ -906,9 +932,40 @@ def api_login():
 
         if verify_login(username, password):
 
+                # Two-step login: the code from the app (or a recovery code).
+                if second_factor(username):
+
+                        code = str(data.get("code") or "").strip()
+
+                        if not code:
+                                return jsonify({
+                                        "success": False,
+                                        "need_code": True,
+                                        "message": "Enter the code from your authenticator app."
+                                })
+
+                        if not verify_second_factor(username, code):
+
+                                lockout = record_login_failure(address)
+
+                                log_event(
+                                        "auth",
+                                        f"Wrong two-step code for '{username[:64]}' from {address}."
+                                        + (f" Locked out for {lockout} seconds." if lockout else ""),
+                                        "warning"
+                                )
+
+                                return jsonify({
+                                        "success": False,
+                                        "need_code": True,
+                                        "message": (f"Too many failed attempts. Try again in {lockout} seconds."
+                                                    if lockout else "Wrong or already used code."),
+                                        **({"retry_after": lockout} if lockout else {})
+                                }), 429 if lockout else 401
+
                 record_login_success(address)
 
-                login_user(username)
+                login_user(username, address)
 
                 log_event("auth", f"{username} logged in from {address}.")
 
@@ -965,7 +1022,7 @@ def logout():
         if session.get("user"):
                 log_event("auth", f"{session['user']} logged out.")
 
-        session.clear()
+        logout_user()
 
         return jsonify({"success": True})
 
@@ -3804,7 +3861,7 @@ def check_password_again(password):
 
                 lockout = record_login_failure(address)
 
-                log_event("shell", f"Wrong password for the web shell from {address}.", "warning")
+                log_event("auth", f"Wrong password (confirmation) from {address}.", "warning")
 
                 message = f"Wrong password. Locked for {lockout} seconds." if lockout else "Wrong password."
 
@@ -3813,6 +3870,219 @@ def check_password_again(password):
         record_login_success(address)
 
         return None
+
+
+
+
+
+# ------------------------------------------------------------
+
+# Account: signed-in devices and two-step login
+
+# ------------------------------------------------------------
+
+
+
+@app.route("/api/account/devices")
+
+@login_required
+
+def account_devices_api():
+
+        return jsonify({"devices": signed_in_devices()})
+
+
+
+@app.route("/api/account/devices/sign-out", methods=["POST"])
+
+@login_required
+
+def account_device_sign_out_api():
+
+        data = request.get_json(silent=True) or {}
+
+        ok, message = sign_out_device(str(data.get("id") or ""))
+
+        if ok:
+                log_event("auth", f"{session['user']} signed out another device.")
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
+
+
+
+@app.route("/api/account/devices/sign-out-others", methods=["POST"])
+
+@login_required
+
+def account_sign_out_others_api():
+
+        count = sign_out_others()
+
+        log_event("auth", f"{session['user']} signed out everywhere else ({count} device(s)).")
+
+        return jsonify({
+                "success": True,
+                "message": f"Signed out {count} other device{'s' if count != 1 else ''}." if count
+                else "No other device was signed in."
+        })
+
+
+
+@app.route("/api/account/ssh")
+
+@login_required
+
+def account_ssh_api():
+
+        return jsonify(ssh_access.get_status())
+
+
+
+@app.route("/api/account/ssh", methods=["POST"])
+
+@login_required
+
+def account_ssh_change_api():
+        """
+        One change, with the password: {action: "enable" | "disable" |
+        "password-on" | "password-off" | "add-key" | "remove-key", key, fingerprint}.
+        """
+
+        data = request.get_json(silent=True) or {}
+
+        denied = check_password_again(data.get("password"))
+
+        if denied:
+                return denied
+
+        action = data.get("action")
+
+        actions = {
+                "enable": lambda: ssh_access.set_enabled(True),
+                "disable": lambda: ssh_access.set_enabled(False),
+                "password-on": lambda: ssh_access.set_password_login(True),
+                "password-off": lambda: ssh_access.set_password_login(False),
+                "add-key": lambda: ssh_access.add_key(data.get("key")),
+                "remove-key": lambda: ssh_access.remove_key(str(data.get("fingerprint") or "")),
+        }
+
+        if action not in actions:
+                return jsonify({"success": False, "message": "Unknown change."}), 400
+
+        ok, message = actions[action]()
+
+        log_event("system", f"SSH: {message}" if ok else f"SSH change ({action}) failed: {message}",
+                  "info" if ok else "warning")
+
+        return jsonify({"success": ok, "message": message, "status": ssh_access.get_status()}), 200 if ok else 400
+
+
+
+@app.route("/api/account/2fa")
+
+@login_required
+
+def account_2fa_api():
+
+        return jsonify(two_factor_status(session["user"]))
+
+
+
+@app.route("/api/account/2fa/setup", methods=["POST"])
+
+@login_required
+
+def account_2fa_setup_api():
+
+        data = request.get_json(silent=True) or {}
+
+        denied = check_password_again(data.get("password"))
+
+        if denied:
+                return denied
+
+        if second_factor(session["user"]):
+                return jsonify({"success": False, "message": "Two-step login is already on."}), 409
+
+        # Kept in the (signed) session until a code proves the app has it.
+        secret = totp.new_secret()
+        session["totp_pending"] = secret
+
+        link = totp.uri(secret, session["user"])
+
+        return jsonify({"success": True, "secret": secret, "uri": link, "qr": qr_svg(link)})
+
+
+
+@app.route("/api/account/2fa/enable", methods=["POST"])
+
+@login_required
+
+def account_2fa_enable_api():
+
+        data = request.get_json(silent=True) or {}
+
+        secret = session.get("totp_pending")
+
+        if not secret:
+                return jsonify({"success": False, "message": "Start the setup again."}), 400
+
+        ok, result = enable_two_factor(session["user"], secret, data.get("code"))
+
+        if not ok:
+                return jsonify({"success": False, "message": result}), 400
+
+        session.pop("totp_pending", None)
+
+        log_event("auth", f"Two-step login turned on for {session['user']}.")
+
+        return jsonify({"success": True, "recovery_codes": result})
+
+
+
+@app.route("/api/account/2fa/recovery", methods=["POST"])
+
+@login_required
+
+def account_2fa_recovery_api():
+
+        data = request.get_json(silent=True) or {}
+
+        denied = check_password_again(data.get("password"))
+
+        if denied:
+                return denied
+
+        ok, result = new_recovery_codes(session["user"])
+
+        if not ok:
+                return jsonify({"success": False, "message": result}), 400
+
+        log_event("auth", f"New recovery codes made for {session['user']}.")
+
+        return jsonify({"success": True, "recovery_codes": result})
+
+
+
+@app.route("/api/account/2fa/disable", methods=["POST"])
+
+@login_required
+
+def account_2fa_disable_api():
+
+        data = request.get_json(silent=True) or {}
+
+        denied = check_password_again(data.get("password"))
+
+        if denied:
+                return denied
+
+        ok, message = disable_two_factor(session["user"])
+
+        if ok:
+                log_event("auth", f"Two-step login turned off for {session['user']}.", "warning")
+
+        return jsonify({"success": ok, "message": message}), 200 if ok else 400
 
 
 
