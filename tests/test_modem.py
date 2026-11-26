@@ -159,7 +159,10 @@ class LinkMtuTests(unittest.TestCase):
             mock.patch.object(modem, "run_command", side_effect=lambda cmd, **kw: self.commands.append(cmd) or (True, "")),
             mock.patch.object(modem, "has_nmcli", return_value=True),
             mock.patch.object(modem, "connection_exists", return_value=True),
+            mock.patch.object(modem, "run", side_effect=lambda cmd, **kw: self.setting),
+            mock.patch.dict(modem._connection_mtu, checked=False),
         ]
+        self.setting = "auto"
         for p in self.patches:
             p.start()
 
@@ -180,9 +183,17 @@ class LinkMtuTests(unittest.TestCase):
 
     def test_full_mtu_is_left_alone(self):
         self.set_mtu(1500)
+        self.setting = "1500"
         with mock.patch.object(modem, "wwan_interface", return_value=("wwan0", "qmi_wwan")):
             self.assertFalse(modem.ensure_link_mtu())
         self.assertEqual(self.commands, [])
+
+    def test_setting_is_saved_once_even_when_the_link_is_at_1500(self):
+        self.set_mtu(1500)
+        with mock.patch.object(modem, "wwan_interface", return_value=("wwan0", "qmi_wwan")):
+            modem.ensure_link_mtu()
+            modem.ensure_link_mtu()
+        self.assertEqual(self.commands, [["nmcli", "connection", "modify", modem.CONNECTION, "gsm.mtu", "1500"]])
 
     def test_other_drivers_keep_the_carrier_mtu(self):
         self.set_mtu(1430)

@@ -594,6 +594,10 @@ def get_connection_state():
 # capped by its own MTU) ran for minutes. A 1500 MTU fixes it.
 LINK_MTU = 1500
 
+# The connection's gsm.mtu is checked once per run (and after a reset of
+# this flag), not at every watchdog sample.
+_connection_mtu = {"checked": False}
+
 
 def needs_full_mtu(driver=None):
     """Whether the modem's driver needs LINK_MTU (qmi_wwan)."""
@@ -606,9 +610,9 @@ def needs_full_mtu(driver=None):
 
 def ensure_link_mtu():
     """
-    Raises the qmi_wwan interface to LINK_MTU when it came up with less,
-    and sets the connection so it comes up with it from then on (the
-    setting applies at the next connect; nothing is interrupted).
+    Sets the connection to come up with LINK_MTU (checked once per run;
+    applies at the next connect, nothing is interrupted), and raises the
+    qmi_wwan interface to LINK_MTU when it is up with less.
     Returns True when it raised the MTU.
     """
 
@@ -616,6 +620,13 @@ def ensure_link_mtu():
 
     if not interface or not needs_full_mtu(driver):
         return False
+
+    # The connection comes up with LINK_MTU from the next connect on.
+    if not _connection_mtu["checked"] and has_nmcli() and connection_exists():
+        current = (run(["nmcli", "-g", "gsm.mtu", "connection", "show", CONNECTION]) or "").strip()
+        if current != str(LINK_MTU):
+            run_command(privileged(["nmcli", "connection", "modify", CONNECTION, "gsm.mtu", str(LINK_MTU)]))
+        _connection_mtu["checked"] = True
 
     try:
         with open(f"/sys/class/net/{interface}/mtu") as f:
@@ -627,9 +638,6 @@ def ensure_link_mtu():
         return False
 
     ok, _ = run_command(privileged(["ip", "link", "set", interface, "mtu", str(LINK_MTU)]))
-
-    if has_nmcli() and connection_exists():
-        run_command(privileged(["nmcli", "connection", "modify", CONNECTION, "gsm.mtu", str(LINK_MTU)]))
 
     return ok
 
