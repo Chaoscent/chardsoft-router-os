@@ -898,7 +898,9 @@ window.Page.system = {
             title: "Erase everything?",
             subtitle: "Download a backup first if you may want your settings back.",
             body,
-            confirmText: "Erase and reboot"
+            confirmText: "Erase and reboot",
+            // Erasing everything stays a deliberate click.
+            enter: false
         });
 
         if (!confirmed) return;

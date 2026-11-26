@@ -4,6 +4,9 @@
  * ChardsoftModal.confirm({ title, subtitle, body, confirmText })
  * resolves to true when confirmed, false otherwise.
  * `body` is an optional DOM node shown inside the dialog.
+ * Enter in a password field confirms, like a login form (with several,
+ * it moves on to the next one first); `enter: false` turns that off
+ * (for dialogs that erase things).
  *
  * ChardsoftModal.notice({ title, subtitle, body, confirmText }) only informs:
  * one button (OK unless confirmText says otherwise).
@@ -11,7 +14,7 @@
 
 window.ChardsoftModal = {
 
-    confirm({ title, subtitle, body, confirmText }) {
+    confirm({ title, subtitle, body, confirmText, enter = true }) {
 
         return new Promise(resolve => {
 
@@ -28,8 +31,23 @@ window.ChardsoftModal = {
             modalCancel.classList.remove("hidden");
 
             const finish = result => {
+                modalBody.onkeydown = null;
                 confirmModal.classList.add("hidden");
                 resolve(result);
+            };
+
+            modalBody.onkeydown = e => {
+
+                if (!enter || e.key !== "Enter" || e.isComposing || e.target.type !== "password") return;
+
+                e.preventDefault();
+
+                const fields = [...modalBody.querySelectorAll('input[type="password"]')];
+                const next = fields[fields.indexOf(e.target) + 1];
+
+                if (next) next.focus();
+                else if (!modalConfirm.disabled) finish(true);
+
             };
 
             modalConfirm.onclick = e => { e.preventDefault(); finish(true); };
@@ -40,6 +58,9 @@ window.ChardsoftModal = {
             };
 
             confirmModal.classList.remove("hidden");
+
+            // Ready to type the password.
+            modalBody.querySelector('input[type="password"]')?.focus();
 
         });
 
