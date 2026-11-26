@@ -233,6 +233,58 @@
             </div>
 
 
+            <!-- Two-step login (TOTP) -->
+
+            <div class="card">
+
+                <span>Two-step login</span>
+
+                <p class="setting-hint">
+                    After the password, signing in also asks for a 6-digit code
+                    from an authenticator app on your phone (Aegis, Google
+                    Authenticator, 1Password, ...). Someone who learns your
+                    password still cannot get in. Lost your phone and the
+                    recovery codes? On the router, backend/reset_2fa.py turns it
+                    off (see the README).
+                </p>
+
+                <p class="setting-hint">
+                    Status: <strong id="twoFactorState">--</strong>
+                    <span id="twoFactorRecovery"></span>
+                </p>
+
+                <div class="setting-row">
+                    <button id="twoFactorRecoveryButton" class="secondary-btn hidden">New recovery codes</button>
+                    <button id="twoFactorToggle" class="save-btn">Turn on</button>
+                </div>
+
+                <div id="twoFactorStatus" class="setting-status"></div>
+
+            </div>
+
+
+            <!-- Signed-in devices -->
+
+            <div class="card">
+
+                <span>Signed-in devices</span>
+
+                <p class="setting-hint">
+                    Browsers signed in to this dashboard right now:
+                    <strong id="devicesCount">--</strong>. Sign out a device
+                    you do not use any more, or all of them but this one.
+                </p>
+
+                <div class="setting-row">
+                    <button id="devicesShow" class="secondary-btn">Show devices</button>
+                    <button id="devicesSignOutOthers" class="save-btn danger-btn">Sign out everywhere else</button>
+                </div>
+
+                <div id="devicesStatus" class="setting-status"></div>
+
+            </div>
+
+
             <!-- Security -->
 
             <div class="card">
@@ -310,66 +362,6 @@
             </div>
 
 
-            <!-- HTTPS certificate -->
-
-            <div class="card">
-
-                <span>HTTPS certificate</span>
-
-                <p class="setting-hint">
-                    The dashboard and apps use HTTPS with the router's own
-                    certificate authority. Install its certificate on a
-                    device once, and browsers trust every router address
-                    and app without warnings.
-                </p>
-
-                <div class="setting-row">
-                    <a class="save-btn" href="/router-ca.crt" download>Download certificate</a>
-                </div>
-
-                <p class="setting-hint">
-                    Windows: open the file, Install Certificate, Local
-                    Machine, "Trusted Root Certification Authorities".
-                    macOS: open it in Keychain Access and set it to Always
-                    Trust. iPhone: install the profile, then turn it on in
-                    Settings, General, About, Certificate Trust Settings.
-                    Android: Settings, Security, Install a certificate, CA
-                    certificate.
-                </p>
-
-            </div>
-
-
-            <!-- Two-step login (TOTP) -->
-
-            <div class="card">
-
-                <span>Two-step login</span>
-
-                <p class="setting-hint">
-                    After the password, signing in also asks for a 6-digit code
-                    from an authenticator app on your phone (Aegis, Google
-                    Authenticator, 1Password, ...). Someone who learns your
-                    password still cannot get in. Lost your phone and the
-                    recovery codes? On the router, backend/reset_2fa.py turns it
-                    off (see the README).
-                </p>
-
-                <p class="setting-hint">
-                    Status: <strong id="twoFactorState">--</strong>
-                    <span id="twoFactorRecovery"></span>
-                </p>
-
-                <div class="setting-row">
-                    <button id="twoFactorRecoveryButton" class="secondary-btn hidden">New recovery codes</button>
-                    <button id="twoFactorToggle" class="save-btn">Turn on</button>
-                </div>
-
-                <div id="twoFactorStatus" class="setting-status"></div>
-
-            </div>
-
-
             <!-- SSH access and keys (services/ssh.py) -->
 
             <div class="card">
@@ -399,26 +391,35 @@
             </div>
 
 
-            <!-- Signed-in devices -->
+            <!-- HTTPS certificate -->
 
             <div class="card">
 
-                <span>Signed-in devices</span>
+                <span>HTTPS certificate</span>
 
                 <p class="setting-hint">
-                    Browsers signed in to this dashboard right now:
-                    <strong id="devicesCount">--</strong>. Sign out a device
-                    you do not use any more, or all of them but this one.
+                    The dashboard and apps use HTTPS with the router's own
+                    certificate authority. Install its certificate on a
+                    device once, and browsers trust every router address
+                    and app without warnings.
                 </p>
 
                 <div class="setting-row">
-                    <button id="devicesShow" class="secondary-btn">Show devices</button>
-                    <button id="devicesSignOutOthers" class="save-btn danger-btn">Sign out everywhere else</button>
+                    <a class="save-btn" href="/router-ca.crt" download>Download certificate</a>
                 </div>
 
-                <div id="devicesStatus" class="setting-status"></div>
+                <p class="setting-hint">
+                    Windows: open the file, Install Certificate, Local
+                    Machine, "Trusted Root Certification Authorities".
+                    macOS: open it in Keychain Access and set it to Always
+                    Trust. iPhone: install the profile, then turn it on in
+                    Settings, General, About, Certificate Trust Settings.
+                    Android: Settings, Security, Install a certificate, CA
+                    certificate.
+                </p>
 
             </div>
+
 
         </div>
 
