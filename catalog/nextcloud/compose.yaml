@@ -1,9 +1,13 @@
 # Nextcloud with MariaDB. The database passwords are generated per
 # router (app.env). Caddy on the router forwards to the published
 # port; Docker's networks are trusted as proxies.
+#
+# Major versions are fixed: Update gets fixes within them. Nextcloud
+# only upgrades one major version at a time, so the catalog moves it
+# 34 -> 35 -> ... in steps; MariaDB stays on its LTS line.
 services:
   nextcloud:
-    image: nextcloud:stable
+    image: nextcloud:34
     restart: unless-stopped
     depends_on:
       - db
@@ -21,7 +25,7 @@ services:
       TZ: "${TZ}"
 
   db:
-    image: mariadb:lts
+    image: mariadb:12.3
     restart: unless-stopped
     command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
     volumes:

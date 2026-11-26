@@ -1,5 +1,7 @@
 # Vaultwarden. The web vault only works over HTTPS (browsers allow its
 # encryption only there), which Caddy on the router provides.
+# latest on purpose: Vaultwarden has no major-version tag (it stays 1.x),
+# and a fixed version would miss its security fixes.
 services:
   vaultwarden:
     image: vaultwarden/server:latest

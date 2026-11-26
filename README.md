@@ -74,10 +74,12 @@ The Apps page adds any image as an app: from a form (image, web port, folders to
 
 | App | Port (127.0.0.1) | Notes |
 |---|---|---|
-| Uptime Kuma | 9101 | |
-| Vaultwarden | 9102 | Open it over HTTPS (the web vault needs it). Sign-ups are open until you turn them off. |
-| Jellyfin | 9103 | Media goes into `/var/lib/chardsoft-router-apps/apps/jellyfin/data/media` (needs sudo for now). |
-| Nextcloud | 9104 | With MariaDB. The trusted domain is set on first install; a later rename of the router needs `occ config:system:set trusted_domains`. |
+| Uptime Kuma | 9101 | Version 1. |
+| Vaultwarden | 9102 | `latest` (no major-version tag; a fixed version would miss security fixes). Open it over HTTPS (the web vault needs it). Sign-ups are open until you turn them off. |
+| Jellyfin | 9103 | Version 12. 4 GB of RAM recommended. Media goes into `/var/lib/chardsoft-router-apps/apps/jellyfin/data/media` (needs sudo for now). |
+| Nextcloud | 9104 | Nextcloud 34 with MariaDB 12.3 (LTS). 4 GB of RAM recommended. The trusted domain is set on first install; a later rename of the router needs `occ config:system:set trusted_domains`. |
+
+**Versions:** images are fixed to a major version (Update gets the fixes within it), so an update never jumps to a new major version by itself. Raising one is a change to the catalog; Nextcloud only goes up one major version at a time.
 
 Pi-hole and AdGuard are not in the catalog: they need port 53, which the router's own DNS (dnsmasq) uses.
 
@@ -92,6 +94,7 @@ Add `catalog/<app>/app.json` and `catalog/<app>/compose.yaml`:
   - Optional `min_ram_mb`: the board memory the app needs to run well (1024, 2048, 4096...). On smaller boards the Apps page warns before installing.
   - Optional: `https` (true if it only works over HTTPS), `first_steps`, `secrets` (names of passwords to generate) and `dirs` (folders to create in its data folder).
 - **`compose.yaml`:**
+  - Use a major-version tag, not `latest`, where the image has one.
   - Publish the web port as `"127.0.0.1:${CHARDSOFT_PORT}:<port inside>"`.
   - Keep data under `${CHARDSOFT_DATA}`.
   - Variables available: `CHARDSOFT_HOST` (its name), `TZ` and the secrets.

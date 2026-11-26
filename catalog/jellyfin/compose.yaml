@@ -1,7 +1,9 @@
 # Jellyfin. Media goes into ${CHARDSOFT_DATA}/media on the router.
+#
+# Major version fixed: Update gets the releases within it.
 services:
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    image: jellyfin/jellyfin:12
     restart: unless-stopped
     ports:
       - "127.0.0.1:${CHARDSOFT_PORT}:8096"
