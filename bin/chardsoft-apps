@@ -733,9 +733,13 @@ def check_model(app_id, model, route):
             host_ip = str(port.get("host_ip") or "")
 
             if not published:
+                if host_ip in ("127.0.0.1", "::1"):
+                    continue
                 warnings.append(
-                    f"{label}port {port.get('target')}/{protocol} is opened on a random port "
-                    "on all networks, past the router's firewall."
+                    f"{label}the app's port {port.get('target')}/{protocol} is also reachable "
+                    "from every network on a port number Docker picks (like 32768), "
+                    "past the router's firewall. The app's web address does not need this: "
+                    f"remove the line, or write \"127.0.0.1::{port.get('target')}\" to keep it on the router."
                 )
                 continue
 

@@ -92,9 +92,13 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(errors, [])
         text = " ".join(warnings)
         for word in ("privileged", "NET_ADMIN", "pid: host", "/dev/ttyUSB0", "/etc (read only)",
-                     "docker.sock", "8081/tcp", "random port"):
+                     "docker.sock", "8081/tcp", "Docker picks"):
             self.assertIn(word, text)
         self.assertEqual(len(warnings), 8)
+
+    def test_random_port_on_the_router_only_is_fine(self):
+        errors, warnings = self.check(model(ports=[{"target": 8080, "host_ip": "127.0.0.1"}]))
+        self.assertEqual((errors, warnings), ([], []))
 
     def test_path_outside_app_folder_is_not_inside(self):
         folder = str(cli.app_dir("demo"))
