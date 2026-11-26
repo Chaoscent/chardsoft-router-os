@@ -823,8 +823,6 @@ init(){
     dataLimitSave.onclick=()=>this.saveUsage();
     dataUsedSave.onclick=()=>this.correctUsage(false);
     dataUsedReset.onclick=()=>this.correctUsage(true);
-    dataLimitInput.onkeydown=event=>{ if(event.key==="Enter")this.saveUsage(); };
-    dataUsedInput.onkeydown=event=>{ if(event.key==="Enter")this.correctUsage(false); };
 
     this.loadUsage().then(()=>{
         // From the dashboard's "Data limit" link.
@@ -842,7 +840,6 @@ init(){
     modemSwitchQmi.onclick=()=>this.switchQmi();
 
     simPinUnlock.onclick=()=>this.unlock();
-    simPinInput.onkeydown=event=>{ if(event.key==="Enter")this.unlock(); };
     simPukUnblock.onclick=()=>this.unblock();
     simLockToggle.onclick=()=>this.togglePinLock();
     simLockChange.onclick=()=>this.changePin();

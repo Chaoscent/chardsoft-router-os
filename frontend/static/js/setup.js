@@ -417,9 +417,18 @@ const Setup = {
             input.addEventListener("input", () => this.error(""));
         });
 
-        // Enter moves on, like a normal form.
-        document.addEventListener("keydown", event => {
-            if (event.key === "Enter" && event.target.tagName === "INPUT") this.next();
+        // Enter in the admin password: on to the repeat, then the next step.
+        // Other fields (and the Wi-Fi password) only move on by the button.
+        this.$("setupPassword").addEventListener("keydown", event => {
+            if (event.key !== "Enter" || event.isComposing) return;
+            event.preventDefault();
+            this.$("setupPasswordConfirm").focus();
+        });
+
+        this.$("setupPasswordConfirm").addEventListener("keydown", event => {
+            if (event.key !== "Enter" || event.isComposing) return;
+            event.preventDefault();
+            this.next();
         });
 
         this.show(1);

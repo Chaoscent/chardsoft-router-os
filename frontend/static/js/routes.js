@@ -343,10 +343,6 @@ window.Page.routes = {
         routeSubmit.onclick = () => this.submit();
         routeCancel.onclick = () => { this.resetForm(); routeStatus.textContent = ""; };
 
-        [routeDestInput, routeGatewayInput, routeMetricInput, routeCommentInput].forEach(input => {
-            input.onkeydown = event => { if (event.key === "Enter") this.submit(); };
-        });
-
         routeShow4.onclick = () => this.showFamily("ipv4");
         routeShow6.onclick = () => this.showFamily("ipv6");
 

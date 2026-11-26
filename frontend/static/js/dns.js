@@ -463,10 +463,6 @@ window.Page.dns = {
         dnsSaveBlocked.onclick = () => this.saveBlocked();
         dnsLookup.onclick = () => this.lookup();
 
-        dnsLookupNameInput.addEventListener("keydown", e => {
-            if (e.key === "Enter") this.lookup();
-        });
-
         this.load();
 
         this.timer = Poll.every(10000, () => this.refreshStatus());

@@ -685,9 +685,6 @@ window.Page.clients = {
 
         renameInput.addEventListener("keydown", e => {
 
-            if (e.key === "Enter")
-                this.saveRename();
-
             if (e.key === "Escape")
                 this.closeRenameModal();
 

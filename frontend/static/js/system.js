@@ -1284,16 +1284,19 @@ window.Page.system = {
         };
 
 
-        hostnameInput.addEventListener(
-            "keydown",
-            (e) => {
+        // Enter in the router's own password fields: on to the next one,
+        // then change the password (like the login page).
+        const passwordFields = [currentPasswordInput, newPasswordInput, confirmPasswordInput];
 
-                if (e.key === "Enter") {
-                    this.save();
-                }
-
-            }
-        );
+        passwordFields.forEach((input, index) => {
+            input.addEventListener("keydown", e => {
+                if (e.key !== "Enter" || e.isComposing) return;
+                e.preventDefault();
+                const next = passwordFields[index + 1];
+                if (next) next.focus();
+                else if (!changePassword.disabled) changePassword.click();
+            });
+        });
 
 
         saveSecurity.onclick = () => {

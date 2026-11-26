@@ -419,10 +419,6 @@ window.Page.tools = {
 
         toolRun.onclick = () => this.run();
 
-        [toolTarget, toolPort].forEach(input => {
-            input.onkeydown = event => { if (event.key === "Enter") this.run(); };
-        });
-
         // "#/tools?tool=route&target=10.20.0.1" (e.g. from the Routes page).
         const tool = routeParam("tool");
 
