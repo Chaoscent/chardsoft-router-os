@@ -1382,7 +1382,44 @@ window.Page.system = {
             list.appendChild(item);
         });
 
-        body.append(list, note);
+        // Saved as a text file on this device (made here, nothing is sent).
+        const download = document.createElement("button");
+        download.type = "button";
+        download.className = "secondary-btn";
+        download.textContent = "Download as .txt";
+
+        download.onclick = () => {
+
+            const host = location.hostname || "router";
+            const text = [
+                "Chardsoft Router OS: recovery codes for two-step login",
+                `Router: ${host}`,
+                `Made: ${new Date().toLocaleString()}`,
+                "",
+                "Each code signs you in once instead of the code from the app.",
+                "New codes from the System page make these stop working.",
+                "",
+                ...codes,
+                ""
+            ].join("\r\n");
+
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+            link.download = `chardsoft-recovery-codes-${host}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+
+            download.textContent = "✓ Downloaded";
+
+        };
+
+        const actions = document.createElement("div");
+        actions.className = "setting-row";
+        actions.appendChild(download);
+
+        body.append(list, actions, note);
 
         return ChardsoftModal.notice({ title, subtitle: "Your recovery codes", body, confirmText: "I saved them" });
 
