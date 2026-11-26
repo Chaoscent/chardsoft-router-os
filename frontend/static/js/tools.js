@@ -358,6 +358,7 @@ window.Page.tools = {
         this.server = status;
 
         clearTimeout(this.serverTimer);
+        clearTimeout(this.captureTimer);
 
         speedServerButton.textContent = status.running ? "Stop server" : "Start server";
         speedServerButton.disabled = !status.available;
@@ -405,11 +406,194 @@ window.Page.tools = {
     },
 
 
+    // ------------------------------------------------------------
+    // Packet capture
+    // ------------------------------------------------------------
+
+    captureTimer: null,
+
+
+    formatBytes(bytes) {
+
+        if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+        if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+
+        return `${bytes} bytes`;
+
+    },
+
+
+    async loadCapture() {
+
+        let data;
+
+        try {
+            const res = await fetch("/api/tools/capture");
+            if (!res.ok) return;
+            data = await res.json();
+        } catch {
+            return;
+        }
+
+        this.renderCapture(data);
+
+        clearTimeout(this.captureTimer);
+
+        if (data.running) this.captureTimer = setTimeout(() => this.loadCapture(), 1000);
+
+    },
+
+
+    renderCapture(data) {
+
+        this.capture = data;
+
+        if (!data.available) {
+            captureState.textContent = "tcpdump is not installed yet: the next update of the router adds it.";
+            captureStart.disabled = true;
+            return;
+        }
+
+        // The interface list, once (keeps the choice).
+        if (captureInterface.options.length !== data.interfaces.length) {
+            const chosen = captureInterface.value;
+            captureInterface.replaceChildren(...data.interfaces.map(name =>
+                new Option(name === "any" ? "All interfaces" : name, name)));
+            if (chosen) captureInterface.value = chosen;
+            ChardsoftSelect.refresh(captureInterface);
+        }
+
+        const where = data.interface === "any" ? "all interfaces" : data.interface;
+
+        if (data.running) {
+
+            const elapsed = Math.round(Date.now() / 1000 - data.started);
+
+            captureState.textContent =
+                `Capturing on ${where}: ${this.formatBytes(data.size)} of ${data.limit_mb} MB, ` +
+                `${elapsed} of ${data.seconds} s.` + (data.filter ? ` Filter: ${data.filter}` : "");
+
+        } else if (data.file) {
+
+            const why = { time: "the time was up", size: "the size limit was reached", stopped: "you stopped it" }[data.reason] || "it ended";
+            const packets = data.packets != null ? `${data.packets} packets, ` : "";
+            const until = data.expires ? ` It is deleted at ${new Date(data.expires * 1000).toLocaleTimeString()}.` : "";
+
+            captureState.textContent = `Capture of ${where} done (${why}): ${packets}${this.formatBytes(data.size)}.${until}`;
+
+        } else if (data.error) {
+
+            captureState.textContent = `The capture did not work: ${data.error}`;
+
+        } else {
+
+            captureState.textContent = data.ended ? "The capture caught no packets." : "";
+
+        }
+
+        captureStart.disabled = false;
+        captureStart.textContent = data.running ? "Stop" : "Start capture";
+        captureStart.classList.toggle("danger-btn", data.running);
+
+        captureDownload.classList.toggle("hidden", !data.file);
+        captureDelete.classList.toggle("hidden", !data.file);
+
+    },
+
+
+    async postCapture(path, body) {
+
+        try {
+            const res = await fetch(`/api/tools/capture/${path}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body ?? {})
+            });
+            return await res.json();
+        } catch {
+            return { success: false, message: "The router did not answer." };
+        }
+
+    },
+
+
+    async toggleCapture() {
+
+        captureStatus.textContent = "";
+
+        if (this.capture?.running) {
+            captureStart.disabled = true;
+            const data = await this.postCapture("stop");
+            this.renderCapture(data);
+            return;
+        }
+
+        const body = document.createElement("div");
+
+        body.innerHTML = `
+            <label class="modal-field">
+                <span>Your password</span>
+                <input class="setting-input" type="password" autocomplete="current-password">
+            </label>
+            <p class="modal-note">
+                Only capture traffic you are allowed to look at. A new capture replaces the last file.
+            </p>
+        `;
+
+        const confirmed = await ChardsoftModal.confirm({
+            title: "Start packet capture",
+            subtitle: `On ${captureInterface.value === "any" ? "all interfaces" : captureInterface.value}.`,
+            body,
+            confirmText: "Start"
+        });
+
+        if (!confirmed) return;
+
+        captureStart.disabled = true;
+        captureStatus.textContent = "Starting...";
+
+        const data = await this.postCapture("start", {
+            password: body.querySelector("input").value,
+            interface: captureInterface.value,
+            seconds: Number(captureSeconds.value),
+            limit_mb: Number(captureLimit.value),
+            host: captureHost.value,
+            port: capturePort.value,
+            protocol: captureProtocol.value,
+            filter: captureFilter.value,
+            exclude_self: captureExcludeSelf.checked
+        });
+
+        captureStart.disabled = false;
+        captureStatus.textContent = data.success ? "" : data.message;
+
+        this.loadCapture();
+
+    },
+
+
+    async deleteCapture() {
+
+        const data = await this.postCapture("delete");
+
+        captureStatus.textContent = data.success ? "✓ Deleted." : data.message;
+
+        this.loadCapture();
+
+    },
+
+
     init() {
 
         [toolFamily, toolInterface, toolDirection].forEach(select => ChardsoftSelect.enhance(select));
 
         speedServerButton.onclick = () => this.toggleServer();
+
+        [captureInterface, captureSeconds, captureLimit, captureProtocol].forEach(select => ChardsoftSelect.enhance(select));
+        captureStart.onclick = () => this.toggleCapture();
+        captureDownload.onclick = () => { location.href = "/api/tools/capture/download"; };
+        captureDelete.onclick = () => this.deleteCapture();
+        this.loadCapture();
 
         this.loadServer();
 

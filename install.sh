@@ -74,7 +74,7 @@ PACKAGES=(
     tayga
     ufw iptables
     wireguard-tools openvpn easy-rsa openresolv
-    qrencode traceroute iperf3
+    qrencode traceroute iperf3 tcpdump
     caddy
     avahi-daemon avahi-utils
 )

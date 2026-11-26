@@ -110,6 +110,101 @@
     </div>
 
 
+    <!-- Packet capture into a .pcap file for Wireshark (services/capture.py) -->
+
+    <div class="card" id="captureCard">
+
+        <span>Packet capture</span>
+
+        <p class="setting-hint">
+            Records the traffic on an interface into a file you open in Wireshark.
+            It stops by itself after the time or at the size limit. Captures can contain
+            other people's traffic and unencrypted passwords: starting one needs your password,
+            and the file is deleted an hour after the capture ends.
+        </p>
+
+        <div class="settings-grid">
+
+            <div class="setting-field">
+                <label for="captureInterface">Interface</label>
+                <select id="captureInterface" class="setting-input"></select>
+            </div>
+
+            <div class="setting-field">
+                <label for="captureSeconds">Stop after</label>
+                <select id="captureSeconds" class="setting-input">
+                    <option value="30">30 seconds</option>
+                    <option value="60">1 minute</option>
+                    <option value="300" selected>5 minutes</option>
+                    <option value="900">15 minutes</option>
+                    <option value="1800">30 minutes</option>
+                    <option value="3600">1 hour</option>
+                </select>
+            </div>
+
+            <div class="setting-field">
+                <label for="captureLimit">Size limit</label>
+                <select id="captureLimit" class="setting-input">
+                    <option value="10">10 MB</option>
+                    <option value="25">25 MB</option>
+                    <option value="50" selected>50 MB</option>
+                    <option value="100">100 MB</option>
+                </select>
+            </div>
+
+            <div class="setting-field">
+                <label for="captureHost">Only this device (optional)</label>
+                <input id="captureHost" class="setting-input" type="text" placeholder="e.g. 192.168.1.20"
+                       autocomplete="off" spellcheck="false">
+            </div>
+
+            <div class="setting-field">
+                <label for="capturePort">Only this port (optional)</label>
+                <input id="capturePort" class="setting-input" type="text" inputmode="numeric" maxlength="5"
+                       placeholder="e.g. 53" autocomplete="off">
+            </div>
+
+            <div class="setting-field">
+                <label for="captureProtocol">Protocol</label>
+                <select id="captureProtocol" class="setting-input">
+                    <option value="">All</option>
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                    <option value="icmp">ICMP (IPv4)</option>
+                    <option value="icmp6">ICMPv6</option>
+                    <option value="arp">ARP</option>
+                </select>
+            </div>
+
+        </div>
+
+        <details class="tool-raw">
+            <summary>Capture filter (advanced)</summary>
+            <div class="setting-field">
+                <label for="captureFilter">Your own capture filter (Wireshark/tcpdump syntax), added to the above</label>
+                <input id="captureFilter" class="setting-input" type="text" maxlength="400"
+                       placeholder="e.g. net 192.168.1.0/24 and not port 443" autocomplete="off" spellcheck="false">
+            </div>
+        </details>
+
+        <label class="check-item">
+            <input id="captureExcludeSelf" type="checkbox" checked>
+            <span>Leave out my own connection to the dashboard and SSH</span>
+        </label>
+
+        <p id="captureState" class="setting-hint"></p>
+
+        <div class="setting-row">
+            <button id="captureDelete" class="secondary-btn hidden" type="button">Delete</button>
+            <button id="captureDownload" class="secondary-btn hidden" type="button">Download .pcap</button>
+            <button id="captureStart" class="save-btn" type="button">Start capture</button>
+        </div>
+
+        <div id="captureStatus" class="setting-status"></div>
+
+    </div>
+
+
     <div class="card hidden" id="toolResultCard">
 
         <span id="toolResultTitle">Result</span>

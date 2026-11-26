@@ -32,6 +32,7 @@ Standalone on purpose: it imports nothing from the app.
 
 import fnmatch
 import os
+import pwd
 import re
 import stat
 import sys
@@ -793,6 +794,41 @@ def cmd_mmcli(args):
 HOSTNAME = re.compile(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
 
 
+# Packet capture (services/capture.py): one fixed form. The file is
+# written after -Z drops to the calling user, so it can only land where
+# that user may write anyway.
+CAPTURE_FILE = "/tmp/chardsoft-router-os/capture/capture.pcap"
+
+CAPTURE_FILTER = re.compile(r"[A-Za-z0-9 .:/()_!&|=<>\[\]-]{1,400}")
+
+
+def cmd_tcpdump(args):
+
+    try:
+        user = pwd.getpwuid(caller_uid()).pw_name
+    except (KeyError, ValueError):
+        refuse("tcpdump: unknown caller.")
+
+    if user == "root":
+        refuse("tcpdump: not for root.")
+
+    expected = len(args) in (14, 15)
+
+    if not expected \
+            or args[0] != "-i" or not (args[1] == "any" or re.fullmatch(IFACE, args[1])) \
+            or args[2:7] != ["-n", "-s", "0", "-U", "-Z"] or args[7] != user \
+            or args[8] != "-G" or not re.fullmatch(r"[0-9]{1,4}", args[9]) or not 1 <= int(args[9]) <= 3600 \
+            or args[10:13] != ["-W", "1", "-w"] or args[13] != CAPTURE_FILE:
+        refuse("tcpdump: only the Tools page's capture.")
+
+    expression = args[14:]
+
+    if expression and (not CAPTURE_FILTER.fullmatch(expression[0]) or expression[0].lstrip().startswith("-")):
+        refuse("tcpdump: capture filter not allowed.")
+
+    return [find_tool("tcpdump"), *args]
+
+
 def cmd_sshd(args):
 
     # Only check the config (-t) or print the settings in effect (-T).
@@ -1065,6 +1101,7 @@ def plan(argv):
         "hostname": lambda: cmd_hostname(args),
         "hosts-name": lambda: cmd_hosts_name(args),
         "sshd": lambda: cmd_sshd(args),
+        "tcpdump": lambda: cmd_tcpdump(args),
         "date": lambda: cmd_date(args),
         "sysctl": lambda: cmd_sysctl(args),
         "ip": lambda: cmd_ip(args),

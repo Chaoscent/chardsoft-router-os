@@ -80,6 +80,8 @@ from services import totp
 
 from services import ssh as ssh_access
 
+from services import capture as packet_capture
+
 from services.qr import svg as qr_svg
 
 
@@ -2051,6 +2053,87 @@ def tools_run_api():
         return jsonify(outcome), 400 if "error" in outcome else 200
 
 
+
+
+
+@app.route("/api/tools/capture")
+
+@login_required
+
+def tools_capture_api():
+
+        return jsonify(packet_capture.status())
+
+
+
+@app.route("/api/tools/capture/start", methods=["POST"])
+
+@login_required
+
+def tools_capture_start_api():
+
+        data = request.get_json(silent=True) or {}
+
+        # Captures can hold other people's traffic: the password again.
+        denied = check_password_again(data.get("password"))
+
+        if denied:
+                return denied
+
+        try:
+                result = packet_capture.start(data, viewer=get_viewer_ip())
+        except packet_capture.CaptureError as error:
+                return jsonify({"success": False, "message": str(error)}), 400
+
+        log_event("system", f"Packet capture started on {result['interface']}"
+                  + (f" ({result['filter']})." if result.get("filter") else "."))
+
+        return jsonify({"success": True, **result})
+
+
+
+@app.route("/api/tools/capture/stop", methods=["POST"])
+
+@login_required
+
+def tools_capture_stop_api():
+
+        return jsonify({"success": True, **packet_capture.stop()})
+
+
+
+@app.route("/api/tools/capture/delete", methods=["POST"])
+
+@login_required
+
+def tools_capture_delete_api():
+
+        try:
+                packet_capture.delete()
+        except packet_capture.CaptureError as error:
+                return jsonify({"success": False, "message": str(error)}), 409
+
+        return jsonify({"success": True, **packet_capture.status()})
+
+
+
+@app.route("/api/tools/capture/download")
+
+@login_required
+
+def tools_capture_download_api():
+
+        info = packet_capture.status()
+
+        if not info["file"]:
+                return jsonify({"error": "No capture to download."}), 404
+
+        log_event("system", "Packet capture downloaded.")
+
+        return send_file(
+                packet_capture.CAPTURE_FILE, mimetype="application/vnd.tcpdump.pcap",
+                as_attachment=True, download_name=packet_capture.download_name(), max_age=0
+        )
 
 
 
