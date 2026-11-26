@@ -526,6 +526,48 @@
 
             </div>
 
+
+            <!-- How to uninstall (uninstall.sh; only by hand, never from here) -->
+
+            <div class="card">
+
+                <span>Uninstall</span>
+
+                <p class="setting-hint">
+                    Removes Chardsoft Router OS and everything it set up: the
+                    Apps Addon with all apps, Wi-Fi, DHCP, DNS, VPNs, firewall
+                    rules, the packages it installed and all its files. eth0's
+                    address, the hostname and the Wi-Fi country stay, so the
+                    Pi is still reachable over its cable. Run it on the router
+                    over SSH, ideally over eth0: Wi-Fi and the VPN go off
+                    while it runs.
+                </p>
+
+                <span class="system-subtitle">See what it would do (changes nothing)</span>
+
+                <div class="uninstall-command">
+                    <pre class="config-preview" data-uninstall-command="--dry-run"></pre>
+                    <button class="secondary-btn" data-copy-command>Copy</button>
+                </div>
+
+                <span class="system-subtitle">Uninstall (asks before it starts)</span>
+
+                <div class="uninstall-command">
+                    <pre class="config-preview" data-uninstall-command=""></pre>
+                    <button class="secondary-btn" data-copy-command>Copy</button>
+                </div>
+
+                <p class="setting-hint">
+                    Add <code>--keep-packages</code> to keep the packages (dnsmasq,
+                    hostapd, Caddy, ...). A dropped SSH connection does not stop
+                    it halfway; its log is in /tmp/chardsoft-router-os-uninstall.log.
+                    Download a backup first if you may install it again.
+                </p>
+
+                <div id="uninstallStatus" class="setting-status"></div>
+
+            </div>
+
         </div>
 
     </div>

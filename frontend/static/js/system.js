@@ -1023,6 +1023,8 @@ window.Page.system = {
 
         updateBranch.textContent = info.branch ? `· branch ${info.branch}` : "";
 
+        this.showUninstallCommands(info.dir);
+
         // Release channel: only for the installer's copy on dev/* or release/*.
         const channels = Boolean(info.managed && info.channel);
 
@@ -1148,6 +1150,39 @@ window.Page.system = {
     },
 
 
+    /** The uninstall commands for the folder the router is installed in. */
+    showUninstallCommands(dir) {
+
+        const folder = dir || "/opt/chardsoft-router-os";
+
+        document.querySelectorAll("[data-uninstall-command]").forEach(pre => {
+            const option = pre.dataset.uninstallCommand;
+            pre.textContent = `sudo ${folder}/uninstall.sh${option ? ` ${option}` : ""}`;
+        });
+
+    },
+
+
+    async copyCommand(button) {
+
+        const pre = button.parentElement.querySelector("pre");
+
+        try {
+            await navigator.clipboard.writeText(pre.textContent);
+            uninstallStatus.textContent = "✓ Copied.";
+        } catch {
+            // No clipboard over plain HTTP: select it for Ctrl+C.
+            const range = document.createRange();
+            range.selectNodeContents(pre);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            uninstallStatus.textContent = "Selected: press Ctrl+C to copy.";
+        }
+
+    },
+
+
     async changeChannel() {
 
         const channel = updateChannelInput.value;
@@ -1268,6 +1303,10 @@ window.Page.system = {
 
         updateCheck.onclick = () => this.checkUpdate();
         updateStart.onclick = () => this.startUpdate();
+        this.showUninstallCommands(null);
+        document.querySelectorAll("[data-copy-command]").forEach(button => {
+            button.onclick = () => this.copyCommand(button);
+        });
         ChardsoftSelect.enhance(updateChannelInput);
         updateChannelInput.addEventListener("change", () => this.changeChannel());
         this.loadUpdate();

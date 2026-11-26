@@ -146,6 +146,7 @@ def get_update_info():
         "branch": record.get("branch"),
         "channel": channel_of(record.get("branch")),
         "repo": record.get("repo"),
+        "dir": record.get("dir") or APP_ROOT,
         "managed": managed,
         "can_update": managed and os.path.isfile(UPDATE_SCRIPT),
         "reason": None if managed else (
