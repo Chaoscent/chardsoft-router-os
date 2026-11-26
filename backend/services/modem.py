@@ -584,6 +584,56 @@ def get_connection_state():
     return "deactivated" if connection_exists() else None
 
 
+# qmi_wwan sizes its receive buffer by the interface MTU. Carriers often
+# hand out 1472 or less while their network still delivers 1500-byte
+# packets (QUIC, or TCP from a phone with an MTU of 1500 behind the
+# router): one such packet makes the USB transfer fail (-EPROTO), and
+# from then on every transfer from the modem fails until it is reset.
+# Seen on the Pi with an RM520N on Telekom: the link died a minute after
+# a phone joined the Wi-Fi, while iperf on the router itself (packets
+# capped by its own MTU) ran for minutes. A 1500 MTU fixes it.
+LINK_MTU = 1500
+
+
+def needs_full_mtu(driver=None):
+    """Whether the modem's driver needs LINK_MTU (qmi_wwan)."""
+
+    if driver is None:
+        _, driver = wwan_interface()
+
+    return driver == "qmi_wwan"
+
+
+def ensure_link_mtu():
+    """
+    Raises the qmi_wwan interface to LINK_MTU when it came up with less,
+    and sets the connection so it comes up with it from then on (the
+    setting applies at the next connect; nothing is interrupted).
+    Returns True when it raised the MTU.
+    """
+
+    interface, driver = wwan_interface()
+
+    if not interface or not needs_full_mtu(driver):
+        return False
+
+    try:
+        with open(f"/sys/class/net/{interface}/mtu") as f:
+            mtu = int(f.read().strip())
+    except (OSError, ValueError):
+        return False
+
+    if mtu >= LINK_MTU:
+        return False
+
+    ok, _ = run_command(privileged(["ip", "link", "set", interface, "mtu", str(LINK_MTU)]))
+
+    if has_nmcli() and connection_exists():
+        run_command(privileged(["nmcli", "connection", "modify", CONNECTION, "gsm.mtu", str(LINK_MTU)]))
+
+    return ok
+
+
 def connection_properties(settings, apn_mode="auto", apn=None):
     """
     nmcli properties of the chardsoft-modem connection. apn_mode: "auto"
@@ -609,6 +659,9 @@ def connection_properties(settings, apn_mode="auto", apn=None):
         "ipv4.method", "auto",
         "ipv6.method", "auto"
     ]
+
+    if needs_full_mtu():
+        props += ["gsm.mtu", str(LINK_MTU)]
 
     if apn_mode == "auto":
         props += ["gsm.apn", "", "gsm.auto-config", "yes"]

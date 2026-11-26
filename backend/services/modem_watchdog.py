@@ -19,6 +19,10 @@ After STUCK_SAMPLES stuck samples in a row (about 45 s) the modem is
 reset, at most once per COOLDOWN_SECONDS and MAX_RESETS_PER_HOUR times
 an hour, so a SIM without service cannot make it reset for ever.
 Every reset is written to the Logs page.
+
+Each sample also makes sure a qmi_wwan link has a 1500 MTU
+(modem.ensure_link_mtu): with less, full-size packets from the network
+jam the link this way within a minute of real traffic.
 """
 
 import threading
@@ -119,6 +123,9 @@ def check():
         if interface is None or modem.get_connection_state() != "activated":
             state.update(previous=None, stuck=0)
             return "idle"
+
+        # A too small receive buffer is what makes the link stuck.
+        modem.ensure_link_mtu()
 
         current = counters(interface)
 

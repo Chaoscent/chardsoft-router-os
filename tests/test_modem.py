@@ -97,6 +97,7 @@ class WatchdogTests(unittest.TestCase):
         results = []
         with mock.patch.object(wd.modem, "wwan_interface", return_value=("wwan0", "qmi_wwan")), \
              mock.patch.object(wd.modem, "get_connection_state", return_value=connection), \
+             mock.patch.object(wd.modem, "ensure_link_mtu", return_value=False), \
              mock.patch.object(wd, "counters", side_effect=lambda i: dict(self.counters)), \
              mock.patch.object(wd, "reset_modem", side_effect=lambda reason: self.resets.append(reason) or True):
             results.append(wd.check())
@@ -137,6 +138,64 @@ class WatchdogTests(unittest.TestCase):
 
     def test_counter_restart_is_not_stuck(self):
         self.assertFalse(wd.is_stuck(sample(500, 900, 500), sample(3, 2, 3)))
+
+
+class LinkMtuTests(unittest.TestCase):
+
+    def setUp(self):
+        folder = tempfile.mkdtemp()
+        self.mtu_file = os.path.join(folder, "mtu")
+        self.commands = []
+        real_open = open
+
+        def fake_open(path, *args, **kwargs):
+            if path == "/sys/class/net/wwan0/mtu":
+                return real_open(self.mtu_file, *args, **kwargs)
+            return real_open(path, *args, **kwargs)
+
+        self.patches = [
+            mock.patch("builtins.open", side_effect=fake_open),
+            mock.patch.object(modem, "privileged", side_effect=lambda cmd: cmd),
+            mock.patch.object(modem, "run_command", side_effect=lambda cmd, **kw: self.commands.append(cmd) or (True, "")),
+            mock.patch.object(modem, "has_nmcli", return_value=True),
+            mock.patch.object(modem, "connection_exists", return_value=True),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+
+    def set_mtu(self, value):
+        with open(self.mtu_file, "w") as f:
+            f.write(f"{value}\n")
+
+    def test_qmi_link_below_1500_is_raised_and_remembered(self):
+        self.set_mtu(1472)
+        with mock.patch.object(modem, "wwan_interface", return_value=("wwan0", "qmi_wwan")):
+            self.assertTrue(modem.ensure_link_mtu())
+        self.assertIn(["ip", "link", "set", "wwan0", "mtu", "1500"], self.commands)
+        self.assertIn(["nmcli", "connection", "modify", modem.CONNECTION, "gsm.mtu", "1500"], self.commands)
+
+    def test_full_mtu_is_left_alone(self):
+        self.set_mtu(1500)
+        with mock.patch.object(modem, "wwan_interface", return_value=("wwan0", "qmi_wwan")):
+            self.assertFalse(modem.ensure_link_mtu())
+        self.assertEqual(self.commands, [])
+
+    def test_other_drivers_keep_the_carrier_mtu(self):
+        self.set_mtu(1430)
+        with mock.patch.object(modem, "wwan_interface", return_value=("wwan0", "cdc_mbim")):
+            self.assertFalse(modem.ensure_link_mtu())
+        self.assertEqual(self.commands, [])
+
+    def test_new_connection_gets_the_mtu_for_qmi_only(self):
+        with mock.patch.object(modem, "wwan_interface", return_value=("wwan0", "qmi_wwan")):
+            props = modem.connection_properties(dict(modem.DEFAULT_SETTINGS))
+        self.assertEqual(props[props.index("gsm.mtu") + 1], "1500")
+        with mock.patch.object(modem, "wwan_interface", return_value=("wwan0", "cdc_mbim")):
+            self.assertNotIn("gsm.mtu", modem.connection_properties(dict(modem.DEFAULT_SETTINGS)))
 
 
 if __name__ == "__main__":
