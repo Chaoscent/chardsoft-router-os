@@ -2562,7 +2562,9 @@ td.mono{
 /* ========================================================= */
 
 /* One row per section (device, account, maintenance): the title across
-   the page, the section's cards side by side below it, as many as fit. */
+   the page, the section's cards side by side below it, as many as fit.
+   Every card has the same width (the same columns in every row, also
+   where a row has fewer cards), and the cards of a line the same height. */
 
 .system-columns{
     display:flex;
@@ -2573,13 +2575,15 @@ td.mono{
 .system-column{
     display:grid;
     grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));
-    align-items:start;
+    grid-auto-rows:auto;
+    align-items:stretch;
     gap:var(--space-4);
     min-width:0;
 }
 
 .system-column > .system-column-title{
     grid-column:1 / -1;
+    align-self:end;
 }
 
 .system-column-title{
