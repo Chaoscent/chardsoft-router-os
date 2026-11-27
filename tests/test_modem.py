@@ -294,6 +294,23 @@ class MultiModemTests(unittest.TestCase):
         self.choice = "c" * 40
         self.assertEqual(modem.get_modem_index(), "9")
 
+    def test_fixed_dialing_lock_does_not_count_as_locked(self):
+        self.active = ""
+        self.outputs["9"] = RM520.replace("lock: none", "lock: sim-pin2")
+        self.assertEqual(modem.get_modem_index(), "9")
+
+    def test_the_choice_is_saved_and_read_back(self):
+        self.patches[1].stop()
+        try:
+            with mock.patch.object(modem, "apply_modem_settings") as apply, \
+                 mock.patch.object(modem, "log_event"):
+                self.assertTrue(modem.choose_modem("b" * 40)["success"])
+            self.assertEqual(modem.chosen_device(), "b" * 40)
+            self.assertEqual(modem.get_modem_index(), "10")
+        finally:
+            modem.save_system(modem.MODEM_CHOICE, {"device_id": ""})
+            self.patches[1].start()
+
     def test_one_modem_is_simply_used(self):
         self.outputs["-L"] = "    /org/freedesktop/ModemManager1/Modem/10 [Fibocom] L850\n"
         self.choice = "a" * 40

@@ -5,7 +5,7 @@ import threading
 import time
 
 from services.modem_detector import detect_modem
-from services.config import load_settings
+from services.config import load_settings, load_system, save_system
 from services.network import pick_ipv6
 from services import transaction
 from services.logs import log_event
@@ -162,7 +162,9 @@ def forget_modem_list():
 def chosen_device():
     """The device id chosen on the Modem page, or ""."""
 
-    return str(load_settings(MODEM_CHOICE, {"device_id": ""}).get("device_id") or "")
+    choice = load_system(MODEM_CHOICE, {})
+
+    return str(choice.get("device_id") or "") if isinstance(choice, dict) else ""
 
 
 _active_port = {"time": 0.0, "port": None}
@@ -187,7 +189,8 @@ def active_modem_port(max_age=MODEM_LIST_SECONDS):
 
 def is_ready(m):
 
-    return m.get("lock") in (None, "none") and m.get("state") not in (None, "failed", "locked", "disabled", "initializing")
+    # sim-pin2 (fixed dialing) and the like do not keep data from working.
+    return m.get("lock") not in BLOCKING_LOCKS and m.get("state") not in (None, "failed", "locked", "disabled", "initializing")
 
 
 def selected_modem(modems=None):
@@ -261,8 +264,7 @@ def choose_modem(device_id):
     if target is None:
         return {"success": False, "message": "That modem is not connected."}
 
-    from services.config import save_persistent
-    save_persistent(MODEM_CHOICE, {"device_id": device_id})
+    save_system(MODEM_CHOICE, {"device_id": device_id})
 
     _modem_cache.update(time=0.0, data=None)
     forget_modem_list()
