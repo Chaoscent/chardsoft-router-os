@@ -351,7 +351,8 @@ from services.modem import (
         change_pin,
         unblock_sim,
         watch_sim,
-        switch_usb_mode
+        switch_usb_mode,
+        choose_modem
 )
 
 from services import transaction
@@ -3137,6 +3138,21 @@ def modem_usb_mode_api():
         data = request.get_json(silent=True) or {}
 
         outcome = switch_usb_mode(str(data.get("mode") or ""))
+
+        return jsonify(outcome), 200 if outcome["success"] else 400
+
+
+
+
+@app.route("/api/modem/choose", methods=["POST"])
+
+@login_required
+
+def modem_choose_api():
+
+        data = request.get_json(silent=True) or {}
+
+        outcome = choose_modem(data.get("id"))
 
         return jsonify(outcome), 200 if outcome["success"] else 400
 

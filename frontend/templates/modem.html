@@ -6,6 +6,29 @@
 
     <div id="modemNotice" class="modem-notice hidden" role="status"></div>
 
+    <!-- More than one modem: which one the router uses -->
+
+    <div id="modemChoiceCard" class="card hidden">
+
+        <span>Modem in use</span>
+
+        <p class="setting-hint">More than one modem is connected. Mobile data, the SIM PIN, signal and everything on this page use the modem chosen here.</p>
+
+        <div class="settings-grid">
+            <div class="setting-item">
+                <label for="modemChoiceInput">Modem</label>
+                <select id="modemChoiceInput" class="setting-input"></select>
+            </div>
+        </div>
+
+        <div class="setting-row">
+            <button id="modemChoiceSave" class="save-btn">Use this modem</button>
+        </div>
+
+        <div id="modemChoiceStatus" class="setting-status"></div>
+
+    </div>
+
     <!-- Received data is dropped (Quectel in MBIM mode) -->
 
     <div id="modemDataCard" class="card sim-pin-card hidden">
@@ -162,6 +185,11 @@
         <span>Modem information</span>
 
         <div class="info-grid">
+
+            <div class="info-row">
+                <label>Modem</label>
+                <strong id="modemName">--</strong>
+            </div>
 
             <div class="info-row">
                 <label>Band</label>

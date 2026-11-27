@@ -451,7 +451,7 @@ def get_interfaces():
 
     interfaces = []
 
-    for interface in ("wwan0", "eth0"):
+    for interface in (modem_interface(), "eth0"):
 
         if run([
             "ip",
@@ -464,8 +464,8 @@ def get_interfaces():
 
         connection = get_connection_for_interface(interface)
 
-        # wwan0 is controlled by the modem.
-        if interface == "wwan0":
+        # The modem's interface is controlled by the modem.
+        if is_modem_interface(interface):
 
             mode = "Modem managed"
 
@@ -559,12 +559,12 @@ def validate_lan_config(config):
         "Static"
     )
 
-    # wwan0 is modem controlled.
-    if interface == "wwan0":
+    # The modem's interface is modem controlled.
+    if is_modem_interface(interface):
 
         return (
             False,
-            "wwan0 is modem-managed and cannot be configured here."
+            f"{interface} is modem-managed and cannot be configured here."
         )
 
     if interface != "eth0":
@@ -908,7 +908,27 @@ def get_wan_interface():
     The internet uplink: eth0 in WAN mode, otherwise the modem.
     """
 
-    return ETH0 if get_eth0_role() == "wan" else MODEM_INTERFACE
+    return ETH0 if get_eth0_role() == "wan" else modem_interface()
+
+
+def modem_interface():
+    """
+    The network interface of the modem the router uses (wwan0, or wwan1
+    with the second modem chosen); MODEM_INTERFACE without one.
+    """
+
+    try:
+        from services import modem
+        name, _ = modem.wwan_interface()
+    except Exception:
+        name = None
+
+    return name or MODEM_INTERFACE
+
+
+def is_modem_interface(name):
+
+    return str(name or "").startswith("wwan")
 
 
 def is_wan_interface(name):
@@ -1018,7 +1038,7 @@ def get_network_baseline():
 
     for iface in get_interfaces():
 
-        if iface["name"] == "wwan0":
+        if is_modem_interface(iface["name"]):
             continue
 
         config = {

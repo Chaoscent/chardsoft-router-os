@@ -134,7 +134,7 @@ def modem_step(data):
 def run_check():
 
     wan = network.get_wan_interface()
-    is_modem = wan == network.MODEM_INTERFACE
+    is_modem = network.is_modem_interface(wan)
 
     # The slow parts at once: two pings, a lookup, the modem.
     with ThreadPoolExecutor(max_workers=5) as pool:

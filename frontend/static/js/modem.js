@@ -41,7 +41,9 @@ async update(){
     band.textContent=show(d.band);
     sim.textContent=d.lock==="sim-pin"?"Waiting for PIN":d.lock==="sim-puk"?"Blocked (PUK)":show(d.sim);
     imei.textContent=show(d.imei);
+    modemName.textContent=[d.vendor,d.model].filter(Boolean).join(" ")||"--";
 
+    this.renderChoice(d.modems||[]);
     this.renderSim(d);
     this.renderSimLock(d);
     this.renderDataLink(d);
@@ -55,6 +57,64 @@ async update(){
         deactivated:"Not connected"
     }[d.connection]||(this.mobile?.enabled?"Not connected":"Off");
 
+},
+
+// More than one modem: the chooser (left alone while the admin picks).
+renderChoice(modems){
+
+    modemChoiceCard.classList.toggle("hidden",modems.length<2);
+
+    const state=m=>m.lock==="sim-pin"?"SIM PIN needed":m.lock==="sim-puk"?"SIM blocked":(m.state||"unknown");
+    const label=m=>`${m.name}${m.imei_end?` (IMEI …${m.imei_end})`:""} · ${state(m)}${m.selected?" · in use":""}`;
+
+    const key=modems.map(m=>label(m)).join("|");
+
+    if(key===this.choiceKey||document.activeElement===modemChoiceInput)return;
+
+    const picked=this.choiceKey?modemChoiceInput.value:null;
+
+    this.choiceKey=key;
+    modemChoiceInput.innerHTML="";
+
+    for(const m of modems)modemChoiceInput.add(new Option(label(m),m.id));
+
+    const current=modems.find(m=>m.selected);
+    modemChoiceInput.value=picked&&modems.some(m=>m.id===picked)?picked:(current?current.id:"");
+
+    ChardsoftSelect.refresh(modemChoiceInput);
+},
+
+async chooseModem(){
+
+    const id=modemChoiceInput.value;
+    const name=modemChoiceInput.selectedOptions[0]?.textContent.split(" · ")[0]||"this modem";
+
+    if(!id)return;
+
+    if(!await ChardsoftModal.confirm({
+        title:`Use ${name}?`,
+        subtitle:"If mobile data is on, it moves to this modem: the internet over mobile data drops for up to a minute. If its SIM needs a PIN, enter it on this page afterwards.",
+        confirmText:"Use this modem"
+    }))return;
+
+    modemChoiceSave.disabled=true;
+    modemChoiceStatus.textContent="Switching …";
+
+    try{
+        const res=await fetch("/api/modem/choose",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({id})
+        });
+        const data=await res.json().catch(()=>({}));
+        modemChoiceStatus.textContent=data.message||(res.ok?"Done.":"The modem could not be changed.");
+    }catch{
+        modemChoiceStatus.textContent="Could not reach the router.";
+    }
+
+    modemChoiceSave.disabled=false;
+    this.choiceKey=null;
+    this.update();
 },
 
 renderDataLink(d){
@@ -783,6 +843,9 @@ async downloadMap(){
 },
 
 init(){
+
+    ChardsoftSelect.enhance(modemChoiceInput);
+    modemChoiceSave.onclick=()=>this.chooseModem();
 
     ["mapsCountry","mapsDetail","gnssTrackInput"].forEach(id=>ChardsoftSelect.enhance(document.getElementById(id)));
 

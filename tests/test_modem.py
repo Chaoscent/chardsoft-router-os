@@ -209,5 +209,147 @@ class LinkMtuTests(unittest.TestCase):
             self.assertNotIn("gsm.mtu", modem.connection_properties(dict(modem.DEFAULT_SETTINGS)))
 
 
+def mmcli_info(index, vendor, model, device_id, port, net, lock, state, driver="qmi"):
+    """`mmcli -m` output as ModemManager 1.24 prints it (layout from the Pi)."""
+    return f"""  -----------------------------
+  General  |              path: /org/freedesktop/ModemManager1/Modem/{index}
+           |         device id: {device_id}
+  -----------------------------
+  Hardware |      manufacturer: {vendor}
+           |             model: {model}
+           |      equipment id: 35000000000{index:0>4}
+  -----------------------------
+  System   |            device: /nonexistent/usb2/2-{index}
+           |      primary port: {port}
+           |             ports: {port} ({driver}), ttyACM0 (at), ttyACM1 (ignored),
+           |                    ttyACM2 (at), {net} (net)
+  -----------------------------
+  Status   |              lock: {lock}
+           |    unlock retries: sim-pin (3)
+           |             state: {state}
+           |       power state: on
+  -----------------------------
+  SIM      |  primary sim path: /org/freedesktop/ModemManager1/SIM/{index}
+"""
+
+
+L850 = mmcli_info("10", "Fibocom Wireless Inc.", "DW5820e L850-GL", "b" * 40, "cdc-wdm1", "wwan1", "sim-pin", "locked", "mbim")
+RM520 = mmcli_info("9", "Quectel", "RM520N-GL", "a" * 40, "cdc-wdm0", "wwan0", "none", "connected")
+LIST = "    /org/freedesktop/ModemManager1/Modem/10 [Fibocom] L850\n    /org/freedesktop/ModemManager1/Modem/9 [Quectel] RM520N-GL\n"
+
+
+class MultiModemTests(unittest.TestCase):
+
+    def setUp(self):
+        modem.forget_modem_list()
+        self.choice = ""
+        self.active = "chardsoft-modem:cdc-wdm0\n"
+        self.outputs = {"-L": LIST, "10": L850, "9": RM520}
+        self.patches = [
+            mock.patch.object(modem, "run", side_effect=self.fake_run),
+            mock.patch.object(modem, "chosen_device", side_effect=lambda: self.choice),
+            mock.patch.object(modem, "has_nmcli", return_value=True),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        modem.forget_modem_list()
+
+    def fake_run(self, cmd):
+        if cmd[:2] == ["mmcli", "-L"]:
+            return self.outputs["-L"]
+        if cmd[:2] == ["mmcli", "-m"]:
+            return self.outputs.get(cmd[2])
+        if cmd[:1] == ["nmcli"] and "--active" in cmd:
+            return self.active
+        return None
+
+    def test_names_and_ports_come_from_modemmanager(self):
+        modems = modem.list_modems()
+        self.assertEqual([m["index"] for m in modems], ["10", "9"])
+        l850 = modems[0]
+        self.assertEqual((l850["vendor"], l850["model"]), ("Fibocom Wireless Inc.", "DW5820e L850-GL"))
+        self.assertEqual((l850["primary_port"], l850["data_port"]), ("cdc-wdm1", "wwan1"))
+        self.assertEqual((l850["lock"], l850["state"]), ("sim-pin", "locked"))
+        self.assertEqual(modems[1]["data_port"], "wwan0")
+
+    def test_without_a_choice_the_modem_with_mobile_data_is_used(self):
+        # The L850 is listed first, but mobile data runs on the RM520N.
+        self.assertEqual(modem.get_modem_index(), "9")
+
+    def test_without_a_choice_or_data_the_ready_one_is_used(self):
+        self.active = ""
+        self.assertEqual(modem.get_modem_index(), "9")
+
+    def test_the_choice_wins(self):
+        self.choice = "b" * 40
+        self.assertEqual(modem.get_modem_index(), "10")
+        with mock.patch("os.path.realpath", return_value="/drivers/cdc_mbim"):
+            self.assertEqual(modem.wwan_interface(), ("wwan1", "cdc_mbim"))
+
+    def test_a_chosen_modem_that_is_gone_falls_back(self):
+        self.choice = "c" * 40
+        self.assertEqual(modem.get_modem_index(), "9")
+
+    def test_one_modem_is_simply_used(self):
+        self.outputs["-L"] = "    /org/freedesktop/ModemManager1/Modem/10 [Fibocom] L850\n"
+        self.choice = "a" * 40
+        self.assertEqual(modem.get_modem_index(), "10")
+        self.assertEqual(modem.modem_choices(), [])
+
+    def test_choices_for_the_page(self):
+        choices = modem.modem_choices()
+        self.assertEqual([c["name"] for c in choices], ["Fibocom Wireless Inc. DW5820e L850-GL", "Quectel RM520N-GL"])
+        self.assertEqual([c["selected"] for c in choices], [False, True])
+        self.assertEqual(choices[0]["imei_end"], "0010")
+
+    def test_connection_is_bound_only_with_several_modems(self):
+        props = modem.connection_properties(dict(modem.DEFAULT_SETTINGS))
+        self.assertEqual(props[props.index("gsm.device-id") + 1], "a" * 40)
+        modem.forget_modem_list()
+        self.outputs["-L"] = "    /org/freedesktop/ModemManager1/Modem/9 [Quectel] RM520N-GL\n"
+        props = modem.connection_properties(dict(modem.DEFAULT_SETTINGS))
+        self.assertEqual(props[props.index("gsm.device-id") + 1], "")
+
+
+class SavedPinSimTests(unittest.TestCase):
+
+    def test_saved_pin_is_not_sent_to_another_sim(self):
+        settings = {**modem.DEFAULT_SETTINGS, "pin": "1234", "pin_sim": "89490200001234567890"}
+        with mock.patch.object(modem, "get_modem_settings", return_value=settings), \
+             mock.patch.object(modem, "sim_iccid", return_value="89490200009999999999"), \
+             mock.patch.object(modem, "sim_command") as send:
+            self.assertEqual(modem.auto_unlock(), "other_sim")
+        send.assert_not_called()
+
+    def test_old_pin_without_its_sim_waits_with_several_modems(self):
+        settings = {**modem.DEFAULT_SETTINGS, "pin": "1234"}
+        with mock.patch.object(modem, "get_modem_settings", return_value=settings), \
+             mock.patch.object(modem, "list_modems", return_value=[{}, {}]), \
+             mock.patch.object(modem, "sim_command") as send:
+            self.assertEqual(modem.auto_unlock(), "other_sim")
+        send.assert_not_called()
+
+    def test_page_cannot_set_the_pin_sim(self):
+        with mock.patch.object(modem, "get_modem_settings", return_value=dict(modem.DEFAULT_SETTINGS)):
+            ok, result = modem.validate_modem_settings({"pin_sim": "89490200001234567890"})
+        self.assertTrue(ok)
+        self.assertEqual(result["pin_sim"], "")
+
+    def test_backup_keeps_the_pin_with_its_sim(self):
+        with mock.patch.object(modem, "get_modem_settings", return_value=dict(modem.DEFAULT_SETTINGS)):
+            ok, result = modem.validate_stored_settings({"pin": "1234", "pin_sim": "89490200001234567890"})
+        self.assertTrue(ok)
+        self.assertEqual((result["pin"], result["pin_sim"]), ("1234", "89490200001234567890"))
+
+    def test_pin_sim_is_not_shown_to_the_page(self):
+        settings = {**modem.DEFAULT_SETTINGS, "pin": "1234", "pin_sim": "89490200001234567890"}
+        with mock.patch.object(modem, "get_modem_settings", return_value=settings):
+            self.assertNotIn("pin_sim", modem.public_settings())
+
+
 if __name__ == "__main__":
     unittest.main()

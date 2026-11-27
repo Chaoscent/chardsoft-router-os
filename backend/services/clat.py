@@ -44,7 +44,6 @@ from services.network import (
     privileged,
     get_wan_interface,
     pick_ipv6,
-    MODEM_INTERFACE
 )
 
 from services.vpn_common import which
@@ -408,7 +407,7 @@ def start(wan, wan_v6):
 
     # On Ethernet the upstream router asks for our addresses (NDP);
     # the modem's link is point-to-point and routes the whole /64 to us.
-    if wan != MODEM_INTERFACE and not wan.startswith("wwan"):
+    if not wan.startswith("wwan"):
         errors += [e for e in (
             _do(["sysctl", "-w", f"net.ipv6.conf.{wan}.proxy_ndp=1"]),
             _do(["ip", "-6", "neigh", "replace", "proxy", host_v6, "dev", wan]),

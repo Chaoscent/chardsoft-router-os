@@ -133,7 +133,7 @@ def get_internet_check():
         "modem": None
     }
 
-    if wan == network.MODEM_INTERFACE:
+    if network.is_modem_interface(wan):
 
         data = modem.get_modem_data()
 

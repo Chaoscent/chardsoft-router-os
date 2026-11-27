@@ -304,7 +304,7 @@ A ready-made sudoers file will ship with the installer.
 | ✅ | Live System API |
 | ✅ | SPA routing (`#/dashboard`) |
 | ✅ | Network page |
-| ✅ | Modem page (`mmcli`) |
+| ✅ | Modem page (`mmcli`), any modem ModemManager supports; with several, a chooser |
 | 🧪 | Mobile data (NetworkManager connection: APN with fallbacks, roaming, SIM PIN (unlock, on/off, change, PUK), Quectel QMI mode) |
 | ✅ | System |
 | 🧪 | Safe Apply (verify, confirm or auto-revert, recover at boot) |

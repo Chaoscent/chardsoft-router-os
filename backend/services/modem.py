@@ -10,7 +10,9 @@ from services.network import pick_ipv6
 from services import transaction
 from services.logs import log_event
 
-SIGNAL_ENABLED = False
+# Modem indexes whose signal polling is on (a modem gets a new index
+# after every restart, and there can be more than one).
+SIGNAL_ENABLED = set()
 
 
 # mmcli can hang while the modem resets; nothing may wait for ever.
@@ -46,14 +48,13 @@ def enable_signal_polling(index):
     ModemManager only allows it as root. Retried until it worked.
     """
 
-    global SIGNAL_ENABLED
-
-    if SIGNAL_ENABLED:
+    if index in SIGNAL_ENABLED:
         return
 
     ok, _ = run_command(privileged(["mmcli", "-m", index, "--signal-setup=5"]))
 
-    SIGNAL_ENABLED = ok
+    if ok:
+        SIGNAL_ENABLED.add(index)
 
 
 def parse(pattern, text, default="Unknown"):
@@ -73,16 +74,245 @@ UNKNOWN_FIELDS = (
 )
 
 
+# -------------------------------------------------------------------
+# Which modem
+#
+# ModemManager knows the modems (any it has a plugin for, and generic
+# ones): names, ports and state come from it, not from a list of USB
+# IDs. With more than one, the router uses the one chosen on the Modem
+# page; without a choice, the one mobile data runs on, else the first
+# that is ready (unlocked), else the first.
+# -------------------------------------------------------------------
+
+MODEM_LIST_SECONDS = 3.0
+
+MODEM_CHOICE = "modem_choice"
+
+_modem_list = {"time": 0.0, "data": None}
+_modem_list_lock = threading.Lock()
+
+
+def usb_id_of(device):
+    """ "vvvv:pppp" of a modem's USB device (sysfs path), or None."""
+
+    try:
+        with open(os.path.join(device, "idVendor")) as f:
+            vendor = f.read().strip()
+        with open(os.path.join(device, "idProduct")) as f:
+            product = f.read().strip()
+    except (OSError, TypeError):
+        return None
+
+    return f"{vendor}:{product}".lower()
+
+
+def parse_modem(index, info):
+    """One modem from `mmcli -m <index>`."""
+
+    def field(pattern):
+        value = parse(pattern, info, None)
+        return value if value not in ("--", "") else None
+
+    device = field(r"\|\s+device:\s+(\S+)")
+
+    return {
+        "index": index,
+        "vendor": field(r"manufacturer:\s+(.+)"),
+        "model": field(r"model:\s+(.+)"),
+        "imei": field(r"equipment id:\s+(\S+)"),
+        "device_id": field(r"device id:\s+(\S+)"),
+        "primary_port": field(r"primary port:\s+(\S+)"),
+        "data_port": parse(r"\b(wwan\d+|usb\d+|eth\d+) \(net\)", info, None),
+        "state": field(r"\|\s+state:\s+'?([a-z-]+)"),
+        "lock": field(r"\|\s+lock:\s+(\S+)"),
+        "usb_id": usb_id_of(device)
+    }
+
+
+def list_modems(max_age=MODEM_LIST_SECONDS):
+    """The modems ModemManager knows, in its order (cached briefly)."""
+
+    with _modem_list_lock:
+
+        if _modem_list["data"] is not None and time.monotonic() - _modem_list["time"] < max_age:
+            return list(_modem_list["data"])
+
+        modems = []
+
+        for index in re.findall(r"/Modem/(\d+)", run(["mmcli", "-L"]) or ""):
+
+            info = run(["mmcli", "-m", index])
+
+            if info:
+                modems.append(parse_modem(index, info))
+
+        _modem_list.update(time=time.monotonic(), data=modems)
+
+        return list(modems)
+
+
+def forget_modem_list():
+
+    with _modem_list_lock:
+        _modem_list.update(time=0.0, data=None)
+
+    _active_port.update(time=0.0, port=None)
+
+
+def chosen_device():
+    """The device id chosen on the Modem page, or ""."""
+
+    return str(load_settings(MODEM_CHOICE, {"device_id": ""}).get("device_id") or "")
+
+
+_active_port = {"time": 0.0, "port": None}
+
+
+def active_modem_port(max_age=MODEM_LIST_SECONDS):
+    """The control port mobile data is running on (e.g. cdc-wdm0), or None."""
+
+    if time.monotonic() - _active_port["time"] < max_age:
+        return _active_port["port"]
+
+    port = None
+
+    for line in (run(["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"]) or "").splitlines():
+        if line.startswith(CONNECTION + ":"):
+            port = line[len(CONNECTION) + 1:] or None
+
+    _active_port.update(time=time.monotonic(), port=port)
+
+    return port
+
+
+def is_ready(m):
+
+    return m.get("lock") in (None, "none") and m.get("state") not in (None, "failed", "locked", "disabled", "initializing")
+
+
+def selected_modem(modems=None):
+    """The modem the router uses (a dict from list_modems), or None."""
+
+    modems = list_modems() if modems is None else modems
+
+    if len(modems) <= 1:
+        return modems[0] if modems else None
+
+    chosen = chosen_device()
+
+    for m in modems:
+        if chosen and m["device_id"] == chosen:
+            return m
+
+    port = active_modem_port() if has_nmcli() else None
+
+    for m in modems:
+        if port and m["primary_port"] == port:
+            return m
+
+    return next((m for m in modems if is_ready(m)), modems[0])
+
+
 def get_modem_index():
     """
-    The first modem ModemManager knows, e.g. "0", or None.
+    The index of the modem the router uses, e.g. "0", or None.
     """
 
-    output = run(["mmcli", "-L"])
+    m = selected_modem()
 
-    match = re.search(r"/Modem/(\d+)", output or "")
+    return m["index"] if m else None
 
-    return match.group(1) if match else None
+
+def modem_name(m):
+
+    return " ".join(filter(None, (m.get("vendor"), m.get("model")))) or "Modem"
+
+
+def modem_choices():
+    """The modems for the page's chooser (only with more than one)."""
+
+    modems = list_modems()
+
+    if len(modems) < 2:
+        return []
+
+    current = selected_modem(modems)
+
+    return [{
+        "id": m["device_id"],
+        "name": modem_name(m),
+        "imei_end": (m["imei"] or "")[-4:] or None,
+        "state": m["state"],
+        "lock": m["lock"],
+        "selected": m is current
+    } for m in modems if m["device_id"]]
+
+
+def choose_modem(device_id):
+    """
+    Uses this modem from now on; mobile data moves over (if it is on).
+    """
+
+    device_id = str(device_id or "")
+
+    modems = list_modems(max_age=0)
+    target = next((m for m in modems if device_id and m["device_id"] == device_id), None)
+
+    if target is None:
+        return {"success": False, "message": "That modem is not connected."}
+
+    from services.config import save_persistent
+    save_persistent(MODEM_CHOICE, {"device_id": device_id})
+
+    _modem_cache.update(time=0.0, data=None)
+    forget_modem_list()
+
+    message = f"Using {modem_name(target)}."
+
+    if get_modem_settings()["enabled"]:
+        ok, result = apply_modem_settings()
+        message += " " + str(result)
+        log_event("modem", f"Modem chosen: {modem_name(target)}. {result}")
+        return {"success": ok, "message": message}
+
+    log_event("modem", f"Modem chosen: {modem_name(target)}.")
+
+    return {"success": True, "message": message}
+
+
+def sync_modem_binding():
+    """
+    With more than one modem, mobile data is bound to the chosen one
+    (gsm.device-id), so NetworkManager cannot start it on another. With
+    one, it is not bound, so a different modem works at once. Checked by
+    the SIM watcher; returns True when it changed the connection.
+    """
+
+    if not get_modem_settings()["enabled"] or not has_nmcli() or not connection_exists():
+        return False
+
+    modems = list_modems()
+
+    if not modems:
+        return False
+
+    target = selected_modem(modems)
+    wanted = target["device_id"] if len(modems) > 1 and target.get("device_id") else ""
+
+    current = (run(["nmcli", "-g", "gsm.device-id", "connection", "show", CONNECTION]) or "").strip()
+
+    if current == wanted:
+        return False
+
+    ok, _ = run_command(privileged(["nmcli", "connection", "modify", CONNECTION, "gsm.device-id", wanted]))
+
+    # Running on another modem: move over (it may fail, e.g. a locked SIM).
+    port = active_modem_port(max_age=0)
+
+    if ok and wanted and port and port != target["primary_port"]:
+        run_command(privileged(["nmcli", "--wait", "25", "connection", "up", CONNECTION]))
+
+    return ok
 
 
 def signal_values(text):
@@ -302,6 +532,7 @@ def no_data(hardware, state, model=None):
         "vendor": hardware["vendor"],
         "model": model or hardware["model"],
         "usb_id": hardware["usb_id"],
+        "modems": [],
         **{field: None for field in UNKNOWN_FIELDS},
         # Also while the modem restarts after a USB mode switch.
         **data_link(hardware)
@@ -347,14 +578,17 @@ def read_modem_data():
 
     has_mmcli = run(["which", "mmcli"]) is not None
 
-    index = get_modem_index() if has_mmcli else None
+    current = selected_modem() if has_mmcli else None
+    index = current["index"] if current else None
 
     if index is None:
 
-        if hardware["usb_id"]:
+        if hardware["present"]:
             return no_data(hardware, "not_ready" if has_mmcli else "no_modemmanager")
 
         return no_data(hardware, "absent", model="No modem")
+
+    hardware = {**hardware, "usb_id": current["usb_id"]}
 
     enable_signal_polling(index)
 
@@ -376,9 +610,10 @@ def read_modem_data():
 
     return {
         "state": "ready",
-        "vendor": hardware["vendor"] if hardware["usb_id"] else field(r"manufacturer:\s+(.+)"),
-        "model": hardware["model"] if hardware["usb_id"] else field(r"model:\s+(.+)"),
+        "vendor": field(r"manufacturer:\s+(.+)"),
+        "model": field(r"model:\s+(.+)"),
         "usb_id": hardware["usb_id"],
+        "modems": modem_choices(),
 
         "carrier": field(r"operator name:\s+(.+)"),
         "network": format_access_tech(field(r"access tech:\s+(.+)")),
@@ -429,11 +664,16 @@ DEFAULT_SETTINGS = {
     "roaming": False,
     # Only stored after it worked on the SIM (see the SIM PIN section).
     # The router sends it itself (auto_unlock), never NetworkManager.
-    "pin": ""
+    "pin": "",
+    # The SIM the PIN belongs to (its ICCID): it is never sent to
+    # another SIM (a second modem, a swapped card). "" for PINs saved
+    # before this was kept.
+    "pin_sim": ""
 }
 
 APN_RE = re.compile(r"^[A-Za-z0-9._-]{0,100}$")
 PIN_RE = re.compile(r"^\d{4,8}$")
+ICCID_RE = re.compile(r"^[0-9A-Fa-f]{10,22}$")
 
 
 def get_modem_settings():
@@ -452,7 +692,7 @@ def public_settings():
     settings = get_modem_settings()
 
     return {
-        **{k: v for k, v in settings.items() if k not in ("pin", "password")},
+        **{k: v for k, v in settings.items() if k not in ("pin", "password", "pin_sim")},
         "pin_saved": bool(settings["pin"]),
         # The saved PIN was wrong and forgotten (since the app started).
         "pin_rejected": auto_unlock_state["rejected"],
@@ -479,6 +719,9 @@ def validate_modem_settings(data):
         data.pop("pin", None)
 
     data.pop("forget_pin", None)
+
+    # Set with the PIN (remember_pin), never from the page.
+    data.pop("pin_sim", None)
 
     settings.update({k: v for k, v in data.items() if k in DEFAULT_SETTINGS})
 
@@ -508,7 +751,8 @@ def validate_modem_settings(data):
         "username": username,
         "password": password,
         "roaming": settings["roaming"],
-        "pin": pin
+        "pin": pin,
+        "pin_sim": str(settings.get("pin_sim") or "") if pin and ICCID_RE.fullmatch(str(settings.get("pin_sim") or "")) else ""
     }
 
 
@@ -535,7 +779,12 @@ def validate_stored_settings(data):
     if len(password) > 100 or any(ord(c) < 0x20 for c in password):
         return False, "Invalid password."
 
-    return True, {**result, "pin": pin, "password": password}
+    pin_sim = str(data.get("pin_sim") or "")
+
+    if not pin or not ICCID_RE.fullmatch(pin_sim):
+        pin_sim = ""
+
+    return True, {**result, "pin": pin, "password": password, "pin_sim": pin_sim}
 
 
 def save_modem_settings(data):
@@ -670,6 +919,11 @@ def connection_properties(settings, apn_mode="auto", apn=None):
 
     if needs_full_mtu():
         props += ["gsm.mtu", str(LINK_MTU)]
+
+    # More than one modem: only on the chosen one (see sync_modem_binding).
+    modems = list_modems()
+    target = selected_modem(modems)
+    props += ["gsm.device-id", target["device_id"] if len(modems) > 1 and target and target.get("device_id") else ""]
 
     if apn_mode == "auto":
         props += ["gsm.apn", "", "gsm.auto-config", "yes"]
@@ -808,6 +1062,24 @@ def apply_modem_settings():
     )
 
 
+def sim_iccid():
+    """The ICCID of the SIM in the modem the router uses, or None."""
+
+    index = get_modem_index()
+
+    if index is None:
+        return None
+
+    sim = get_sim_path(index)
+
+    if sim is None:
+        return None
+
+    value = parse(r"iccid:\s+'?([0-9A-Fa-f]+)", run(["mmcli", "-i", sim]) or "", None)
+
+    return value if value and ICCID_RE.fullmatch(value) else None
+
+
 def get_sim_path(index):
 
     info = run(["mmcli", "-m", index]) or ""
@@ -902,10 +1174,13 @@ def remember_pin(pin):
 
     settings = get_modem_settings()
 
-    if settings["pin"] == pin:
+    sim = sim_iccid() if pin else ""
+
+    if settings["pin"] == pin and settings["pin_sim"] == (sim or ""):
         return True
 
     settings["pin"] = pin
+    settings["pin_sim"] = sim or ""
 
     outcome = transaction.change(MODEM_SETTINGS, settings, apply=False)
 
@@ -978,14 +1253,24 @@ def unlock_sim(pin, remember=True, confirm=False):
 def auto_unlock():
     """
     Unlocks the SIM with the saved PIN when it asks for one (after a
-    boot, a modem restart or a SIM swap). Returns "no_pin", "not_locked",
-    "held", "unlocked", "rejected" or "failed" (try again later).
+    boot or a modem restart). Returns "no_pin", "other_sim" (the PIN is
+    another SIM's), "not_locked", "held", "unlocked", "rejected" or
+    "failed" (try again later).
     """
 
-    pin = get_modem_settings()["pin"]
+    settings = get_modem_settings()
+    pin = settings["pin"]
 
     if not pin:
         return "no_pin"
+
+    # Only the SIM it was saved for (another modem, a swapped card). A
+    # PIN saved before the SIM was noted: only with a single modem.
+    if settings["pin_sim"] and sim_iccid() != settings["pin_sim"]:
+        return "other_sim"
+
+    if not settings["pin_sim"] and len(list_modems()) > 1:
+        return "other_sim"
 
     if not _sim_lock.acquire(blocking=False):
         return "failed"
@@ -1069,6 +1354,12 @@ def watch_sim():
                     auto_unlock()
             except Exception as e:
                 print(f"[modem] SIM unlock: {e}")
+
+            # Mobile data stays on the chosen modem (with more than one).
+            try:
+                sync_modem_binding()
+            except Exception as e:
+                print(f"[modem] Modem choice: {e}")
 
             time.sleep(AUTO_UNLOCK_SECONDS)
 
@@ -1254,9 +1545,24 @@ usb_switch = {"running": False, "target": None, "message": None}
 
 def wwan_interface():
     """
-    The modem's network interface (wwan0) and its driver, or (None, None).
+    The network interface of the modem the router uses (e.g. wwan0) and
+    its driver, or (None, None).
     """
 
+    current = selected_modem()
+
+    if current and current.get("data_port"):
+
+        name = current["data_port"]
+
+        try:
+            driver = os.path.basename(os.path.realpath(f"/sys/class/net/{name}/device/driver"))
+        except OSError:
+            driver = None
+
+        return name, driver
+
+    # ModemManager does not know it (yet): the first one there.
     try:
         names = sorted(os.listdir("/sys/class/net"))
     except OSError:
